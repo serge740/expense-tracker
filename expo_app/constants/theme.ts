@@ -27,6 +27,19 @@ export const Colors = {
   },
 };
 
+export const Dashboard = {
+  primary:       '#2D336B',
+  primaryLight:  '#3D4580',
+  background:    '#1F2550',
+  card:          '#2A2E50',
+  cardBorder:    '#353A60',
+  textPrimary:   '#FFFFFF',
+  textSecondary: 'rgba(255,255,255,0.6)',
+  textMuted:     'rgba(255,255,255,0.35)',
+  income:        '#4ADE80',
+  expense:       '#F87171',
+};
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
