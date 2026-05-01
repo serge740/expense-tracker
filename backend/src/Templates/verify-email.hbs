@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Verify your email — ABY Expense</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #f4f4f7; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; color: #1a1a2e; }
+    .wrapper { max-width: 560px; margin: 40px auto; background: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(135deg, #7B5CF0 0%, #5b21b6 100%); padding: 40px 32px 32px; text-align: center; }
+    .logo { width: 56px; height: 56px; background: rgba(255,255,255,0.18); border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+    .logo-text { color: #fff; font-size: 22px; font-weight: 800; }
+    .header h1 { color: #ffffff; font-size: 22px; font-weight: 700; }
+    .header p { color: rgba(255,255,255,0.7); font-size: 14px; margin-top: 6px; }
+    .body { padding: 36px 32px; }
+    .greeting { font-size: 16px; color: #374151; margin-bottom: 16px; }
+    .desc { font-size: 14px; color: #6b7280; line-height: 1.6; margin-bottom: 28px; }
+    .otp-box { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border: 2px solid #ddd6fe; border-radius: 16px; padding: 28px; text-align: center; margin-bottom: 28px; }
+    .otp-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: #7B5CF0; margin-bottom: 12px; }
+    .otp-code { font-size: 44px; font-weight: 800; letter-spacing: 10px; color: #5b21b6; font-family: 'Courier New', monospace; }
+    .expiry { font-size: 12px; color: #9ca3af; margin-top: 10px; }
+    .warning { background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 8px; padding: 14px 16px; font-size: 13px; color: #78350f; margin-bottom: 24px; line-height: 1.5; }
+    .footer { background: #f9fafb; padding: 24px 32px; text-align: center; }
+    .footer p { font-size: 12px; color: #9ca3af; line-height: 1.6; }
+    .footer a { color: #7B5CF0; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <div class="logo"><span class="logo-text">A</span></div>
+      <h1>Verify your email</h1>
+      <p>ABY Expense — Passwordless Finance</p>
+    </div>
+
+    <div class="body">
+      <p class="greeting">Hi {{firstName}},</p>
+      <p class="desc">
+        Welcome to ABY Expense! To complete your registration, enter the verification code below in the app.
+        This code expires in <strong>{{expiryMinutes}} minutes</strong>.
+      </p>
+
+      <div class="otp-box">
+        <div class="otp-label">Your verification code</div>
+        <div class="otp-code">{{otp}}</div>
+        <div class="expiry">Expires in {{expiryMinutes}} minutes</div>
+      </div>
+
+      <div class="warning">
+        <strong>Didn't request this?</strong> If you didn't create an ABY Expense account, you can safely ignore this email. Someone may have entered your email by mistake.
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>
+        ABY Expense · <a href="#">Privacy Policy</a> · <a href="#">Support</a><br/>
+        This is an automated message — please do not reply.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

@@ -4,11 +4,10 @@ import { ClientAuthController } from './client-auth.controller';
 import { ClientAuthService } from './client-auth.service';
 import { FaceService } from './face.service';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
+import { EmailModule } from '../../global/email/email.module';
 
 @Module({
-  imports: [
-    JwtModule.register({}),
-  ],
+  imports: [JwtModule.register({}), EmailModule],
   controllers: [ClientAuthController],
   providers: [ClientAuthService, FaceService, ClientJwtAuthGuard],
   exports: [ClientJwtAuthGuard, JwtModule],

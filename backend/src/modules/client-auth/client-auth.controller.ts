@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Patch,
   Post,
   Req,
@@ -11,6 +12,7 @@ import {
   UseInterceptors,
   HttpException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Response } from 'express';
@@ -34,10 +36,34 @@ export class ClientAuthController {
   async register(@Body() dto: RegisterClientDto, @Res() res: Response) {
     try {
       const result = await this.clientAuthService.register(dto);
-      res.cookie('AccessClientToken', result.token, COOKIE_OPTIONS);
+      if (result.accessToken) {
+        res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      }
       return res.json(result);
     } catch (error: any) {
       throw new HttpException(error.message || 'Registration failed', error.status || 400);
+    }
+  }
+
+  @Post('verify-email')
+  @HttpCode(200)
+  async verifyEmail(@Body() body: { email: string; otp: string }, @Res() res: Response) {
+    try {
+      const result = await this.clientAuthService.verifyEmail(body.email, body.otp);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      return res.json(result);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Verification failed', error.status || 400);
+    }
+  }
+
+  @Post('resend-otp')
+  @HttpCode(200)
+  async resendOtp(@Body() body: { email: string }) {
+    try {
+      return await this.clientAuthService.resendOtp(body.email);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Failed to resend code', error.status || 400);
     }
   }
 
@@ -45,20 +71,30 @@ export class ClientAuthController {
   async googleAuth(@Body() dto: GoogleAuthDto, @Res() res: Response) {
     try {
       const result = await this.clientAuthService.googleAuth(dto);
-      res.cookie('AccessClientToken', result.token, COOKIE_OPTIONS);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
       return res.json(result);
     } catch (error: any) {
       throw new HttpException(error.message || 'Google auth failed', error.status || 400);
     }
   }
 
+  @Post('refresh')
+  @HttpCode(200)
+  async refresh(@Body() body: { refreshToken: string }, @Res() res: Response) {
+    try {
+      if (!body.refreshToken) throw new HttpException('Refresh token required', 400);
+      const result = await this.clientAuthService.refreshTokens(body.refreshToken);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      return res.json(result);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Token refresh failed', error.status || 401);
+    }
+  }
+
   @Post('face-enroll')
   @UseGuards(ClientJwtAuthGuard)
   @UseInterceptors(FileInterceptor('image', { storage: memoryStorage() }))
-  async enrollFace(
-    @Req() req: RequestWithClient,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
+  async enrollFace(@Req() req: RequestWithClient, @UploadedFile() file: Express.Multer.File) {
     try {
       if (!file) throw new HttpException('Image file is required', 400);
       return await this.clientAuthService.enrollFace(req.client.id, file.buffer);
@@ -68,15 +104,13 @@ export class ClientAuthController {
   }
 
   @Post('face-identify')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseInterceptors(FileInterceptor('image', { storage: memoryStorage() }))
-  async faceIdentify(
-    @UploadedFile() file: Express.Multer.File,
-    @Res() res: Response,
-  ) {
+  async faceIdentify(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
     try {
       if (!file) throw new HttpException('Image file is required', 400);
       const result = await this.clientAuthService.faceIdentify(file.buffer);
-      res.cookie('AccessClientToken', result.token, COOKIE_OPTIONS);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
       return res.json(result);
     } catch (error: any) {
       throw new HttpException(error.message || 'Face identification failed', error.status || 401);
@@ -103,9 +137,35 @@ export class ClientAuthController {
     }
   }
 
-  @Post('logout')
+  @Patch('profile')
   @UseGuards(ClientJwtAuthGuard)
-  async logout(@Res({ passthrough: true }) res: Response) {
+  async updateProfile(
+    @Req() req: RequestWithClient,
+    @Body() body: { firstName?: string; lastName?: string; phone?: string },
+  ) {
+    try {
+      return await this.clientAuthService.updateProfile(req.client.id, body);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Profile update failed', error.status || 400);
+    }
+  }
+
+  @Post('profile/image')
+  @UseGuards(ClientJwtAuthGuard)
+  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage() }))
+  async uploadProfileImage(@Req() req: RequestWithClient, @UploadedFile() file: Express.Multer.File) {
+    try {
+      if (!file) throw new HttpException('Image file is required', 400);
+      return await this.clientAuthService.uploadProfileImage(req.client.id, file.buffer, file.mimetype);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Image upload failed', error.status || 400);
+    }
+  }
+
+  @Post('logout')
+  @HttpCode(200)
+  async logout(@Body() body: { refreshToken?: string }, @Res({ passthrough: true }) res: Response) {
+    await this.clientAuthService.logout(body.refreshToken);
     res.clearCookie('AccessClientToken', { httpOnly: true, sameSite: 'lax' });
     return { message: 'Logged out successfully' };
   }

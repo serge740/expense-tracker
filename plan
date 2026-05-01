@@ -1,0 +1,247 @@
+Plan: Expense Tracker — Full Backend (Wallets, Transactions, Reports, Budget, OCR)
+Context
+Auth is fully implemented (email OTP, Google, face recognition, refresh tokens). The frontend dashboard screens exist with mock/hardcoded data. This plan replaces all mock data with real backend endpoints.
+
+Frontend screens that need real data:
+
+index.tsx — balance overview, budget bar, recent 3 transactions
+add.tsx — save a new transaction
+wallets.tsx — list of user wallets with balances
+reports.tsx — monthly bar chart + category pie chart
+expense.tsx — full transaction list with income/expense filter
+history.tsx — transactions grouped by date with category filter
+scan.tsx — OCR receipt → pre-fill add form
+1. Prisma Schema Additions
+File: backend/prisma/schema.prisma
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum CategorySlug {
+  food
+  transport
+  shopping
+  health
+  entertainment
+  travel
+  groceries
+  salary
+  other
+}
+
+enum WalletType {
+  CHECKING
+  SAVINGS
+  CREDIT
+  CASH
+}
+
+model Wallet {
+  id           String        @id @default(uuid())
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name         String
+  bank         String
+  last4        String?
+  color        String        @default("#2D336B")
+  walletType   WalletType    @default(CHECKING)
+  balance      Decimal       @default(0) @db.Decimal(12, 2)
+  isDefault    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  clientId    String
+  client      Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  walletId    String?
+  wallet      Wallet?         @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  type        TransactionType
+  category    CategorySlug
+  title       String
+  description String?
+  amount      Decimal         @db.Decimal(12, 2)  // always positive; type determines sign
+  date        DateTime        @default(now())
+  receiptUrl  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model Budget {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  month     Int      // 1-12
+  year      Int
+  limit     Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, month, year])
+}
+Also add to Client model:
+
+wallets      Wallet[]
+transactions Transaction[]
+budgets      Budget[]
+Migration: npx prisma migrate dev --name add_expense_models
+
+2. Module Structure
+backend/src/modules/
+  wallet/
+    wallet.controller.ts
+    wallet.service.ts
+    wallet.module.ts
+    dto/create-wallet.dto.ts
+    dto/update-wallet.dto.ts
+  transaction/
+    transaction.controller.ts
+    transaction.service.ts
+    transaction.module.ts
+    dto/create-transaction.dto.ts
+    dto/query-transaction.dto.ts
+  reports/
+    reports.controller.ts
+    reports.service.ts
+    reports.module.ts
+  budget/
+    budget.controller.ts
+    budget.service.ts
+    budget.module.ts
+    dto/upsert-budget.dto.ts
+  ocr/
+    ocr.controller.ts
+    ocr.service.ts
+    ocr.module.ts
+All modules registered in app.module.ts. All routes protected by ClientGuard.
+
+3. API Endpoints
+Wallets — /wallets
+Method	Path	Body/Query	Description
+GET	/wallets	—	List all wallets for current user
+POST	/wallets	{ name, bank, last4?, color?, walletType?, balance? }	Create wallet
+PATCH	/wallets/:id	partial wallet fields	Update wallet
+DELETE	/wallets/:id	—	Delete wallet
+GET	/wallets/summary	—	{ totalBalance, walletCount } for home screen
+Transactions — /transactions
+Method	Path	Body/Query	Description
+GET	/transactions	?type=income|expense|all&category=food&walletId=&page=1&limit=20	Paginated list with filters
+GET	/transactions/recent	?limit=3	For home screen
+GET	/transactions/history	?category=food&month=4&year=2026	Grouped by date (TODAY/YESTERDAY/date)
+POST	/transactions	{ type, category, title, description?, amount, date?, walletId?, receiptUrl? }	Create transaction (also updates wallet balance)
+PATCH	/transactions/:id	partial fields	Update
+DELETE	/transactions/:id	—	Delete (also reverses wallet balance)
+Grouping logic for /history:
+
+Group by date field (not createdAt)
+Label: if date == today → "TODAY", if yesterday → "YESTERDAY", else → "MON APR 28"
+Sort groups descending, items descending within group
+Balance update rule:
+
+On POST INCOME: wallet.balance += amount
+On POST EXPENSE: wallet.balance -= amount
+On DELETE: reverse the above
+Reports — /reports
+Method	Path	Query	Description
+GET	/reports/monthly	?year=2026&months=6	Last N months total spending per month (bar chart)
+GET	/reports/by-category	?month=4&year=2026	Spending breakdown per category (pie chart)
+GET	/reports/summary	?month=4&year=2026	{ totalIncome, totalExpense, net }
+GET	/reports/top-expenses	?month=4&year=2026&limit=4	Top N expense transactions (for list in reports)
+monthly response shape:
+
+[{ "month": "Nov", "year": 2025, "total": 645.20 }, ...]
+by-category response shape:
+
+[{ "category": "food", "label": "Food", "amount": 318.00, "percentage": 36.8 }, ...]
+Budget — /budget
+Method	Path	Body	Description
+GET	/budget/current	—	Budget for current month: { limit, spent, remaining, percentage }
+PUT	/budget	{ limit, month?, year? }	Create or update budget for a month
+spent is computed live from transactions (SUM of EXPENSE for that month).
+
+OCR — /ocr
+Method	Path	Body	Description
+POST	/ocr/scan-receipt	multipart image file	Extract amount + merchant from receipt image
+Response:
+
+{ "amount": 84.30, "merchant": "Whole Foods", "date": "2026-04-30", "confidence": 0.87 }
+OCR library: tesseract.js (runs in Node, no external API needed). Parse strategy:
+
+Run OCR on image
+Regex for total amount: /total[\s:]*\$?([\d,]+\.?\d{0,2})/i
+First non-number line as merchant candidate
+Date regex: /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\s,]+\d{1,2}/i
+4. DTOs
+create-wallet.dto.ts
+{ name: string; bank: string; last4?: string; color?: string; walletType?: WalletType; balance?: number; }
+create-transaction.dto.ts
+{ type: TransactionType; category: CategorySlug; title: string; description?: string; amount: number; date?: string; walletId?: string; receiptUrl?: string; }
+query-transaction.dto.ts
+{ type?: 'income'|'expense'|'all'; category?: CategorySlug; walletId?: string; month?: number; year?: number; page?: number; limit?: number; }
+upsert-budget.dto.ts
+{ limit: number; month?: number; year?: number; }
+5. Frontend Wiring
+After backend is built, update these frontend files to replace mock data with real API calls:
+
+File	What changes
+expo_app/services/transaction.service.ts	NEW — CRUD + history + recent
+expo_app/services/wallet.service.ts	NEW — CRUD + summary
+expo_app/services/reports.service.ts	NEW — monthly, by-category
+expo_app/services/budget.service.ts	NEW — current, upsert
+expo_app/services/ocr.service.ts	NEW — scan receipt
+expo_app/app/(dashboard)/index.tsx	Replace hardcoded balance, transactions, budget
+expo_app/app/(dashboard)/add.tsx	Wire save button → POST /transactions
+expo_app/app/(dashboard)/wallets.tsx	Replace WALLETS mock → GET /wallets
+expo_app/app/(dashboard)/reports.tsx	Replace chart data → GET /reports/*
+expo_app/app/(dashboard)/expense.tsx	Replace ALL_TRANSACTIONS → GET /transactions
+expo_app/app/(dashboard)/history.tsx	Replace GROUPS → GET /transactions/history
+expo_app/app/(dashboard)/scan.tsx	Wire capture → POST /ocr/scan-receipt → navigate to /add with pre-filled data
+6. Critical Files
+New backend files (to create):
+
+backend/prisma/schema.prisma — add Wallet, Transaction, Budget models
+backend/src/modules/wallet/ (4 files)
+backend/src/modules/transaction/ (4 files)
+backend/src/modules/reports/ (3 files)
+backend/src/modules/budget/ (4 files)
+backend/src/modules/ocr/ (3 files)
+backend/src/app.module.ts — import all new modules
+Frontend service files (to create):
+
+expo_app/services/transaction.service.ts
+expo_app/services/wallet.service.ts
+expo_app/services/reports.service.ts
+expo_app/services/budget.service.ts
+expo_app/services/ocr.service.ts
+Frontend screens (to update):
+
+expo_app/app/(dashboard)/index.tsx
+expo_app/app/(dashboard)/add.tsx
+expo_app/app/(dashboard)/wallets.tsx
+expo_app/app/(dashboard)/reports.tsx
+expo_app/app/(dashboard)/expense.tsx
+expo_app/app/(dashboard)/history.tsx
+expo_app/app/(dashboard)/scan.tsx
+Existing files to reuse:
+
+backend/src/guards/clientGuard.guard.ts — protect all new routes (same as client-auth)
+backend/src/modules/client-auth/client-auth.service.ts — pattern reference
+expo_app/api.ts — existing Axios instance with auto token refresh (use for all new service calls)
+expo_app/services/client-auth.service.ts — getMe() for clientId
+7. Verification
+npx prisma migrate dev --name add_expense_models — tables created in DB
+npm run start:dev — backend boots with no errors
+POST /wallets → wallet created, GET /wallets returns it
+POST /transactions (EXPENSE) → transaction saved, wallet balance decremented
+POST /transactions (INCOME) → transaction saved, wallet balance incremented
+GET /transactions/history → grouped by date correctly
+GET /reports/monthly → 6-month array
+GET /reports/by-category → category breakdown with percentages
+GET /budget/current → limit + live computed spent
+POST /ocr/scan-receipt with receipt photo → returns amount + merchant
+Frontend: home screen shows real balance/transactions after wiring
+Frontend: add screen sa

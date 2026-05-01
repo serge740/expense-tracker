@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
@@ -11,19 +8,85 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum NotificationType {
+  transaction
+  security
+  system
+}
+
+enum NotificationChannel {
+  push
+  email
+  in_app
+}
+
 model Client {
-  id                String   @id @default(uuid())
-  firstName         String
-  lastName          String?
-  email             String   @unique
-  phone             String   @unique
-  googleId          String?  @unique
-  isVerified        Boolean  @default(false)
-  profileImage      String?
-  isActive          Boolean  @default(true)
-  isBiometric       Boolean  @default(false)
-  isFaceRecognition Boolean  @default(false)
-  faceDescriptor    Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                     String                  @id @default(uuid())
+  firstName              String
+  lastName               String?
+  email                  String                  @unique
+  phone                  String                  @unique
+  googleId               String?                 @unique
+  isVerified             Boolean                 @default(false)
+  profileImage           String?
+  isActive               Boolean                 @default(true)
+  isBiometric            Boolean                 @default(false)
+  isFaceRecognition      Boolean                 @default(false)
+  faceDescriptor         Json?
+  emailOtp               String?
+  emailOtpExpiry         DateTime?
+  refreshTokens          RefreshToken[]
+  devices                Device[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+}
+
+model RefreshToken {
+  id           String   @id @default(uuid())
+  selector     String   @unique
+  verifierHash String
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+model Device {
+  id           String   @id @default(uuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  deviceName   String
+  platform     String
+  pushToken    String?
+  ipAddress    String?
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model Notification {
+  id        String              @id @default(uuid())
+  clientId  String
+  client    Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      NotificationType
+  channel   NotificationChannel
+  read      Boolean             @default(false)
+  data      Json?
+  createdAt DateTime            @default(now())
+
+  @@index([clientId])
+}
+
+model NotificationPreference {
+  id           String  @id @default(uuid())
+  clientId     String  @unique
+  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  pushEnabled  Boolean @default(true)
+  emailEnabled Boolean @default(true)
+  inAppEnabled Boolean @default(true)
 }

@@ -14,7 +14,7 @@ const TAB_CONFIG: Record<string, { icon: IconName; label: string }> = {
   index:   { icon: 'home',                   label: 'Home'    },
   wallets: { icon: 'account-balance-wallet', label: 'Wallets' },
   reports: { icon: 'bar-chart',              label: 'Reports' },
-  profile: { icon: 'person',                 label: 'Profile' },
+  profile: { icon: 'settings',               label: 'Settings' },
 };
 
 const VISIBLE_TABS = ['index', 'wallets', 'reports', 'profile'];
