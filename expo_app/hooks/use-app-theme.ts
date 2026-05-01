@@ -19,41 +19,44 @@ export interface AppTheme {
   isDark:        boolean;
 }
 
+// Deep Koamaru  #2D336B  — brand navy
+// Lavender Blush #FFF2F2 — brand blush
+
 const light: AppTheme = {
-  background:    '#F0F2FF',
+  background:    '#FFF2F2',           // Lavender Blush
   surface:       '#FFFFFF',
-  primary:       '#7B5CF0',
-  primaryBg:     'rgba(123,92,240,0.10)',
-  buttonBg:      '#7B5CF0',
-  headerBg:      '#1E2460',
-  text:          '#1A1F4A',
-  textSecondary: '#6B7399',
-  textMuted:     '#9BA3C8',
-  border:        '#E4E6F4',
+  primary:       '#2D336B',           // Deep Koamaru
+  primaryBg:     'rgba(45,51,107,0.08)',
+  buttonBg:      '#2D336B',
+  headerBg:      '#2D336B',
+  text:          '#2D336B',
+  textSecondary: '#5A6190',
+  textMuted:     '#9BA0BF',
+  border:        'rgba(45,51,107,0.12)',
   income:        '#22C55E',
   expense:       '#EF4444',
-  inputBg:       '#F5F6FC',
+  inputBg:       '#F7EFF0',
   tabBar:        '#FFFFFF',
-  tabBorder:     '#E4E6F4',
+  tabBorder:     'rgba(45,51,107,0.10)',
   isDark:        false,
 };
 
 const dark: AppTheme = {
-  background:    '#0F0F1A',
-  surface:       '#1A1A2A',
-  primary:       '#7B5CF0',
-  primaryBg:     'rgba(123,92,240,0.15)',
-  buttonBg:      '#7B5CF0',
-  headerBg:      '#1A1A2A',
-  text:          '#FFFFFF',
-  textSecondary: 'rgba(255,255,255,0.55)',
-  textMuted:     'rgba(255,255,255,0.32)',
-  border:        '#2A2A40',
+  background:    '#131628',           // very dark navy (Deep Koamaru darkened)
+  surface:       '#1C2042',           // dark navy card
+  primary:       '#8B90D4',           // softened Deep Koamaru for dark bg contrast
+  primaryBg:     'rgba(139,144,212,0.15)',
+  buttonBg:      '#2D336B',           // Deep Koamaru button
+  headerBg:      '#0D1022',           // deepest navy header
+  text:          '#FFF2F2',           // Lavender Blush text on dark
+  textSecondary: 'rgba(255,242,242,0.60)',
+  textMuted:     'rgba(255,242,242,0.35)',
+  border:        'rgba(255,242,242,0.08)',
   income:        '#4ADE80',
   expense:       '#F87171',
-  inputBg:       '#1C1C28',
-  tabBar:        '#0F0F1A',
-  tabBorder:     '#2A2A40',
+  inputBg:       '#171B36',
+  tabBar:        '#131628',
+  tabBorder:     'rgba(255,242,242,0.08)',
   isDark:        true,
 };
 

@@ -3,9 +3,18 @@ import { Stack } from 'expo-router';
 
 export default function SettingsLayout() {
   return (
-    <Stack>
-      <Stack.Screen name="index"   options={{ headerShown: false }} />
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+        animationDuration: 300,
+        contentStyle: { backgroundColor: 'transparent' },
+      }}
+    >
+      <Stack.Screen name="index"         />
+      <Stack.Screen name="profile"       />
+      <Stack.Screen name="devices"       />
+      <Stack.Screen name="notifications" />
     </Stack>
   );
 }

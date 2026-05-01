@@ -16,11 +16,8 @@ import {
 } from '@react-native-google-signin/google-signin';
 import {
   registerClient,
-  verifyEmail,
-  resendOtp,
   googleAuthClient,
   enrollFace,
-  saveTokens,
 } from '@/services/client-auth.service';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -30,7 +27,7 @@ const MESH_ROWS = 8;
 const MESH_COLS = 7;
 
 type EnrollState = 'idle' | 'scanning' | 'success' | 'failed';
-const STEPS = ['ACCOUNT', 'VERIFY', 'SECURITY'];
+const STEPS = ['ACCOUNT', 'SECURITY'];
 
 // ── Animated face mesh grid ───────────────────────────────────────────────
 function FaceMesh({ visible, color }: { visible: boolean; color: string }) {
@@ -264,13 +261,9 @@ export default function RegisterScreen() {
   const [lastName,  setLastName]          = useState('');
   const [email,     setEmail]             = useState('');
   const [phone,     setPhone]             = useState('');
-  const [otp,       setOtp]               = useState('');
-  const [resending, setResending]         = useState(false);
-  const [loading,   setLoading]           = useState<'face' | 'google' | 'otp' | null>(null);
+  const [loading,   setLoading]           = useState<'face' | 'google' | 'next' | null>(null);
   const [cameraVisible, setCameraVisible] = useState(false);
   const [permission, requestPermission]   = useCameraPermissions();
-  // Provisional tokens from registration (used when user skips OTP verification)
-  const provTokens = useRef<{ accessToken: string; refreshToken: string } | null>(null);
 
   useEffect(() => {
     GoogleSignin.configure({
@@ -279,16 +272,15 @@ export default function RegisterScreen() {
     });
   }, []);
 
-  // ── Step 0: submit account info ─────────────────────────────────────────
+  // ── Step 0: submit account info → register + proceed to security ────────
   const handleNext = async () => {
     if (!firstName.trim() || !email.trim() || !phone.trim()) {
       Alert.alert('Required', 'Please enter your name, email, and phone number.');
       return;
     }
-    setLoading('otp');
+    setLoading('next');
     try {
-      const result = await registerClient({ firstName, lastName, email, phone });
-      provTokens.current = { accessToken: result.accessToken, refreshToken: result.refreshToken };
+      await registerClient({ firstName, lastName, email, phone });
       setStep(1);
     } catch (error: any) {
       Alert.alert('Registration Failed', error?.response?.data?.message || error.message || 'Please try again.');
@@ -297,45 +289,7 @@ export default function RegisterScreen() {
     }
   };
 
-  // ── Step 1: verify OTP ──────────────────────────────────────────────────
-  const handleVerifyOtp = async () => {
-    if (otp.trim().length !== 6) {
-      Alert.alert('Invalid Code', 'Please enter the 6-digit code sent to your email.');
-      return;
-    }
-    setLoading('otp');
-    try {
-      await verifyEmail(email, otp.trim());
-      setStep(2);
-    } catch (error: any) {
-      Alert.alert('Verification Failed', error?.response?.data?.message || error.message || 'Please try again.');
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  // ── Step 1: skip OTP ────────────────────────────────────────────────────
-  const handleSkipVerify = async () => {
-    // Store provisional tokens so face enroll can proceed without OTP
-    if (provTokens.current) {
-      await saveTokens(provTokens.current.accessToken, provTokens.current.refreshToken);
-    }
-    setStep(2);
-  };
-
-  const handleResendOtp = async () => {
-    setResending(true);
-    try {
-      await resendOtp(email);
-      Alert.alert('Code sent', 'A new verification code has been sent to your email.');
-    } catch (error: any) {
-      Alert.alert('Failed', error?.response?.data?.message || 'Could not resend code.');
-    } finally {
-      setResending(false);
-    }
-  };
-
-  // ── Step 2: face enroll ─────────────────────────────────────────────────
+  // ── Step 1: face enroll ─────────────────────────────────────────────────
   const handleFaceRegister = async () => {
     if (!permission?.granted) {
       const { granted } = await requestPermission();
@@ -365,6 +319,7 @@ export default function RegisterScreen() {
     setLoading('google');
     try {
       await GoogleSignin.hasPlayServices();
+      try { await GoogleSignin.signOut(); } catch {}
       const response = await GoogleSignin.signIn();
       const idToken  = response.data?.idToken;
       if (!idToken) throw new Error('No ID token received');
@@ -470,9 +425,9 @@ export default function RegisterScreen() {
                 style={[rs.primaryBtn, { backgroundColor: theme.buttonBg }]}
                 activeOpacity={0.85}
                 onPress={handleNext}
-                disabled={loading === 'otp'}
+                disabled={loading === 'next'}
               >
-                {loading === 'otp'
+                {loading === 'next'
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <>
                       <Text style={rs.primaryBtnText}>Continue</Text>
@@ -483,64 +438,8 @@ export default function RegisterScreen() {
             </>
           )}
 
-          {/* ── STEP 1: Email OTP ─── */}
+          {/* ── STEP 1: Auth method ─── */}
           {step === 1 && (
-            <>
-              <Text style={[rs.heading, { color: theme.text }]}>Verify your email</Text>
-              <Text style={[rs.desc, { color: theme.textSecondary }]}>
-                We sent a 6-digit code to{' '}
-                <Text style={{ fontWeight: '700', color: theme.text }}>{email}</Text>
-              </Text>
-
-              <View style={[rs.otpBox, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-                <MaterialIcons name="lock" size={20} color={theme.textMuted} style={rs.icon} />
-                <TextInput
-                  style={[rs.otpInput, { color: theme.text }]}
-                  placeholder="000000"
-                  placeholderTextColor={theme.textMuted}
-                  value={otp}
-                  onChangeText={t => setOtp(t.replace(/\D/g, '').slice(0, 6))}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[rs.primaryBtn, { backgroundColor: theme.buttonBg }]}
-                activeOpacity={0.85}
-                onPress={handleVerifyOtp}
-                disabled={loading === 'otp'}
-              >
-                {loading === 'otp'
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <Text style={rs.primaryBtnText}>Verify Code</Text>
-                }
-              </TouchableOpacity>
-
-              {/* Skip verification option */}
-              <TouchableOpacity
-                style={[rs.skipBtn, { borderColor: theme.border }]}
-                activeOpacity={0.7}
-                onPress={handleSkipVerify}
-                disabled={loading === 'otp'}
-              >
-                <Text style={[rs.skipText, { color: theme.textMuted }]}>Skip for now</Text>
-                <MaterialIcons name="chevron-right" size={18} color={theme.textMuted} />
-              </TouchableOpacity>
-
-              <View style={rs.resendRow}>
-                <Text style={[rs.resendPrompt, { color: theme.textSecondary }]}>Didn't receive it?{' '}</Text>
-                <TouchableOpacity onPress={handleResendOtp} disabled={resending} activeOpacity={0.7}>
-                  <Text style={[rs.resendLink, { color: theme.buttonBg }]}>
-                    {resending ? 'Sending…' : 'Resend code'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          {/* ── STEP 2: Auth method ─── */}
-          {step === 2 && (
             <>
               <Text style={[rs.heading, { color: theme.text }]}>Set up sign-in</Text>
               <Text style={[rs.desc, { color: theme.textSecondary }]}>
@@ -636,19 +535,12 @@ const rs = StyleSheet.create({
   inputRow:  { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 54, marginBottom: 14 },
   icon:      { marginRight: 10 },
   input:     { flex: 1, fontSize: 15, fontFamily: 'Poppins_400Regular' },
-  otpBox:    { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 64, marginBottom: 16 },
-  otpInput:  { flex: 1, fontSize: 28, fontWeight: '700', letterSpacing: 8, fontFamily: 'Poppins_400Regular', textAlign: 'center' },
-  skipBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, paddingVertical: 12, marginBottom: 12, gap: 4 },
-  skipText:  { fontSize: 14, fontWeight: '500' },
   infoBox:   { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1 },
   infoIcon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   infoTitle: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
   infoDesc:  { fontSize: 13, lineHeight: 19 },
   primaryBtn:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 16, elevation: 6 },
   primaryBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-  resendRow: { flexDirection: 'row', justifyContent: 'center', marginTop: 12 },
-  resendPrompt: { fontSize: 14 },
-  resendLink:   { fontSize: 14, fontWeight: '700' },
   authBtn:   { flexDirection: 'row', alignItems: 'center', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, gap: 14 },
   btnText:   { flex: 1 },
   authTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', marginBottom: 2 },

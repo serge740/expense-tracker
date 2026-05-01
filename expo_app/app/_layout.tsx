@@ -3,7 +3,7 @@ import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Text, TextInput } from 'react-native';
 import 'react-native-reanimated';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   useFonts,
   Poppins_100Thin,
@@ -16,22 +16,25 @@ import {
   Poppins_800ExtraBold,
   Poppins_900Black,
 } from '@expo-google-fonts/poppins';
+import * as SplashScreen from 'expo-splash-screen';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getToken } from '@/services/client-auth.service';
+import { AppSplash } from '@/components/app-splash';
 
-export const unstable_settings = {
-  anchor: 'index',
-};
+SplashScreen.preventAutoHideAsync();
 
-// Global font fallback — catches any Text not using @/components/text
+// Global font fallback
 if (!Text.defaultProps) (Text as any).defaultProps = {};
 (Text as any).defaultProps.style = { fontFamily: 'Poppins_400Regular' };
 if (!TextInput.defaultProps) (TextInput as any).defaultProps = {};
 (TextInput as any).defaultProps.style = { fontFamily: 'Poppins_400Regular' };
 
+export const unstable_settings = { anchor: 'index' };
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const colorScheme  = useColorScheme();
+  const [splashDone, setSplashDone] = useState(false);
 
   const [fontsLoaded] = useFonts({
     Poppins_100Thin,
@@ -45,25 +48,44 @@ export default function RootLayout() {
     Poppins_900Black,
   });
 
+  // Hide native splash as soon as fonts are ready — our custom splash takes over
   useEffect(() => {
-    if (!fontsLoaded) return;
+    if (fontsLoaded) SplashScreen.hideAsync();
+  }, [fontsLoaded]);
+
+  // After BOTH fonts loaded + custom splash animation finished → auth check
+  useEffect(() => {
+    if (!fontsLoaded || !splashDone) return;
     (async () => {
       const token = await getToken();
       if (token) router.replace('/(dashboard)');
     })();
-  }, [fontsLoaded]);
+  }, [fontsLoaded, splashDone]);
 
-  if (!fontsLoaded) return null;
+  const handleSplashDone = useCallback(() => setSplashDone(true), []);
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="(dashboard)" options={{ headerShown: false }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade_from_bottom',
+          animationDuration: 320,
+          contentStyle: { backgroundColor: 'transparent' },
+        }}
+      >
+        <Stack.Screen name="index"       options={{ animation: 'fade' }} />
+        <Stack.Screen name="(dashboard)" options={{ animation: 'fade' }} />
+        <Stack.Screen name="(tabs)"      options={{ animation: 'fade' }} />
+        <Stack.Screen name="(auth)"      options={{ animation: 'fade' }} />
+        <Stack.Screen name="modal"       options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
+
+      {/* Custom animated splash overlay — rendered on top of everything */}
+      {fontsLoaded && !splashDone && (
+        <AppSplash onComplete={handleSplashDone} />
+      )}
+
       <StatusBar style="auto" />
     </ThemeProvider>
   );

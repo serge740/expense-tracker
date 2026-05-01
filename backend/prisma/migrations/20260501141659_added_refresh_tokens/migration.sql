@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `client` ADD COLUMN `emailOtp` VARCHAR(191) NULL,
+ALTER TABLE `Client` ADD COLUMN `emailOtp` VARCHAR(191) NULL,
     ADD COLUMN `emailOtpExpiry` DATETIME(3) NULL;
 
 -- CreateTable

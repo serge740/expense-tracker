@@ -45,14 +45,15 @@ function authHeader(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
 
-// ── Register (sends OTP + returns provisional tokens) ─────────────────────
+// ── Register (creates account immediately, returns tokens) ───────────────
 export async function registerClient(data: {
   firstName: string;
   lastName?: string;
   email: string;
   phone: string;
-}): Promise<{ message: string; accessToken: string; refreshToken: string }> {
-  const res = await api.post<{ message: string; accessToken: string; refreshToken: string }>('/client-auth/register', data);
+}): Promise<AuthResult> {
+  const res = await api.post<AuthResult>('/client-auth/register', data);
+  await saveTokens(res.data.accessToken, res.data.refreshToken);
   return res.data;
 }
 

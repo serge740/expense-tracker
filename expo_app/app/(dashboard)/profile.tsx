@@ -12,6 +12,7 @@ import { logout, getMe, ClientProfile } from '@/services/client-auth.service';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { registerDevice } from '@/services/device.service';
 import ENV from '@/env';
+import { FadeInView } from '@/components/fade-in-view';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -63,10 +64,7 @@ export default function SettingsScreen() {
   ];
 
   const handleSignOut = async () => {
-    try {
-      const isGoogleSignedIn = await GoogleSignin.isSignedIn();
-      if (isGoogleSignedIn) await GoogleSignin.signOut();
-    } catch { /* Google session already expired */ }
+    try { await GoogleSignin.signOut(); } catch {}
     await logout();
     router.replace('/(auth)');
   };
@@ -90,11 +88,14 @@ export default function SettingsScreen() {
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={s.header}>
-          <Text style={[s.headerTitle, { color: theme.text }]}>Settings</Text>
-        </View>
+        <FadeInView delay={40} slideFrom="top" distance={14}>
+          <View style={s.header}>
+            <Text style={[s.headerTitle, { color: theme.text }]}>Settings</Text>
+          </View>
+        </FadeInView>
 
         {/* Profile card */}
+        <FadeInView delay={100} slideFrom="bottom" distance={20}>
         <TouchableOpacity
           style={[s.profileCard, { backgroundColor: theme.primary }]}
           activeOpacity={0.8}
@@ -117,9 +118,11 @@ export default function SettingsScreen() {
           </View>
           <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.6)" />
         </TouchableOpacity>
+        </FadeInView>
 
-        {SECTIONS.map(section => (
-          <View key={section.title} style={s.section}>
+        {SECTIONS.map((section, si) => (
+          <FadeInView key={section.title} delay={180 + si * 70} slideFrom="bottom" distance={18}>
+          <View style={s.section}>
             <Text style={[s.sectionTitle, { color: theme.textMuted }]}>{section.title}</Text>
             <View style={[s.sectionCard, { backgroundColor: theme.surface }]}>
               {section.items.map((item, i) => (
@@ -138,8 +141,10 @@ export default function SettingsScreen() {
               ))}
             </View>
           </View>
+          </FadeInView>
         ))}
 
+        <FadeInView delay={420} slideFrom="bottom" distance={16}>
         <TouchableOpacity
           style={[s.logoutBtn, { borderColor: 'rgba(248,113,113,0.25)', backgroundColor: 'rgba(248,113,113,0.08)' }]}
           activeOpacity={0.8}
@@ -148,6 +153,8 @@ export default function SettingsScreen() {
           <MaterialIcons name="logout" size={20} color="#F87171" />
           <Text style={s.logoutText}>Sign Out</Text>
         </TouchableOpacity>
+
+        </FadeInView>
 
         <Text style={[s.version, { color: theme.textMuted }]}>ABY Expense v1.0.0</Text>
       </ScrollView>

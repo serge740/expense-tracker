@@ -74,7 +74,7 @@ export class NotificationsService {
         body: data.body,
         type: data.type,
         channel: data.channel,
-        data: data.notificationData ?? null,
+        ...(data.notificationData ? { data: data.notificationData } : {}),
       },
     });
 

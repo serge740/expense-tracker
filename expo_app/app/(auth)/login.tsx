@@ -17,6 +17,7 @@ import {
   googleAuthClient,
   faceIdentify,
 } from '@/services/client-auth.service';
+import { FadeInView } from '@/components/fade-in-view';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const OVAL_W = 224;
@@ -296,6 +297,7 @@ export default function LoginScreen() {
     setLoading('google');
     try {
       await GoogleSignin.hasPlayServices();
+      try { await GoogleSignin.signOut(); } catch {}
       const response = await GoogleSignin.signIn();
       const idToken  = response.data?.idToken;
       if (!idToken) throw new Error('No ID token received');
@@ -333,60 +335,72 @@ export default function LoginScreen() {
       </Modal>
 
       <SafeAreaView edges={['top']} style={{ backgroundColor: theme.headerBg }}>
-        <View style={s.header}>
-          <View style={[s.logoWrap, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-            <MaterialIcons name="account-balance-wallet" size={28} color="#FFFFFF" />
+        <FadeInView delay={60} slideFrom="top" distance={16}>
+          <View style={s.header}>
+            <View style={[s.logoWrap, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+              <MaterialIcons name="account-balance-wallet" size={28} color="#FFFFFF" />
+            </View>
+            <Text style={s.headerTitle}>Welcome back</Text>
+            <Text style={s.headerSub}>Sign in to ABY Expense</Text>
           </View>
-          <Text style={s.headerTitle}>Welcome back</Text>
-          <Text style={s.headerSub}>Sign in to ABY Expense</Text>
-        </View>
+        </FadeInView>
       </SafeAreaView>
 
       <View style={[s.sheet, { backgroundColor: theme.surface }]}>
         <View style={s.content}>
-          <Text style={[s.sheetTitle, { color: theme.text }]}>Choose sign-in method</Text>
-          <Text style={[s.sheetSub, { color: theme.textSecondary }]}>
-            Quick and secure — no password needed
-          </Text>
+          <FadeInView delay={120} slideFrom="bottom" distance={20}>
+            <Text style={[s.sheetTitle, { color: theme.text }]}>Choose sign-in method</Text>
+            <Text style={[s.sheetSub, { color: theme.textSecondary }]}>
+              Quick and secure — no password needed
+            </Text>
+          </FadeInView>
 
-          <TouchableOpacity
-            style={[s.btn, { backgroundColor: theme.buttonBg }]}
-            activeOpacity={0.85}
-            onPress={handleFaceLogin}
-            disabled={loading !== null}
-          >
-            <MaterialIcons name="face" size={26} color="#FFFFFF" />
-            <View style={s.btnText}>
-              <Text style={s.btnTitle}>Face Recognition</Text>
-              <Text style={s.btnSub}>Auto-scans your face to sign in</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.6)" />
-          </TouchableOpacity>
-
-          <View style={s.divider}>
-            <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
-            <Text style={[s.dividerText, { color: theme.textMuted }]}>or</Text>
-            <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
-          </View>
-
-          <TouchableOpacity
-            style={[s.googleBtn, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
-            activeOpacity={0.8}
-            onPress={handleGoogle}
-            disabled={loading !== null}
-          >
-            {loading === 'google'
-              ? <ActivityIndicator color={theme.text} size="small" />
-              : <MaterialIcons name="language" size={22} color={theme.text} />}
-            <Text style={[s.googleText, { color: theme.text }]}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          <View style={s.signupRow}>
-            <Text style={[s.signupPrompt, { color: theme.textSecondary }]}>Don't have an account?{' '}</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
-              <Text style={[s.signupLink, { color: theme.buttonBg }]}>Sign up</Text>
+          <FadeInView delay={200} slideFrom="bottom" distance={20}>
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: theme.buttonBg }]}
+              activeOpacity={0.85}
+              onPress={handleFaceLogin}
+              disabled={loading !== null}
+            >
+              <MaterialIcons name="face" size={26} color="#FFFFFF" />
+              <View style={s.btnText}>
+                <Text style={s.btnTitle}>Face Recognition</Text>
+                <Text style={s.btnSub}>Auto-scans your face to sign in</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.6)" />
             </TouchableOpacity>
-          </View>
+          </FadeInView>
+
+          <FadeInView delay={280} slideFrom="none">
+            <View style={s.divider}>
+              <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[s.dividerText, { color: theme.textMuted }]}>or</Text>
+              <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+          </FadeInView>
+
+          <FadeInView delay={340} slideFrom="bottom" distance={20}>
+            <TouchableOpacity
+              style={[s.googleBtn, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
+              activeOpacity={0.8}
+              onPress={handleGoogle}
+              disabled={loading !== null}
+            >
+              {loading === 'google'
+                ? <ActivityIndicator color={theme.text} size="small" />
+                : <MaterialIcons name="language" size={22} color={theme.text} />}
+              <Text style={[s.googleText, { color: theme.text }]}>Continue with Google</Text>
+            </TouchableOpacity>
+          </FadeInView>
+
+          <FadeInView delay={420} slideFrom="none">
+            <View style={s.signupRow}>
+              <Text style={[s.signupPrompt, { color: theme.textSecondary }]}>Don't have an account?{' '}</Text>
+              <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
+                <Text style={[s.signupLink, { color: theme.buttonBg }]}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
+          </FadeInView>
         </View>
       </View>
     </View>

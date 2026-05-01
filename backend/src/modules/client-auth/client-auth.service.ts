@@ -38,8 +38,8 @@ export class ClientAuthService implements OnModuleInit {
     }
   }
 
-  // ── Register (creates unverified account, sends OTP, returns provisional tokens) ──
-  async register(dto: RegisterClientDto): Promise<{ message: string; accessToken: string; refreshToken: string }> {
+  // ── Register (creates verified account, returns tokens immediately) ──────
+  async register(dto: RegisterClientDto): Promise<AuthResult> {
     const existing = await this.prisma.client.findFirst({
       where: { OR: [{ email: dto.email }, { phone: dto.phone }] },
     });
@@ -55,17 +55,11 @@ export class ClientAuthService implements OnModuleInit {
         lastName: dto.lastName ?? null,
         email: dto.email,
         phone: dto.phone,
-        isVerified: false,
+        isVerified: true,
       },
     });
 
-    await this.sendOtp(client.id, client.email, client.firstName);
-
-    const accessToken = this.signAccessToken(client);
-    const { rawToken, selector, verifier } = this.makeRefreshToken();
-    await this.storeRefreshToken(client.id, selector, verifier);
-
-    return { message: 'Verification code sent to your email', accessToken, refreshToken: rawToken };
+    return this.issueTokenPair(client);
   }
 
   // ── Verify Email OTP ──────────────────────────────────────────────────────
