@@ -1,9 +1,10 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, Dimensions,
+  View, TouchableOpacity, Dimensions,
   ScrollView, NativeSyntheticEvent, NativeScrollEvent,
   StatusBar, StyleSheet,
 } from 'react-native';
+import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';

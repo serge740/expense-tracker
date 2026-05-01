@@ -1,140 +1,427 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View, TouchableOpacity, StyleSheet, StatusBar,
+  ScrollView, ActivityIndicator, Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { ComponentProps } from 'react';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Text } from '@/components/text';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { logout, getMe, ClientProfile } from '@/services/client-auth.service';
+import ENV from '@/env';
 
-type IconName = ComponentProps<typeof MaterialIcons>['name'];
+// ── Glass card wrapper ──────────────────────────────────────────────────────
+function GlassCard({ children, style }: { children: React.ReactNode; style?: any }) {
+  return (
+    <BlurView intensity={28} tint="dark" style={[styles.glassCard, style]}>
+      <View style={styles.glassHighlight} />
+      <View style={{ padding: 20 }}>{children}</View>
+    </BlurView>
+  );
+}
 
-interface SettingItem { icon: IconName; title: string; subtitle: string; }
+// ── Auth method row ─────────────────────────────────────────────────────────
+function AuthRow({
+  icon, label, enabled,
+}: { icon: string; label: string; enabled: boolean }) {
+  return (
+    <View style={styles.authRow}>
+      <View style={[styles.authIconBox, { backgroundColor: enabled ? 'rgba(139,92,246,0.25)' : 'rgba(255,255,255,0.06)' }]}>
+        <MaterialIcons name={icon as any} size={18} color={enabled ? '#a78bfa' : '#6b7280'} />
+      </View>
+      <Text style={[styles.authLabel, { color: enabled ? '#e2e8f0' : '#6b7280' }]}>{label}</Text>
+      <View style={[styles.pill, { backgroundColor: enabled ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)' }]}>
+        <Text style={[styles.pillText, { color: enabled ? '#c4b5fd' : '#4b5563' }]}>
+          {enabled ? 'Enabled' : 'Off'}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
-const SETTINGS: SettingItem[] = [
-  { icon: 'document-scanner', title: 'Scan Receipt',     subtitle: 'Auto-log from photo'             },
-  { icon: 'credit-card',      title: 'Payment Methods',  subtitle: 'Visa ··4821, Amex ··0092'        },
-  { icon: 'notifications',    title: 'Notifications',    subtitle: 'Budget alerts enabled'            },
-  { icon: 'lock',             title: 'Security',         subtitle: 'Biometric enabled'                },
-];
+// ── Info row ────────────────────────────────────────────────────────────────
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
+  return (
+    <View style={styles.infoRow}>
+      <MaterialIcons name={icon as any} size={16} color="#8b5cf6" style={{ marginRight: 10 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.infoLabel}>{label}</Text>
+        <Text style={styles.infoValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
 
-const STATS = [
-  { value: '$12,840', label: 'Saved'        },
-  { value: '284',     label: 'Transactions' },
-  { value: '14 days', label: 'Streak'       },
-];
-
+// ── Main screen ─────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
-  const theme = useAppTheme();
+  const [profile, setProfile] = useState<ClientProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    GoogleSignin.configure({
+      webClientId: '936996911068-a2e2v1jjq9c7hmotp339l1spqe75g102.apps.googleusercontent.com',
+      offlineAccess: true,
+    });
+    getMe()
+      .then(setProfile)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      const isGoogleSignedIn = await GoogleSignin.isSignedIn();
+      if (isGoogleSignedIn) await GoogleSignin.signOut();
+    } catch { /* Google session already expired */ }
+    await logout();
+    router.replace('/(auth)');
+  };
+
+  const initials = profile
+    ? `${profile.firstName[0]}${profile.lastName?.[0] ?? ''}`.toUpperCase()
+    : '?';
+
+  const memberSince = profile
+    ? new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    : '—';
+
+  const fullName = profile
+    ? `${profile.firstName}${profile.lastName ? ' ' + profile.lastName : ''}`
+    : '—';
+
+  const avatarUri = profile?.profileImage
+    ? (profile.profileImage.startsWith('http') ? profile.profileImage : `${ENV.UPLOADS_URL}/${profile.profileImage}`)
+    : null;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <View style={{ flex: 1 }}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-        <Text style={[styles.headerTitle, { color: theme.text }]}>Profile</Text>
+      {/* ── Deep gradient background ── */}
+      <LinearGradient
+        colors={['#0f0c29', '#1a1040', '#2d1b69']}
+        style={StyleSheet.absoluteFill}
+      />
 
-        {/* Profile card */}
-        <View style={[styles.profileCard, { backgroundColor: theme.surface }]}>
-          <View style={styles.profileTop}>
-            <View style={[styles.avatarCircle, { backgroundColor: theme.primary }]}>
-              <Text style={styles.avatarLetter}>A</Text>
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: theme.text }]}>Abigail Young</Text>
-              <Text style={[styles.profileEmail, { color: theme.textSecondary }]}>abigail@hey.com</Text>
-              <View style={styles.badgeRow}>
-                <View style={[styles.badge, { backgroundColor: theme.primaryBg }]}>
-                  <Text style={[styles.badgeText, { color: theme.primary }]}>Pro Plan</Text>
-                </View>
-                <View style={[styles.badge, { backgroundColor: 'rgba(34,197,94,0.1)' }]}>
-                  <Text style={[styles.badgeText, { color: '#22C55E' }]}>Active</Text>
-                </View>
-              </View>
-            </View>
-          </View>
+      {/* ── Decorative liquid blobs ── */}
+      <View style={[styles.blob, styles.blob1]} />
+      <View style={[styles.blob, styles.blob2]} />
+      <View style={[styles.blob, styles.blob3]} />
 
-          {/* Stats */}
-          <View style={[styles.statsRow, { borderTopColor: theme.border }]}>
-            {STATS.map((s, i) => (
-              <React.Fragment key={s.label}>
-                <View style={styles.statItem}>
-                  <Text style={[styles.statValue, { color: theme.primary }]}>{s.value}</Text>
-                  <Text style={[styles.statLabel, { color: theme.textMuted }]}>{s.label}</Text>
-                </View>
-                {i < STATS.length - 1 && <View style={[styles.statSep, { backgroundColor: theme.border }]} />}
-              </React.Fragment>
-            ))}
-          </View>
-        </View>
-
-        {/* Settings items */}
-        <View style={[styles.settingsCard, { backgroundColor: theme.surface }]}>
-          {SETTINGS.map((item, index) => (
-            <React.Fragment key={item.title}>
-              <TouchableOpacity
-                style={styles.settingRow}
-                activeOpacity={0.7}
-                onPress={item.title === 'Scan Receipt' ? () => router.push('/(dashboard)/scan') : undefined}
-              >
-                <View style={[styles.settingIconBox, { backgroundColor: theme.primaryBg }]}>
-                  <MaterialIcons name={item.icon} size={20} color={theme.primary} />
-                </View>
-                <View style={styles.settingText}>
-                  <Text style={[styles.settingTitle, { color: theme.text }]}>{item.title}</Text>
-                  <Text style={[styles.settingSub, { color: theme.textSecondary }]}>{item.subtitle}</Text>
-                </View>
-                <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
-              </TouchableOpacity>
-              {index < SETTINGS.length - 1 && <View style={[styles.rowDivider, { backgroundColor: theme.border }]} />}
-            </React.Fragment>
-          ))}
-        </View>
-
-        {/* Sign out */}
-        <TouchableOpacity
-          style={[styles.signOutButton, { borderColor: 'rgba(239,68,68,0.25)', backgroundColor: 'rgba(239,68,68,0.06)' }]}
-          activeOpacity={0.8}
-          onPress={() => router.replace('/(auth)')}
+      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
         >
-          <MaterialIcons name="logout" size={18} color="#EF4444" />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+
+          {/* ── Header ── */}
+          <View style={styles.topRow}>
+            <Text style={styles.screenTitle}>Profile</Text>
+            <TouchableOpacity
+              style={styles.settingsBtn}
+              onPress={() => router.push('/(dashboard)/(settings)')}
+            >
+              <MaterialIcons name="settings" size={20} color="rgba(255,255,255,0.7)" />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── Loading ── */}
+          {loading && (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator color="#a78bfa" size="large" />
+            </View>
+          )}
+
+          {/* ── Profile card ── */}
+          {!loading && (
+            <>
+              <GlassCard style={{ marginBottom: 16 }}>
+                <View style={styles.avatarRow}>
+                  {/* Avatar ring */}
+                  <LinearGradient
+                    colors={['#8b5cf6', '#6366f1', '#3b82f6']}
+                    style={styles.avatarRing}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.avatarInner}>
+                      {avatarUri ? (
+                        <Image source={{ uri: avatarUri }} style={styles.avatarImg} />
+                      ) : (
+                        <Text style={styles.avatarInitials}>{initials}</Text>
+                      )}
+                    </View>
+                  </LinearGradient>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.profileName}>{fullName}</Text>
+                    <Text style={styles.profileEmail}>{profile?.email ?? '—'}</Text>
+                    <Text style={styles.profilePhone}>{profile?.phone ?? '—'}</Text>
+
+                    <View style={styles.badgeRow}>
+                      {profile?.isVerified && (
+                        <View style={styles.badge}>
+                          <MaterialIcons name="verified" size={11} color="#34d399" />
+                          <Text style={[styles.badgeText, { color: '#34d399' }]}>Verified</Text>
+                        </View>
+                      )}
+                      {profile?.isActive && (
+                        <View style={[styles.badge, { backgroundColor: 'rgba(99,102,241,0.2)', borderColor: 'rgba(99,102,241,0.3)' }]}>
+                          <Text style={[styles.badgeText, { color: '#818cf8' }]}>Active</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              </GlassCard>
+
+              {/* ── Sign-in methods card ── */}
+              <GlassCard style={{ marginBottom: 16 }}>
+                <Text style={styles.cardTitle}>Sign-in Methods</Text>
+                <AuthRow icon="fingerprint"  label="Fingerprint"      enabled={!!profile?.isBiometric} />
+                <View style={styles.rowDivider} />
+                <AuthRow icon="face"         label="Face Recognition" enabled={!!profile?.isFaceRecognition} />
+                <View style={styles.rowDivider} />
+                <AuthRow icon="language"     label="Google"           enabled={!!profile?.googleId} />
+              </GlassCard>
+
+              {/* ── Account info card ── */}
+              <GlassCard style={{ marginBottom: 16 }}>
+                <Text style={styles.cardTitle}>Account Details</Text>
+                <InfoRow icon="email"        label="Email"        value={profile?.email ?? '—'} />
+                <View style={styles.rowDivider} />
+                <InfoRow icon="phone"        label="Phone"        value={profile?.phone ?? '—'} />
+                <View style={styles.rowDivider} />
+                <InfoRow icon="calendar-today" label="Member since" value={memberSince} />
+              </GlassCard>
+
+              {/* ── Sign out ── */}
+              <BlurView intensity={24} tint="dark" style={styles.signOutGlass}>
+                <View style={styles.glassHighlight} />
+                <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.75}>
+                  <LinearGradient
+                    colors={['rgba(239,68,68,0.18)', 'rgba(220,38,38,0.08)']}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                  <MaterialIcons name="logout" size={20} color="#f87171" />
+                  <Text style={styles.signOutText}>Sign Out</Text>
+                </TouchableOpacity>
+              </BlurView>
+            </>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  scrollContent: { paddingBottom: 32 },
+  scroll: { paddingHorizontal: 20, paddingBottom: 48, paddingTop: 8 },
 
-  headerTitle: { fontSize: 24, fontWeight: '800', paddingHorizontal: 20, paddingTop: 16, marginBottom: 16 },
+  // ── Background blobs ───────────────────────────────────────────────────────
+  blob: {
+    position: 'absolute',
+    borderRadius: 999,
+    opacity: 0.45,
+  },
+  blob1: {
+    width: 280,
+    height: 280,
+    top: -60,
+    right: -80,
+    backgroundColor: '#6d28d9',
+    opacity: 0.3,
+  },
+  blob2: {
+    width: 200,
+    height: 200,
+    top: 220,
+    left: -70,
+    backgroundColor: '#2563eb',
+    opacity: 0.2,
+  },
+  blob3: {
+    width: 240,
+    height: 240,
+    bottom: 80,
+    right: -60,
+    backgroundColor: '#7c3aed',
+    opacity: 0.2,
+  },
 
-  profileCard: { marginHorizontal: 20, borderRadius: 20, overflow: 'hidden', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
-  profileTop: { flexDirection: 'row', alignItems: 'center', padding: 18, gap: 14 },
-  avatarCircle: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  avatarLetter: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
-  profileInfo: { flex: 1 },
-  profileName: { fontSize: 17, fontWeight: '700', marginBottom: 2 },
-  profileEmail: { fontSize: 13, marginBottom: 8 },
+  // ── Glass card ─────────────────────────────────────────────────────────────
+  glassCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
+  glassHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    marginBottom: 8,
+  },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+  },
+  settingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
+
+  // ── Avatar ────────────────────────────────────────────────────────────────
+  avatarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  avatarRing: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInner: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#1e1040',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImg: { width: 68, height: 68, borderRadius: 34 },
+  avatarInitials: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#c4b5fd',
+    letterSpacing: 1,
+  },
+
+  profileName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#f1f5f9',
+    marginBottom: 2,
+  },
+  profileEmail: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+    marginBottom: 2,
+  },
+  profilePhone: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 10,
+  },
   badgeRow: { flexDirection: 'row', gap: 6 },
-  badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: 'rgba(52,211,153,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(52,211,153,0.25)',
+  },
   badgeText: { fontSize: 11, fontWeight: '700' },
 
-  statsRow: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 14 },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
-  statLabel: { fontSize: 11 },
-  statSep: { width: 1, marginVertical: 4 },
+  // ── Card title ────────────────────────────────────────────────────────────
+  cardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 16,
+  },
 
-  settingsCard: { marginHorizontal: 20, borderRadius: 18, overflow: 'hidden', marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  settingRow: { flexDirection: 'row', alignItems: 'center', padding: 16 },
-  settingIconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  settingText: { flex: 1 },
-  settingTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  settingSub: { fontSize: 12 },
-  rowDivider: { height: 1, marginLeft: 70 },
+  // ── Auth rows ─────────────────────────────────────────────────────────────
+  authRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 4,
+  },
+  authIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  authLabel: { flex: 1, fontSize: 15, fontWeight: '500' },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  pillText: { fontSize: 12, fontWeight: '600' },
 
-  signOutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, borderRadius: 14, paddingVertical: 14, gap: 8, borderWidth: 1 },
-  signOutText: { fontSize: 15, fontWeight: '600', color: '#EF4444' },
+  // ── Info rows ─────────────────────────────────────────────────────────────
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  infoLabel: { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 1 },
+  infoValue: { fontSize: 15, color: '#e2e8f0', fontWeight: '500' },
+
+  rowDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginVertical: 12,
+  },
+
+  // ── Sign out ──────────────────────────────────────────────────────────────
+  signOutGlass: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
+  },
+  signOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 10,
+    overflow: 'hidden',
+  },
+  signOutText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#f87171',
+  },
 });

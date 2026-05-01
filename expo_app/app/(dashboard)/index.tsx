@@ -1,9 +1,10 @@
 import React, { ComponentProps } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { Text } from '@/components/text';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
@@ -12,10 +13,9 @@ interface Transaction {
 }
 
 const TRANSACTIONS: Transaction[] = [
-  { id: '1', icon: 'receipt',     title: 'Netflix',       subtitle: 'Entertainment · Today',  amount: -15.99  },
-  { id: '2', icon: 'receipt',     title: 'Whole Foods',   subtitle: 'Groceries · Today',       amount: -84.30  },
-  { id: '3', icon: 'trending-up', title: 'Salary — April',subtitle: 'Income · Apr 29',         amount: 4200.00 },
-  { id: '4', icon: 'receipt',     title: 'Uber Eats',     subtitle: 'Food · Apr 28',           amount: -32.50  },
+  { id: '1', icon: 'receipt',     title: 'Netflix',        subtitle: 'Entertainment · Today', amount: -15.99  },
+  { id: '2', icon: 'receipt',     title: 'Whole Foods',    subtitle: 'Groceries · Today',      amount: -84.30  },
+  { id: '3', icon: 'trending-up', title: 'Salary — April', subtitle: 'Income · Apr 29',        amount: 4200.00 },
 ];
 
 function fmt(n: number) {
@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const theme = useAppTheme();
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -43,7 +43,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Balance Card */}
-        <View style={[styles.balanceCard, { backgroundColor: theme.primary }]}>
+        <View style={[styles.balanceCard, { backgroundColor: theme.buttonBg }]}>
           <View style={styles.balanceDecor1} />
           <View style={styles.balanceDecor2} />
           <Text style={styles.balanceLabel}>TOTAL BALANCE</Text>
@@ -64,8 +64,8 @@ export default function HomeScreen() {
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           {[
-            { icon: 'document-scanner' as IconName, label: 'Scan Receipt',  onPress: () => router.push('/(dashboard)/scan') },
-            { icon: 'add-circle-outline' as IconName, label: 'Add Expense', onPress: () => router.push('/(dashboard)/add')  },
+            { icon: 'document-scanner' as IconName, label: 'Scan Receipt', onPress: () => router.push('/(dashboard)/scan')    },
+            { icon: 'add-circle-outline' as IconName, label: 'Add Expense', onPress: () => router.push('/(dashboard)/add')    },
             { icon: 'bar-chart' as IconName,          label: 'Analytics',   onPress: () => router.push('/(dashboard)/reports') },
           ].map(action => (
             <TouchableOpacity
@@ -86,10 +86,10 @@ export default function HomeScreen() {
         <View style={[styles.budgetCard, { backgroundColor: theme.surface }]}>
           <View style={styles.budgetHeader}>
             <Text style={[styles.budgetTitle, { color: theme.text }]}>April Budget</Text>
-            <Text style={[styles.budgetUsed, { color: theme.primary }]}>71% used</Text>
+            <Text style={[styles.budgetUsed, { color: theme.buttonBg }]}>71% used</Text>
           </View>
           <View style={[styles.progressTrack, { backgroundColor: theme.border }]}>
-            <View style={[styles.progressFill, { backgroundColor: theme.primary, width: '71%' }]} />
+            <View style={[styles.progressFill, { backgroundColor: theme.buttonBg, width: '71%' }]} />
           </View>
           <View style={styles.budgetFooter}>
             <Text style={[styles.budgetSub, { color: theme.textSecondary }]}>$1,779 spent</Text>
@@ -101,7 +101,7 @@ export default function HomeScreen() {
         <View style={styles.sectionRow}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Transactions</Text>
           <TouchableOpacity onPress={() => router.push('/(dashboard)/history')} activeOpacity={0.7}>
-            <Text style={[styles.seeAll, { color: theme.primary }]}>See all</Text>
+            <Text style={[styles.seeAll, { color: theme.buttonBg }]}>See all</Text>
           </TouchableOpacity>
         </View>
 
@@ -133,16 +133,16 @@ const styles = StyleSheet.create({
   userName: { fontSize: 22, fontWeight: '800' },
   bellButton: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
 
-  balanceCard: { marginHorizontal: 20, borderRadius: 22, padding: 22, overflow: 'hidden', marginBottom: 16 },
-  balanceDecor1: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.06)', top: -60, right: -40 },
-  balanceDecor2: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.04)', bottom: -30, left: 20 },
+  balanceCard: { marginHorizontal: 20, borderRadius: 22, padding: 22, overflow: 'hidden', marginBottom: 16, shadowColor: '#7B5CF0', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  balanceDecor1: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.08)', top: -60, right: -40 },
+  balanceDecor2: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)', bottom: -30, left: 20 },
   balanceLabel: { fontSize: 11, color: 'rgba(255,255,255,0.65)', letterSpacing: 1, fontWeight: '600', marginBottom: 8 },
   balanceAmount: { fontSize: 44, fontWeight: '800', color: '#FFFFFF', marginBottom: 18 },
   balanceCents: { fontSize: 26, fontWeight: '600' },
   balanceRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   balanceStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: 0.8, marginBottom: 4 },
   balanceStatValue: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  balanceSeparator: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.2)' },
+  balanceSeparator: { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.25)' },
 
   quickActions: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
   quickActionCard: { flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },

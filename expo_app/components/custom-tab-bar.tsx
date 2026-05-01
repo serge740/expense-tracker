@@ -1,24 +1,27 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { Text } from '@/components/text';
 import { ComponentProps } from 'react';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
 const TAB_CONFIG: Record<string, { icon: IconName; label: string }> = {
-  index:   { icon: 'home',                     label: 'Home'    },
-  wallets: { icon: 'account-balance-wallet',   label: 'Wallets' },
-  reports: { icon: 'bar-chart',                label: 'Reports' },
-  profile: { icon: 'person',                   label: 'Profile' },
+  index:   { icon: 'home',                   label: 'Home'    },
+  wallets: { icon: 'account-balance-wallet', label: 'Wallets' },
+  reports: { icon: 'bar-chart',              label: 'Reports' },
+  profile: { icon: 'person',                 label: 'Profile' },
 };
 
 const VISIBLE_TABS = ['index', 'wallets', 'reports', 'profile'];
 
-export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const visibleRoutes = state.routes.filter(r => VISIBLE_TABS.includes(r.name));
   const leftRoutes  = visibleRoutes.slice(0, 2);
@@ -35,9 +38,7 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
         key={route.key}
         style={styles.tab}
         activeOpacity={0.7}
-        onPress={() => {
-          if (!isFocused) navigation.navigate(route.name);
-        }}
+        onPress={() => { if (!isFocused) navigation.navigate(route.name); }}
       >
         <MaterialIcons name={cfg.icon} size={24} color={color} />
         <Text style={[styles.tabLabel, { color }]}>{cfg.label}</Text>
@@ -46,10 +47,20 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.tabBar, borderTopColor: theme.tabBorder }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.tabBar,
+          borderTopColor: theme.tabBorder,
+          paddingBottom: insets.bottom,
+          height: TAB_BUTTON_AREA + insets.bottom,
+        },
+      ]}
+    >
       {leftRoutes.map(renderTab)}
 
-      {/* FAB Center */}
+      {/* FAB */}
       <View style={styles.fabWrapper}>
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.primary }]}
@@ -65,20 +76,20 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   );
 }
 
+const TAB_BUTTON_AREA = 60;
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    height: Platform.OS === 'ios' ? 82 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 4,
     alignItems: 'center',
   },
   tab: {
     flex: 1,
+    height: TAB_BUTTON_AREA,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    paddingTop: 6,
   },
   tabLabel: {
     fontSize: 10,
@@ -86,6 +97,7 @@ const styles = StyleSheet.create({
   },
   fabWrapper: {
     flex: 1,
+    height: TAB_BUTTON_AREA,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -95,7 +107,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2D336B',
+    shadowColor: '#7B5CF0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 10,

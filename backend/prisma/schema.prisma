@@ -1,0 +1,29 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id                String   @id @default(uuid())
+  firstName         String
+  lastName          String?
+  email             String   @unique
+  phone             String   @unique
+  googleId          String?  @unique
+  isVerified        Boolean  @default(false)
+  profileImage      String?
+  isActive          Boolean  @default(true)
+  isBiometric       Boolean  @default(false)
+  isFaceRecognition Boolean  @default(false)
+  faceDescriptor    Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}

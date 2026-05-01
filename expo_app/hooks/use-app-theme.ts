@@ -22,9 +22,9 @@ export interface AppTheme {
 const light: AppTheme = {
   background:    '#F0F2FF',
   surface:       '#FFFFFF',
-  primary:       '#2D336B',
-  primaryBg:     'rgba(45,51,107,0.08)',
-  buttonBg:      '#2D336B',
+  primary:       '#7B5CF0',
+  primaryBg:     'rgba(123,92,240,0.10)',
+  buttonBg:      '#7B5CF0',
   headerBg:      '#1E2460',
   text:          '#1A1F4A',
   textSecondary: '#6B7399',

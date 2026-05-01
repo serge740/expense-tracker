@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, ScrollView, TextInput } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, TextInput } from 'react-native';
+import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
@@ -41,7 +42,7 @@ export default function AddExpenseScreen() {
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Add Expense</Text>
           <TouchableOpacity
-            style={[styles.scanChip, { backgroundColor: theme.primaryBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(45,51,107,0.15)' }]}
+            style={[styles.scanChip, { backgroundColor: theme.primaryBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(123,92,240,0.25)' }]}
             activeOpacity={0.8}
             onPress={() => router.push('/(dashboard)/scan')}
           >
@@ -76,8 +77,8 @@ export default function AddExpenseScreen() {
                 style={[
                   styles.categoryChip,
                   {
-                    backgroundColor: active ? theme.primary : theme.inputBg,
-                    borderColor: active ? theme.primary : theme.border,
+                    backgroundColor: active ? theme.buttonBg : theme.inputBg,
+                    borderColor: active ? theme.buttonBg : theme.border,
                   },
                 ]}
                 activeOpacity={0.75}
@@ -117,7 +118,7 @@ export default function AddExpenseScreen() {
 
         {/* Save */}
         <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: theme.primary }]}
+          style={[styles.saveButton, { backgroundColor: theme.buttonBg }]}
           activeOpacity={0.85}
           onPress={() => router.back()}
         >
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
   amountLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: 12 },
   amountRow: { flexDirection: 'row', alignItems: 'flex-end' },
   amountDollar: { fontSize: 32, fontWeight: '600', marginBottom: 6, marginRight: 2 },
-  amountInput: { fontSize: 60, fontWeight: '800', minWidth: 120 },
+  amountInput: { fontSize: 60, fontWeight: '800', minWidth: 120, fontFamily: 'Poppins_800ExtraBold' },
 
   sectionLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 1, marginBottom: 12 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
@@ -151,14 +152,14 @@ const styles = StyleSheet.create({
   categoryLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
 
   fieldRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 52, marginBottom: 12 },
-  fieldInput: { flex: 1, fontSize: 15 },
+  fieldInput: { flex: 1, fontSize: 15, fontFamily: 'Poppins_400Regular' },
   fieldText: { fontSize: 14, flex: 1 },
   twoCol: { flexDirection: 'row', marginBottom: 12 },
 
   saveButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderRadius: 16, paddingVertical: 16, gap: 8, marginTop: 12,
-    shadowColor: '#2D336B', shadowOffset: { width: 0, height: 6 },
+    shadowColor: '#7B5CF0', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 12, elevation: 6,
   },
   saveButtonText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },

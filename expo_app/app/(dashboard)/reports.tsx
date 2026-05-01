@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { Text } from '@/components/text';
 
 const MONTHS  = ['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'];
 const HEIGHTS = [45, 30, 60, 50, 70, 90];
 
 const CATEGORIES = [
-  { label: 'Travel',        amount: 318, color: '#2D336B' },
+  { label: 'Travel',        amount: 318, color: '#7B5CF0' },
   { label: 'Shopping',      amount: 239, color: '#60A5FA' },
   { label: 'Transport',     amount: 122, color: '#4ADE80' },
   { label: 'Groceries',     amount:  84, color: '#FBBF24' },
@@ -22,7 +23,7 @@ export default function ReportsScreen() {
   const [period, setPeriod] = useState('April 2026');
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -71,7 +72,7 @@ export default function ReportsScreen() {
             {/* Donut chart (visual simulation) */}
             <View style={styles.donutWrapper}>
               <View style={[styles.donutOuter, { borderColor: theme.primary }]}>
-                <View style={[styles.donutMiddle, { borderColor: '#60A5FA' }]}>
+                <View style={[styles.donutMiddle, { borderColor: '#A78BFA' }]}>
                   <View style={[styles.donutInner, { backgroundColor: theme.surface }]}>
                     <Text style={[styles.donutTotal, { color: theme.text }]}>${TOTAL}</Text>
                     <Text style={[styles.donutTotalLabel, { color: theme.textMuted }]}>total</Text>

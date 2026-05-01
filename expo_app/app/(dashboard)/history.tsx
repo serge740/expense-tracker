@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { Text } from '@/components/text';
 import { ComponentProps } from 'react';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -57,7 +58,7 @@ export default function HistoryScreen() {
   const net         = totalIncome - totalSpent;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -81,7 +82,7 @@ export default function HistoryScreen() {
               key={cat}
               style={[
                 styles.filterChip,
-                { backgroundColor: activeFilter === cat ? theme.primary : theme.surface, borderColor: activeFilter === cat ? theme.primary : theme.border },
+                { backgroundColor: activeFilter === cat ? theme.buttonBg : theme.surface, borderColor: activeFilter === cat ? theme.buttonBg : theme.border },
               ]}
               onPress={() => setActiveFilter(cat)}
               activeOpacity={0.75}
@@ -112,7 +113,7 @@ export default function HistoryScreen() {
           <View key={group.date} style={{ marginBottom: 4 }}>
             <Text style={[styles.groupDate, { color: theme.textMuted }]}>{group.date}</Text>
             {group.items.map(t => (
-              <TouchableOpacity key={t.id} style={[styles.txRow, { backgroundColor: theme.surface }]} activeOpacity={0.75}>
+              <TouchableOpacity key={t.id} style={[styles.txRow, { backgroundColor: 'transparent' }]} activeOpacity={0.75}>
                 <View style={[styles.txIcon, { backgroundColor: theme.primaryBg }]}>
                   <MaterialIcons name={t.icon} size={18} color={theme.primary} />
                 </View>
