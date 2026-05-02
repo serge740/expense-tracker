@@ -342,7 +342,7 @@ export default function RegisterScreen() {
         <FaceEnrollScanner onClose={() => setCameraVisible(false)} onEnrolled={handleFaceCaptured} />
       </Modal>
 
-      {/* Header */}
+      {/* ── Header (deep koamaru) ── */}
       <SafeAreaView edges={['top']} style={{ backgroundColor: theme.headerBg }}>
         <View style={rs.header}>
           <View style={rs.topRow}>
@@ -357,17 +357,22 @@ export default function RegisterScreen() {
             <View style={{ width: 40 }} />
           </View>
 
+          {/* Step progress */}
           <View style={rs.stepRow}>
             {STEPS.map((label, i) => (
               <View key={label} style={rs.stepItem}>
                 <Text style={[rs.stepLabel, {
-                  color: i <= step ? '#FFFFFF' : 'rgba(255,255,255,0.35)',
+                  color: i === step ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
                   fontWeight: i === step ? '700' : '500',
                 }]}>
                   {label}
                 </Text>
                 <View style={[rs.stepLine, {
-                  backgroundColor: i < step ? 'rgba(255,255,255,0.6)' : i === step ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
+                  backgroundColor: i < step
+                    ? 'rgba(255,255,255,0.5)'
+                    : i === step
+                    ? '#FFFFFF'
+                    : 'rgba(255,255,255,0.18)',
                 }]} />
               </View>
             ))}
@@ -375,6 +380,7 @@ export default function RegisterScreen() {
         </View>
       </SafeAreaView>
 
+      {/* ── Body (surface) ── */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
           style={[rs.sheet, { backgroundColor: theme.surface }]}
@@ -383,12 +389,12 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
         >
 
-          {/* ── STEP 0: Account info ─── */}
+          {/* ── STEP 0: Account info ── */}
           {step === 0 && (
             <>
               <Text style={[rs.heading, { color: theme.text }]}>Your details</Text>
               <Text style={[rs.desc, { color: theme.textSecondary }]}>
-                No password needed — you'll sign in with your face or Google.
+                No password needed — sign in with face or Google.
               </Text>
 
               <View style={rs.nameRow}>
@@ -411,13 +417,14 @@ export default function RegisterScreen() {
                 <TextInput style={[rs.input, { color: theme.text }]} placeholder="Phone number" placeholderTextColor={theme.textMuted} value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoCapitalize="none" autoCorrect={false} />
               </View>
 
-              <View style={[rs.infoBox, { backgroundColor: theme.primaryBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(123,92,240,0.15)' }]}>
-                <View style={[rs.infoIcon, { backgroundColor: theme.buttonBg }]}>
-                  <MaterialIcons name="security" size={18} color="#FFFFFF" />
+              {/* Receipt scanning feature callout */}
+              <View style={[rs.featureCard, { backgroundColor: theme.primaryBg, borderColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(45,51,107,0.1)' }]}>
+                <View style={[rs.featureIcon, { backgroundColor: theme.buttonBg }]}>
+                  <MaterialIcons name="document-scanner" size={20} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[rs.infoTitle, { color: theme.text }]}>Passwordless Security</Text>
-                  <Text style={[rs.infoDesc, { color: theme.textSecondary }]}>Your account is protected by face recognition — no password to forget or steal.</Text>
+                  <Text style={[rs.featureTitle, { color: theme.text }]}>Receipt Scanning</Text>
+                  <Text style={[rs.featureDesc, { color: theme.textSecondary }]}>Scan receipts to auto-log expenses instantly.</Text>
                 </View>
               </View>
 
@@ -429,16 +436,13 @@ export default function RegisterScreen() {
               >
                 {loading === 'next'
                   ? <ActivityIndicator color="#fff" size="small" />
-                  : <>
-                      <Text style={rs.primaryBtnText}>Continue</Text>
-                      <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
-                    </>
+                  : <Text style={rs.primaryBtnText}>Continue</Text>
                 }
               </TouchableOpacity>
             </>
           )}
 
-          {/* ── STEP 1: Auth method ─── */}
+          {/* ── STEP 1: Security method ── */}
           {step === 1 && (
             <>
               <Text style={[rs.heading, { color: theme.text }]}>Set up sign-in</Text>
@@ -483,7 +487,7 @@ export default function RegisterScreen() {
           )}
 
           <View style={rs.loginRow}>
-            <Text style={[rs.loginPrompt, { color: theme.textSecondary }]}>Have an account?{' '}</Text>
+            <Text style={[rs.loginPrompt, { color: theme.textSecondary }]}>Have an account? </Text>
             <TouchableOpacity onPress={() => router.push('/(auth)/login')} activeOpacity={0.7}>
               <Text style={[rs.loginLink, { color: theme.buttonBg }]}>Sign in</Text>
             </TouchableOpacity>
@@ -535,11 +539,11 @@ const rs = StyleSheet.create({
   inputRow:  { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 54, marginBottom: 14 },
   icon:      { marginRight: 10 },
   input:     { flex: 1, fontSize: 15, fontFamily: 'Poppins_400Regular' },
-  infoBox:   { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1 },
-  infoIcon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  infoTitle: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
-  infoDesc:  { fontSize: 13, lineHeight: 19 },
-  primaryBtn:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 16, elevation: 6 },
+  featureCard:  { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1 },
+  featureIcon:  { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  featureTitle: { fontSize: 14, fontWeight: '700', marginBottom: 3 },
+  featureDesc:  { fontSize: 13, lineHeight: 19 },
+  primaryBtn:{ alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingVertical: 17, elevation: 6 },
   primaryBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   authBtn:   { flexDirection: 'row', alignItems: 'center', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 12, gap: 14 },
   btnText:   { flex: 1 },

@@ -324,8 +324,8 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={[s.root, { backgroundColor: theme.headerBg }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
+    <View style={[s.root, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       <Modal visible={cameraVisible} animationType="slide" onRequestClose={() => setCameraVisible(false)}>
         <FaceScanner
@@ -334,44 +334,37 @@ export default function LoginScreen() {
         />
       </Modal>
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.headerBg }}>
-        <FadeInView delay={60} slideFrom="top" distance={16}>
-          <View style={s.header}>
-            <View style={[s.logoWrap, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
-              <MaterialIcons name="account-balance-wallet" size={28} color="#FFFFFF" />
-            </View>
-            <Text style={s.headerTitle}>Welcome back</Text>
-            <Text style={s.headerSub}>Sign in to ABY Expense</Text>
-          </View>
-        </FadeInView>
-      </SafeAreaView>
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
+        <View style={s.inner}>
 
-      <View style={[s.sheet, { backgroundColor: theme.surface }]}>
-        <View style={s.content}>
-          <FadeInView delay={120} slideFrom="bottom" distance={20}>
-            <Text style={[s.sheetTitle, { color: theme.text }]}>Choose sign-in method</Text>
-            <Text style={[s.sheetSub, { color: theme.textSecondary }]}>
-              Quick and secure — no password needed
-            </Text>
+          {/* ── Top branding ── */}
+          <FadeInView delay={40} slideFrom="top" distance={20}>
+            <View style={s.brandRow}>
+              <View style={[s.avatar, { backgroundColor: theme.surface }]}>
+                <Text style={[s.avatarText, { color: theme.primary }]}>A</Text>
+              </View>
+            </View>
+            <Text style={[s.heading, { color: theme.text }]}>Welcome back</Text>
+            <Text style={[s.subHeading, { color: theme.textSecondary }]}>Sign in to your account</Text>
           </FadeInView>
 
-          <FadeInView delay={200} slideFrom="bottom" distance={20}>
+          <View style={s.spacer} />
+
+          {/* ── Face Recognition button ── */}
+          <FadeInView delay={160} slideFrom="bottom" distance={20}>
             <TouchableOpacity
-              style={[s.btn, { backgroundColor: theme.buttonBg }]}
+              style={[s.faceBtn, { backgroundColor: theme.buttonBg }]}
               activeOpacity={0.85}
               onPress={handleFaceLogin}
               disabled={loading !== null}
             >
-              <MaterialIcons name="face" size={26} color="#FFFFFF" />
-              <View style={s.btnText}>
-                <Text style={s.btnTitle}>Face Recognition</Text>
-                <Text style={s.btnSub}>Auto-scans your face to sign in</Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.6)" />
+              <MaterialIcons name="face" size={24} color="#fff" />
+              <Text style={s.faceBtnText}>Sign In with Face</Text>
             </TouchableOpacity>
           </FadeInView>
 
-          <FadeInView delay={280} slideFrom="none">
+          {/* ── Divider ── */}
+          <FadeInView delay={220} slideFrom="none">
             <View style={s.divider}>
               <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
               <Text style={[s.dividerText, { color: theme.textMuted }]}>or</Text>
@@ -379,30 +372,35 @@ export default function LoginScreen() {
             </View>
           </FadeInView>
 
-          <FadeInView delay={340} slideFrom="bottom" distance={20}>
+          {/* ── Google ── */}
+          <FadeInView delay={280} slideFrom="bottom" distance={16}>
             <TouchableOpacity
-              style={[s.googleBtn, { borderColor: theme.border, backgroundColor: theme.inputBg }]}
+              style={[s.googleBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
               activeOpacity={0.8}
               onPress={handleGoogle}
               disabled={loading !== null}
             >
               {loading === 'google'
                 ? <ActivityIndicator color={theme.text} size="small" />
-                : <MaterialIcons name="language" size={22} color={theme.text} />}
+                : <MaterialIcons name="language" size={20} color={theme.text} />}
               <Text style={[s.googleText, { color: theme.text }]}>Continue with Google</Text>
             </TouchableOpacity>
           </FadeInView>
 
-          <FadeInView delay={420} slideFrom="none">
+          <View style={s.spacer} />
+
+          {/* ── Sign up link ── */}
+          <FadeInView delay={360} slideFrom="none">
             <View style={s.signupRow}>
-              <Text style={[s.signupPrompt, { color: theme.textSecondary }]}>Don't have an account?{' '}</Text>
+              <Text style={[s.signupPrompt, { color: theme.textSecondary }]}>Don't have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
                 <Text style={[s.signupLink, { color: theme.buttonBg }]}>Sign up</Text>
               </TouchableOpacity>
             </View>
           </FadeInView>
+
         </View>
-      </View>
+      </SafeAreaView>
     </View>
   );
 }
@@ -461,30 +459,23 @@ const sf = StyleSheet.create({
 
 // ── Login screen StyleSheet ───────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1 },
+  root:  { flex: 1 },
+  inner: { flex: 1, paddingHorizontal: 28, paddingTop: 20, paddingBottom: 16 },
+  spacer:{ flex: 1 },
 
-  header: { paddingHorizontal: 28, paddingTop: 16, paddingBottom: 36 },
-  logoWrap: {
-    width: 56, height: 56, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 18,
+  brandRow:    { marginBottom: 24 },
+  avatar:      { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  avatarText:  { fontSize: 24, fontWeight: '800' },
+  heading:     { fontSize: 30, fontWeight: '800', marginBottom: 6, lineHeight: 36 },
+  subHeading:  { fontSize: 15 },
+
+  faceBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, borderRadius: 16, paddingVertical: 17, marginBottom: 16,
+    shadowColor: '#2D336B', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28, shadowRadius: 14, elevation: 7,
   },
-  headerTitle: { fontSize: 26, fontWeight: '800', color: '#FFFFFF', marginBottom: 6 },
-  headerSub:   { fontSize: 15, color: 'rgba(255,255,255,0.55)' },
-
-  sheet:   { flex: 1, borderTopLeftRadius: 28, borderTopRightRadius: 28 },
-  content: { paddingHorizontal: 24, paddingTop: 32, paddingBottom: 40 },
-
-  sheetTitle: { fontSize: 18, fontWeight: '700', marginBottom: 6 },
-  sheetSub:   { fontSize: 14, marginBottom: 20 },
-
-  btn: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 12, gap: 14,
-  },
-  btnText:  { flex: 1 },
-  btnTitle: { fontSize: 15, fontWeight: '700', color: '#FFFFFF', marginBottom: 2 },
-  btnSub:   { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
+  faceBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 
   divider:     { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
   dividerLine: { flex: 1, height: 1 },
@@ -492,7 +483,7 @@ const s = StyleSheet.create({
 
   googleBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 14, paddingVertical: 14, gap: 10, borderWidth: 1, marginBottom: 28,
+    gap: 10, borderRadius: 16, paddingVertical: 16, borderWidth: 1.5,
   },
   googleText: { fontSize: 15, fontWeight: '600' },
 

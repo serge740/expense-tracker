@@ -18,7 +18,8 @@ import {
 } from '@expo-google-fonts/poppins';
 import * as SplashScreen from 'expo-splash-screen';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ThemePreferenceProvider, useThemePreference } from '@/context/theme-context';
+import { CurrencyProvider } from '@/context/currency-context';
 import { getToken } from '@/services/client-auth.service';
 import { AppSplash } from '@/components/app-splash';
 
@@ -32,8 +33,8 @@ if (!TextInput.defaultProps) (TextInput as any).defaultProps = {};
 
 export const unstable_settings = { anchor: 'index' };
 
-export default function RootLayout() {
-  const colorScheme  = useColorScheme();
+function RootLayoutInner() {
+  const { resolvedScheme } = useThemePreference();
   const [splashDone, setSplashDone] = useState(false);
 
   const [fontsLoaded] = useFonts({
@@ -48,12 +49,10 @@ export default function RootLayout() {
     Poppins_900Black,
   });
 
-  // Hide native splash as soon as fonts are ready — our custom splash takes over
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();
   }, [fontsLoaded]);
 
-  // After BOTH fonts loaded + custom splash animation finished → auth check
   useEffect(() => {
     if (!fontsLoaded || !splashDone) return;
     (async () => {
@@ -65,7 +64,7 @@ export default function RootLayout() {
   const handleSplashDone = useCallback(() => setSplashDone(true), []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={resolvedScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -81,12 +80,21 @@ export default function RootLayout() {
         <Stack.Screen name="modal"       options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       </Stack>
 
-      {/* Custom animated splash overlay — rendered on top of everything */}
       {fontsLoaded && !splashDone && (
         <AppSplash onComplete={handleSplashDone} />
       )}
 
       <StatusBar style="auto" />
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemePreferenceProvider>
+      <CurrencyProvider>
+        <RootLayoutInner />
+      </CurrencyProvider>
+    </ThemePreferenceProvider>
   );
 }

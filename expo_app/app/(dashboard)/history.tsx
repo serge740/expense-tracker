@@ -1,161 +1,358 @@
-import React, { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  View, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
+  ActivityIndicator, Alert, RefreshControl,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
-import { ComponentProps } from 'react';
+import { FadeInView } from '@/components/fade-in-view';
+import {
+  getTransactionHistory, deleteTransaction, CATEGORY_ICON,
+  TransactionGroup, Transaction, CategorySlug,
+} from '@/services/transaction.service';
+import { useCurrency } from '@/context/currency-context';
+import { TransactionDetailModal } from '@/components/transaction-detail-modal';
+import { DatePickerModal } from '@/components/date-picker-modal';
 
-type IconName = ComponentProps<typeof MaterialIcons>['name'];
+const CATS = ['All', 'Food', 'Shopping', 'Transport', 'Health', 'Entertainment', 'Travel', 'Groceries', 'Salary', 'Other'];
 
-interface Transaction { id: string; icon: IconName; title: string; subtitle: string; amount: number; }
-interface Group { date: string; items: Transaction[]; }
+const CAT_SLUG: Record<string, CategorySlug | undefined> = {
+  Food: 'food', Shopping: 'shopping', Transport: 'transport',
+  Health: 'health', Entertainment: 'entertainment', Travel: 'travel',
+  Groceries: 'groceries', Salary: 'salary', Other: 'other',
+};
 
-const CATEGORIES = ['All', 'Food', 'Shopping', 'Transport', 'Health', 'Entertainment'];
+const DATE_FILTERS = ['Today', 'Week', 'Month', 'Year', 'Custom'] as const;
+type DateFilter = typeof DATE_FILTERS[number];
 
-const GROUPS: Group[] = [
-  {
-    date: 'TODAY',
-    items: [
-      { id: '1', icon: 'receipt', title: 'Netflix',     subtitle: 'Entertainment · Today', amount: -15.99 },
-      { id: '2', icon: 'receipt', title: 'Whole Foods', subtitle: 'Groceries · Today',      amount: -84.30 },
-    ],
-  },
-  {
-    date: 'YESTERDAY, APR 29',
-    items: [
-      { id: '3', icon: 'trending-up', title: 'Salary — April', subtitle: 'Income · Apr 29', amount: 4200.00 },
-    ],
-  },
-  {
-    date: 'MONDAY, APR 28',
-    items: [
-      { id: '4', icon: 'receipt', title: 'Uber Eats', subtitle: 'Food · Apr 28',     amount: -32.50 },
-      { id: '5', icon: 'receipt', title: 'Zara',      subtitle: 'Shopping · Apr 28', amount: -89.95 },
-    ],
-  },
-  {
-    date: 'SUNDAY, APR 27',
-    items: [
-      { id: '6', icon: 'receipt', title: 'Spotify',       subtitle: 'Entertainment · Apr 27', amount:  -9.99  },
-      { id: '7', icon: 'receipt', title: 'Metro Monthly', subtitle: 'Transport · Apr 26',      amount: -110.00 },
-    ],
-  },
-];
+function getDateRange(filter: DateFilter, customStart?: Date, customEnd?: Date) {
+  const now = new Date();
+  if (filter === 'Today') {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (filter === 'Week') {
+    const dayOfWeek = now.getDay();
+    const start = new Date(now); start.setDate(now.getDate() - dayOfWeek); start.setHours(0, 0, 0, 0);
+    const end   = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23, 59, 59, 999);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (filter === 'Month') {
+    return { month: now.getMonth() + 1, year: now.getFullYear() };
+  }
+  if (filter === 'Year') {
+    const start = new Date(now.getFullYear(), 0, 1);
+    const end   = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  }
+  if (filter === 'Custom' && customStart && customEnd) {
+    const s = new Date(customStart); s.setHours(0, 0, 0, 0);
+    const e = new Date(customEnd);   e.setHours(23, 59, 59, 999);
+    return { startDate: s.toISOString(), endDate: e.toISOString() };
+  }
+  return { month: now.getMonth() + 1, year: now.getFullYear() };
+}
 
-function fmt(n: number) {
+function fmt(n: number, sym: string) {
   const abs = Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return (n >= 0 ? '+$' : '-$') + abs;
+  return (n >= 0 ? `+${sym}` : `-${sym}`) + abs;
 }
 
 export default function HistoryScreen() {
   const theme = useAppTheme();
-  const [activeFilter, setActiveFilter] = useState('All');
+  const { currency } = useCurrency();
+  const sym = currency.symbol;
 
-  const totalSpent  = GROUPS.flatMap(g => g.items).filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
-  const totalIncome = GROUPS.flatMap(g => g.items).filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  const net         = totalIncome - totalSpent;
+  const [active,       setActive]       = useState('All');
+  const [dateFilter,   setDateFilter]   = useState<DateFilter>('Month');
+  const [groups,       setGroups]       = useState<TransactionGroup[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [refreshing,   setRefreshing]   = useState(false);
+  const [detailTx,     setDetailTx]     = useState<Transaction | null>(null);
+  const [customStart,  setCustomStart]  = useState<Date | undefined>();
+  const [customEnd,    setCustomEnd]    = useState<Date | undefined>();
+  const [customPhase,  setCustomPhase]  = useState<null | 'start' | 'end'>(null);
+
+  const load = useCallback(async (cat: string, df: DateFilter, cStart?: Date, cEnd?: Date, silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const slug = cat === 'All' ? undefined : CAT_SLUG[cat];
+      const range = getDateRange(df, cStart, cEnd);
+      const data = await getTransactionHistory({ category: slug, ...range });
+      setGroups(data);
+    } catch {
+      setGroups([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load(active, dateFilter, customStart, customEnd); }, [active, dateFilter, customStart, customEnd]);
+
+  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, true); }, [active, dateFilter, customStart, customEnd, load]));
+
+  const handleDateFilter = (df: DateFilter) => {
+    if (df === 'Custom') {
+      setCustomPhase('start');
+    } else {
+      setDateFilter(df);
+      setCustomStart(undefined);
+      setCustomEnd(undefined);
+    }
+  };
+
+  const handleCustomDatePick = (date: Date) => {
+    if (customPhase === 'start') {
+      setCustomStart(date);
+      setCustomPhase('end');
+    } else {
+      setCustomEnd(date);
+      setCustomPhase(null);
+      setDateFilter('Custom');
+    }
+  };
+
+  const handleDelete = (t: Transaction) => {
+    Alert.alert(
+      'Delete Transaction',
+      `Remove "${t.title}"? This will also update your wallet balance.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteTransaction(t.id);
+              setGroups(prev =>
+                prev
+                  .map(g => ({ ...g, items: g.items.filter(i => i.id !== t.id) }))
+                  .filter(g => g.items.length > 0),
+              );
+            } catch (e: any) {
+              Alert.alert('Error', e?.response?.data?.message || 'Could not delete transaction.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const allTx      = groups.flatMap(g => g.items);
+  const totalSpent = allTx.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const totalInc   = allTx.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const net        = totalInc - totalSpent;
+
+  const customLabel = customStart && customEnd
+    ? `${customStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${customEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : 'Custom';
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.headerBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
 
+      <TransactionDetailModal
+        visible={!!detailTx}
+        transaction={detailTx}
+        onClose={() => setDetailTx(null)}
+        onDeleted={(id) => {
+          setDetailTx(null);
+          setGroups(prev =>
+            prev
+              .map(g => ({ ...g, items: g.items.filter(i => i.id !== id) }))
+              .filter(g => g.items.length > 0),
+          );
+        }}
+      />
+
+      <DatePickerModal
+        visible={customPhase !== null}
+        value={customPhase === 'end' ? (customStart ?? new Date()) : new Date()}
+        showTime={false}
+        title={customPhase === 'start' ? 'Select Start Date' : 'Select End Date'}
+        onConfirm={handleCustomDatePick}
+        onClose={() => setCustomPhase(null)}
+      />
+
+      <ScrollView
+        contentContainerStyle={[s.scroll, { backgroundColor: theme.background }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(active, dateFilter, customStart, customEnd, true); }}
+            tintColor="#fff"
+          />
+        }
+      >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>History</Text>
-          <View style={styles.headerIcons}>
-            <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]} activeOpacity={0.7}>
-              <MaterialIcons name="search" size={20} color={theme.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.surface }]} activeOpacity={0.7}>
-              <MaterialIcons name="filter-list" size={20} color={theme.text} />
-            </TouchableOpacity>
-          </View>
+        <View style={[s.header, { backgroundColor: theme.headerBg }]}>
+          <View style={s.decA} />
+          <View style={s.decB} />
+
+          <FadeInView delay={0} slideFrom="top" distance={14}>
+            <View style={s.topBar}>
+              <Text style={s.title}>History</Text>
+              <TouchableOpacity style={s.searchBtn} activeOpacity={0.7}>
+                <MaterialIcons name="search" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </FadeInView>
+
+          {/* Stats strip */}
+          <FadeInView delay={50} slideFrom="bottom" distance={16}>
+            <View style={s.statsRow}>
+              {[
+                { label: 'SPENT',  value: `${sym}${Math.round(totalSpent).toLocaleString()}`,   color: '#F87171' },
+                { label: 'INCOME', value: `${sym}${Math.round(totalInc).toLocaleString()}`,     color: '#4ADE80' },
+                { label: 'NET',    value: `${net >= 0 ? '+' : '-'}${sym}${Math.abs(Math.round(net)).toLocaleString()}`, color: '#FFFFFF' },
+              ].map(stat => (
+                <View key={stat.label} style={[s.statCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                  <Text style={s.statLabel}>{stat.label}</Text>
+                  <Text style={[s.statVal, { color: stat.color }]}>{stat.value}</Text>
+                </View>
+              ))}
+            </View>
+          </FadeInView>
         </View>
 
-        {/* Category filters */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {CATEGORIES.map(cat => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.filterChip,
-                { backgroundColor: activeFilter === cat ? theme.buttonBg : theme.surface, borderColor: activeFilter === cat ? theme.buttonBg : theme.border },
-              ]}
-              onPress={() => setActiveFilter(cat)}
-              activeOpacity={0.75}
-            >
-              <Text style={[styles.filterLabel, { color: activeFilter === cat ? '#FFFFFF' : theme.textSecondary }]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Date filter chips */}
+        <FadeInView delay={80} slideFrom="none">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
+            {DATE_FILTERS.map(df => {
+              const isActive = dateFilter === df;
+              const label    = df === 'Custom' ? customLabel : df;
+              return (
+                <TouchableOpacity
+                  key={df}
+                  style={[s.chip, isActive
+                    ? { backgroundColor: theme.primary, borderColor: theme.primary }
+                    : { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                  onPress={() => handleDateFilter(df)}
+                  activeOpacity={0.75}
+                >
+                  {df === 'Custom' && <MaterialIcons name="date-range" size={13} color={isActive ? '#fff' : theme.textMuted} style={{ marginRight: 4 }} />}
+                  <Text style={[s.chipText, { color: isActive ? '#FFFFFF' : theme.textSecondary }]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </FadeInView>
 
-        {/* Summary */}
-        <View style={styles.summaryRow}>
-          <View style={[styles.summaryBox, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.summaryKey, { color: theme.textMuted }]}>SPENT</Text>
-            <Text style={[styles.summaryVal, { color: theme.expense }]}>${totalSpent.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
-          </View>
-          <View style={[styles.summaryBox, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.summaryKey, { color: theme.textMuted }]}>INCOME</Text>
-            <Text style={[styles.summaryVal, { color: theme.income }]}>${totalIncome.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
-          </View>
-          <View style={[styles.summaryBox, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.summaryKey, { color: theme.textMuted }]}>NET</Text>
-            <Text style={[styles.summaryVal, { color: theme.text }]}>+${net.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
-          </View>
-        </View>
-
-        {/* Grouped transactions */}
-        {GROUPS.map(group => (
-          <View key={group.date} style={{ marginBottom: 4 }}>
-            <Text style={[styles.groupDate, { color: theme.textMuted }]}>{group.date}</Text>
-            {group.items.map(t => (
-              <TouchableOpacity key={t.id} style={[styles.txRow, { backgroundColor: 'transparent' }]} activeOpacity={0.75}>
-                <View style={[styles.txIcon, { backgroundColor: theme.primaryBg }]}>
-                  <MaterialIcons name={t.icon} size={18} color={theme.primary} />
-                </View>
-                <View style={styles.txText}>
-                  <Text style={[styles.txTitle, { color: theme.text }]}>{t.title}</Text>
-                  <Text style={[styles.txSub, { color: theme.textSecondary }]}>{t.subtitle}</Text>
-                </View>
-                <Text style={[styles.txAmount, { color: t.amount >= 0 ? theme.income : theme.expense }]}>
-                  {fmt(t.amount)}
+        {/* Category filter chips */}
+        <FadeInView delay={100} slideFrom="none">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[s.filterRow, { paddingTop: 0 }]}>
+            {CATS.map(cat => (
+              <TouchableOpacity
+                key={cat}
+                style={[s.chip, active === cat
+                  ? { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }
+                  : { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+                onPress={() => setActive(cat)}
+                activeOpacity={0.75}
+              >
+                <Text style={[s.chipText, { color: active === cat ? '#FFFFFF' : theme.textSecondary }]}>
+                  {cat}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
-        ))}
+          </ScrollView>
+        </FadeInView>
+
+        <Text style={[s.hint, { color: theme.textMuted }]}>Tap to view details · Long-press to delete</Text>
+
+        {/* Grouped transactions */}
+        {loading ? (
+          <ActivityIndicator color={theme.primary} style={{ marginTop: 24 }} />
+        ) : groups.length === 0 ? (
+          <FadeInView delay={140} slideFrom="bottom" distance={12}>
+            <View style={[s.emptyCard, { backgroundColor: theme.surface }]}>
+              <MaterialIcons name="receipt-long" size={32} color={theme.textMuted} />
+              <Text style={[s.emptyText, { color: theme.textMuted }]}>No transactions found</Text>
+            </View>
+          </FadeInView>
+        ) : (
+          groups.map((group, gi) => (
+            <FadeInView key={group.date} delay={140 + gi * 50} slideFrom="bottom" distance={12}>
+              <Text style={[s.dateLabel, { color: theme.textMuted }]}>{group.date}</Text>
+              <View style={[s.groupCard, { backgroundColor: theme.surface }]}>
+                {group.items.map((t: Transaction, i: number) => (
+                  <React.Fragment key={t.id}>
+                    <TouchableOpacity
+                      style={s.txRow}
+                      activeOpacity={0.75}
+                      onPress={() => setDetailTx(t)}
+                      onLongPress={() => handleDelete(t)}
+                    >
+                      <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
+                        <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={18} color={theme.primary} />
+                      </View>
+                      <View style={s.txMid}>
+                        <Text style={[s.txTitle, { color: theme.text }]}>{t.title}</Text>
+                        <Text style={[s.txSub, { color: theme.textSecondary }]}>
+                          {t.description ?? `${t.category} · ${new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                        </Text>
+                      </View>
+                      <Text style={[s.txAmount, { color: t.amount >= 0 ? theme.income : theme.expense }]}>
+                        {fmt(t.amount, sym)}
+                      </Text>
+                    </TouchableOpacity>
+                    {i < group.items.length - 1 && (
+                      <View style={[s.sep, { backgroundColor: theme.border }]} />
+                    )}
+                  </React.Fragment>
+                ))}
+              </View>
+            </FadeInView>
+          ))
+        )}
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1 },
-  scrollContent: { paddingBottom: 24 },
+const s = StyleSheet.create({
+  safe:   { flex: 1 },
+  scroll: { flexGrow: 1 },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 24, fontWeight: '800' },
-  headerIcons: { flexDirection: 'row', gap: 8 },
-  iconButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  header: { paddingBottom: 20, overflow: 'hidden' },
+  decA:   { position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: 'rgba(255,255,255,0.05)', top: -80, right: -50 },
+  decB:   { position: 'absolute', width: 160, height: 160, borderRadius: 80,  backgroundColor: 'rgba(255,255,255,0.04)', bottom: -40, left: -30 },
 
-  filterScroll: { paddingHorizontal: 20, gap: 8, paddingBottom: 12 },
-  filterChip: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  filterLabel: { fontSize: 14, fontWeight: '600' },
+  topBar:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 14 },
+  title:     { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  searchBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
 
-  summaryRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 16 },
-  summaryBox: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center' },
-  summaryKey: { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, marginBottom: 4 },
-  summaryVal: { fontSize: 16, fontWeight: '700' },
+  statsRow:  { flexDirection: 'row', gap: 8, paddingHorizontal: 20 },
+  statCard:  { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
+  statLabel: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.5)', letterSpacing: 1, marginBottom: 4 },
+  statVal:   { fontSize: 16, fontWeight: '800' },
 
-  groupDate: { fontSize: 11, fontWeight: '700', letterSpacing: 0.8, paddingHorizontal: 20, marginTop: 12, marginBottom: 8 },
-  txRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 2, borderRadius: 0, paddingHorizontal: 16, paddingVertical: 14 },
-  txIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  txText: { flex: 1 },
-  txTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  txSub: { fontSize: 12 },
-  txAmount: { fontSize: 15, fontWeight: '700' },
+  filterRow: { paddingHorizontal: 20, paddingVertical: 14, gap: 8 },
+  chip:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 22, borderWidth: 1.5 },
+  chipText:  { fontSize: 13, fontWeight: '600' },
+
+  hint: { fontSize: 11, textAlign: 'center', marginBottom: 4, marginTop: 2 },
+
+  dateLabel:  { fontSize: 11, fontWeight: '700', letterSpacing: 0.9, paddingHorizontal: 20, marginTop: 4, marginBottom: 8 },
+  groupCard:  { marginHorizontal: 20, borderRadius: 18, overflow: 'hidden', marginBottom: 4 },
+  txRow:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+  txIcon:     { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  txMid:      { flex: 1 },
+  txTitle:    { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  txSub:      { fontSize: 12 },
+  txAmount:   { fontSize: 15, fontWeight: '700' },
+  sep:        { height: 1, marginHorizontal: 16 },
+
+  emptyCard: { marginHorizontal: 20, borderRadius: 16, padding: 28, alignItems: 'center', gap: 8, marginTop: 8 },
+  emptyText: { fontSize: 14 },
 });

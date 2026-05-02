@@ -1,4 +1,4 @@
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemePreference } from '@/context/theme-context';
 
 export interface AppTheme {
   background:    string;
@@ -61,6 +61,6 @@ const dark: AppTheme = {
 };
 
 export function useAppTheme(): AppTheme {
-  const scheme = useColorScheme();
-  return scheme === 'dark' ? dark : light;
+  const { resolvedScheme } = useThemePreference();
+  return resolvedScheme === 'dark' ? dark : light;
 }

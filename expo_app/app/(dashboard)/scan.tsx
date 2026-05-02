@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, TouchableOpacity, StyleSheet, StatusBar,
-  Animated, Easing, Image, Alert,
+  Animated, Easing, Image, Alert, ActivityIndicator,
 } from 'react-native';
 import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,8 +9,12 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { scanReceipt } from '@/services/ocr.service';
 
-type ScanState = 'idle' | 'scanning' | 'result';
+type ScanState = 'idle' | 'scanning' | 'result' | 'processing';
+
+const BRAND   = '#2D336B';
+const BRACKET = '#5B6AD4';
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -22,117 +26,131 @@ export default function ScanScreen() {
   const cameraRef = useRef<CameraView>(null);
   const scanLine  = useRef(new Animated.Value(0)).current;
 
-  const lineY = scanLine.interpolate({ inputRange: [0, 1], outputRange: [0, 220] });
+  const lineY = scanLine.interpolate({ inputRange: [0, 1], outputRange: [0, 210] });
 
-  const startScanAnimation = () => {
+  const startScan = () => {
     scanLine.setValue(0);
     Animated.loop(
-      Animated.timing(scanLine, { toValue: 1, duration: 1600, easing: Easing.linear, useNativeDriver: true })
+      Animated.timing(scanLine, { toValue: 1, duration: 1800, easing: Easing.linear, useNativeDriver: true })
     ).start();
   };
 
   const handleCapture = async () => {
     if (!cameraRef.current || scanState !== 'idle') return;
     setScanState('scanning');
-    startScanAnimation();
-
+    startScan();
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8, base64: false });
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.85, base64: false });
       scanLine.stopAnimation();
-      if (photo) {
-        setCapturedUri(photo.uri);
-        setScanState('result');
-      } else {
-        setScanState('idle');
-      }
+      if (photo) { setCapturedUri(photo.uri); setScanState('result'); }
+      else { setScanState('idle'); }
     } catch {
       scanLine.stopAnimation();
       setScanState('idle');
-      Alert.alert('Error', 'Failed to capture photo. Please try again.');
+      Alert.alert('Error', 'Failed to capture. Please try again.');
     }
   };
 
-  const handlePickFromGallery = async () => {
+  const handleGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow access to your photo library to import receipts.');
+      Alert.alert('Permission needed', 'Allow access to your photo library.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.9,
-      allowsEditing: false,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });
     if (!result.canceled && result.assets[0]) {
       setCapturedUri(result.assets[0].uri);
       setScanState('result');
     }
   };
 
-  const handleReset = () => {
-    setCapturedUri(null);
-    setScanState('idle');
+  const handleReset = () => { setCapturedUri(null); setScanState('idle'); };
+
+  const handleProcessOcr = async () => {
+    if (!capturedUri) return;
+    setScanState('processing');
+    try {
+      const ocr = await scanReceipt(capturedUri);
+      router.push({
+        pathname: '/(dashboard)/add',
+        params: {
+          amount:   ocr.amount?.toString()   ?? '',
+          merchant: ocr.merchant ?? '',
+          date:     ocr.date ?? '',
+          type:     'EXPENSE',
+        },
+      });
+    } catch {
+      Alert.alert('OCR Failed', 'Could not read receipt. You can still enter details manually.');
+      router.push('/(dashboard)/add');
+    } finally {
+      setScanState('result');
+    }
   };
 
-  // ── Permission not yet determined ──
-  if (!permission) {
-    return <View style={styles.fullDark} />;
-  }
+  // ── Permission ──
+  if (!permission) return <View style={s.bg} />;
 
-  // ── Permission denied ──
   if (!permission.granted) {
     return (
-      <View style={styles.fullDark}>
-        <StatusBar barStyle="light-content" backgroundColor="#0A0A12" />
-        <SafeAreaView style={styles.permissionWrap}>
-          <MaterialIcons name="camera-alt" size={56} color="rgba(255,255,255,0.3)" />
-          <Text style={styles.permTitle}>Camera Access Needed</Text>
-          <Text style={styles.permDesc}>Allow camera access to scan receipts and auto-log expenses.</Text>
-          <TouchableOpacity style={styles.permBtn} onPress={requestPermission} activeOpacity={0.85}>
-            <Text style={styles.permBtnText}>Allow Camera</Text>
+      <View style={s.bg}>
+        <StatusBar barStyle="light-content" />
+        <SafeAreaView style={s.permWrap}>
+          <View style={[s.permIcon, { backgroundColor: 'rgba(91,106,212,0.15)' }]}>
+            <MaterialIcons name="camera-alt" size={40} color={BRACKET} />
+          </View>
+          <Text style={s.permTitle}>Camera Access Needed</Text>
+          <Text style={s.permDesc}>Allow camera access to scan receipts and auto-log expenses.</Text>
+          <TouchableOpacity style={[s.permBtn, { backgroundColor: BRAND }]} onPress={requestPermission} activeOpacity={0.85}>
+            <Text style={s.permBtnText}>Allow Camera</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.permBack} onPress={() => router.back()} activeOpacity={0.7}>
-            <Text style={styles.permBackText}>Go back</Text>
+          <TouchableOpacity style={s.permBack} onPress={() => router.back()} activeOpacity={0.7}>
+            <Text style={s.permBackText}>Go back</Text>
           </TouchableOpacity>
         </SafeAreaView>
       </View>
     );
   }
 
-  // ── Result: show captured image ──
-  if (scanState === 'result' && capturedUri) {
+  // ── Result ──
+  if ((scanState === 'result' || scanState === 'processing') && capturedUri) {
     return (
-      <View style={styles.fullDark}>
-        <StatusBar barStyle="light-content" backgroundColor="#0A0A12" />
+      <View style={s.bg}>
+        <StatusBar barStyle="light-content" />
         <SafeAreaView style={{ flex: 1 }}>
-          <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={handleReset} activeOpacity={0.7}>
-              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+          <View style={s.header}>
+            <TouchableOpacity style={s.backBtn} onPress={handleReset} activeOpacity={0.7}>
+              <MaterialIcons name="arrow-back" size={20} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Receipt Captured</Text>
+            <Text style={s.headerTitle}>Receipt Captured</Text>
             <View style={{ width: 40 }} />
           </View>
-
-          <View style={styles.capturedContainer}>
-            <Image source={{ uri: capturedUri }} style={styles.capturedImage} resizeMode="contain" />
-            <View style={styles.successBadge}>
-              <MaterialIcons name="check-circle" size={20} color="#4ADE80" />
-              <Text style={styles.successBadgeText}>Receipt Detected</Text>
+          <View style={s.capturedWrap}>
+            <Image source={{ uri: capturedUri }} style={s.capturedImg} resizeMode="contain" />
+            <View style={s.successBadge}>
+              <MaterialIcons name="check-circle" size={18} color="#4ADE80" />
+              <Text style={s.successText}>Receipt Detected</Text>
             </View>
           </View>
-
-          <View style={styles.resultActions}>
-            <TouchableOpacity style={styles.retakeBtn} onPress={handleReset} activeOpacity={0.8}>
+          <View style={s.resultRow}>
+            <TouchableOpacity style={s.retakeBtn} onPress={handleReset} activeOpacity={0.8} disabled={scanState === 'processing'}>
               <MaterialIcons name="replay" size={18} color="rgba(255,255,255,0.8)" />
-              <Text style={styles.retakeBtnText}>Retake</Text>
+              <Text style={s.retakeText}>Retake</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.saveButton}
+              style={[s.saveBtn, { backgroundColor: BRAND, opacity: scanState === 'processing' ? 0.7 : 1 }]}
               activeOpacity={0.85}
-              onPress={() => router.push('/(dashboard)/add')}
+              onPress={handleProcessOcr}
+              disabled={scanState === 'processing'}
             >
-              <MaterialIcons name="receipt-long" size={20} color="#FFFFFF" />
-              <Text style={styles.saveButtonText}>Review & Save Expense</Text>
+              {scanState === 'processing' ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <MaterialIcons name="receipt-long" size={18} color="#fff" />
+                  <Text style={s.saveBtnText}>Review & Save</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -140,34 +158,25 @@ export default function ScanScreen() {
     );
   }
 
-  // ── Camera view ──
+  // ── Camera ──
   return (
-    <View style={styles.fullDark}>
+    <View style={s.bg}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} flash={flash} />
 
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFill}
-        facing={facing}
-        flash={flash}
-      />
-
-      {/* Dark overlay — top */}
-      <View style={styles.overlayTop} />
-      {/* Dark overlay — bottom */}
-      <View style={styles.overlayBottom} />
+      <View style={s.vigTop} />
+      <View style={s.vigBottom} />
 
       <SafeAreaView style={{ flex: 1 }}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()} activeOpacity={0.7}>
-            <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+            <MaterialIcons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Scan Receipt</Text>
+          <Text style={s.headerTitle}>Scan Receipt</Text>
           <TouchableOpacity
-            style={styles.flashButton}
+            style={s.flashBtn}
+            onPress={() => setFlash(f => f === 'off' ? 'on' : 'off')}
             activeOpacity={0.7}
-            onPress={() => setFlash(f => (f === 'off' ? 'on' : 'off'))}
           >
             <MaterialIcons
               name={flash === 'on' ? 'flash-on' : 'flash-off'}
@@ -177,112 +186,105 @@ export default function ScanScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Viewfinder overlay */}
-        <View style={styles.viewfinderArea}>
-          <View style={styles.viewfinder}>
-            <View style={[styles.corner, styles.tl]} />
-            <View style={[styles.corner, styles.tr]} />
-            <View style={[styles.corner, styles.bl]} />
-            <View style={[styles.corner, styles.br]} />
+        <View style={s.vfArea}>
+          <View style={s.vf}>
+            <View style={[s.corner, s.cTL, { borderColor: BRACKET }]} />
+            <View style={[s.corner, s.cTR, { borderColor: BRACKET }]} />
+            <View style={[s.corner, s.cBL, { borderColor: BRACKET }]} />
+            <View style={[s.corner, s.cBR, { borderColor: BRACKET }]} />
+
+            {[0.25, 0.42, 0.58, 0.72, 0.84].map((pos, i) => (
+              <View
+                key={i}
+                style={[s.mockLine, { top: `${pos * 100}%`, width: `${60 + i * 8}%`, opacity: 0.18 + i * 0.04 }]}
+              />
+            ))}
 
             {scanState === 'scanning' && (
-              <Animated.View style={[styles.scanLine, { transform: [{ translateY: lineY }] }]} />
+              <Animated.View style={[s.scanLine, { transform: [{ translateY: lineY }] }]} />
             )}
           </View>
 
-          <Text style={styles.instructionMain}>
-            {scanState === 'scanning' ? 'Scanning…' : 'Point camera at your receipt'}
+          <Text style={s.instrMain}>
+            {scanState === 'scanning' ? 'Scanning…' : 'Point camera at receipt'}
           </Text>
-          <Text style={styles.instructionSub}>
-            {scanState === 'scanning' ? 'Hold steady' : 'Align the receipt inside the frame'}
+          <Text style={s.instrSub}>
+            {scanState === 'scanning' ? 'Hold steady' : 'Hold steady · Auto-detects edges'}
           </Text>
         </View>
 
-        {/* Bottom controls */}
-        <View style={styles.controls}>
-          <TouchableOpacity style={styles.controlSide} activeOpacity={0.7} onPress={handlePickFromGallery}>
-            <MaterialIcons name="photo-library" size={24} color="rgba(255,255,255,0.8)" />
+        <View style={s.controls}>
+          <TouchableOpacity style={s.ctrlBtn} onPress={handleGallery} activeOpacity={0.7}>
+            <MaterialIcons name="ios-share" size={22} color="rgba(255,255,255,0.85)" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.captureButton, scanState === 'scanning' && { opacity: 0.5 }]}
-            activeOpacity={0.85}
+            style={[s.shutterRing, scanState === 'scanning' && { opacity: 0.5 }]}
             onPress={handleCapture}
+            activeOpacity={0.85}
             disabled={scanState === 'scanning'}
           >
-            <View style={styles.captureInner} />
+            <View style={s.shutterInner} />
           </TouchableOpacity>
 
-          <View style={styles.controlSide} />
+          <TouchableOpacity style={s.ctrlBtn} onPress={() => {}} activeOpacity={0.7}>
+            <MaterialIcons name="grid-view" size={22} color="rgba(255,255,255,0.85)" />
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     </View>
   );
 }
 
-const BRACKET_COLOR = '#7B5CF0';
-const BRACKET_SIZE  = 32;
-const BRACKET_W     = 3;
+const s = StyleSheet.create({
+  bg: { flex: 1, backgroundColor: '#0A0A12' },
 
-const styles = StyleSheet.create({
-  fullDark: { flex: 1, backgroundColor: '#0A0A12' },
+  permWrap:    { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 12 },
+  permIcon:    { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  permTitle:   { fontSize: 20, fontWeight: '700', color: '#fff', textAlign: 'center' },
+  permDesc:    { fontSize: 14, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 20 },
+  permBtn:     { marginTop: 12, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 36 },
+  permBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  permBack:    { padding: 8 },
+  permBackText:{ fontSize: 14, color: 'rgba(255,255,255,0.4)' },
 
-  // Permission screen
-  permissionWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 12 },
-  permTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF', textAlign: 'center', marginTop: 8 },
-  permDesc: { fontSize: 14, color: 'rgba(255,255,255,0.5)', textAlign: 'center', lineHeight: 20 },
-  permBtn: { marginTop: 12, backgroundColor: '#7B5CF0', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 36 },
-  permBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
-  permBack: { marginTop: 4, padding: 8 },
-  permBackText: { fontSize: 14, color: 'rgba(255,255,255,0.4)' },
+  vigTop:    { position: 'absolute', top: 0, left: 0, right: 0, height: '18%', backgroundColor: 'rgba(0,0,0,0.65)' },
+  vigBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '26%', backgroundColor: 'rgba(0,0,0,0.65)' },
 
-  // Camera overlays
-  overlayTop: { position: 'absolute', top: 0, left: 0, right: 0, height: '20%', backgroundColor: 'rgba(0,0,0,0.55)' },
-  overlayBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '28%', backgroundColor: 'rgba(0,0,0,0.55)' },
+  header:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8 },
+  backBtn:     { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
+  flashBtn:    { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
 
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  flashButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+  vfArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 },
+  vf: { width: '100%', height: 240, marginBottom: 24, position: 'relative', overflow: 'hidden', alignItems: 'center' },
+  corner:  { position: 'absolute', width: 28, height: 28 },
+  cTL: { top: 0, left: 0,  borderTopWidth: 2.5, borderLeftWidth: 2.5,  borderTopLeftRadius: 6 },
+  cTR: { top: 0, right: 0, borderTopWidth: 2.5, borderRightWidth: 2.5, borderTopRightRadius: 6 },
+  cBL: { bottom: 0, left: 0,  borderBottomWidth: 2.5, borderLeftWidth: 2.5,  borderBottomLeftRadius: 6 },
+  cBR: { bottom: 0, right: 0, borderBottomWidth: 2.5, borderRightWidth: 2.5, borderBottomRightRadius: 6 },
 
-  viewfinderArea: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
-  viewfinder: {
-    width: '100%', height: 260,
-    borderRadius: 18, overflow: 'hidden',
-    alignItems: 'center', marginBottom: 20,
-    position: 'relative',
-    backgroundColor: 'transparent',
-  },
-
-  corner: { position: 'absolute', width: BRACKET_SIZE, height: BRACKET_SIZE },
-  tl: { top: 0, left: 0, borderTopWidth: BRACKET_W, borderLeftWidth: BRACKET_W, borderColor: BRACKET_COLOR, borderTopLeftRadius: 5 },
-  tr: { top: 0, right: 0, borderTopWidth: BRACKET_W, borderRightWidth: BRACKET_W, borderColor: BRACKET_COLOR, borderTopRightRadius: 5 },
-  bl: { bottom: 0, left: 0, borderBottomWidth: BRACKET_W, borderLeftWidth: BRACKET_W, borderColor: BRACKET_COLOR, borderBottomLeftRadius: 5 },
-  br: { bottom: 0, right: 0, borderBottomWidth: BRACKET_W, borderRightWidth: BRACKET_W, borderColor: BRACKET_COLOR, borderBottomRightRadius: 5 },
-
+  mockLine: { position: 'absolute', height: 1.5, borderRadius: 1, backgroundColor: 'rgba(91,106,212,0.6)', alignSelf: 'center' },
   scanLine: {
-    position: 'absolute', left: 0, right: 0, height: 2,
-    backgroundColor: BRACKET_COLOR,
-    shadowColor: BRACKET_COLOR, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 8,
+    position: 'absolute', left: 0, right: 0, height: 2, backgroundColor: BRACKET,
+    shadowColor: BRACKET, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 1, shadowRadius: 8,
   },
 
-  instructionMain: { fontSize: 16, fontWeight: '600', color: '#FFFFFF', marginBottom: 6 },
-  instructionSub: { fontSize: 13, color: 'rgba(255,255,255,0.5)' },
+  instrMain: { fontSize: 16, fontWeight: '600', color: '#fff', marginBottom: 6 },
+  instrSub:  { fontSize: 13, color: 'rgba(255,255,255,0.45)' },
 
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 40, paddingBottom: 16 },
-  controlSide: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  captureButton: { width: 76, height: 76, borderRadius: 38, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: '#FFFFFF' },
-  captureInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#FFFFFF' },
+  controls:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 44, paddingBottom: 10 },
+  ctrlBtn:      { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  shutterRing:  { width: 78, height: 78, borderRadius: 39, borderWidth: 3, borderColor: '#fff', backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
 
-  // Result screen
-  capturedContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  capturedImage: { width: '100%', height: '80%', borderRadius: 18 },
-  successBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(74,222,128,0.15)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginTop: 16, borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)' },
-  successBadgeText: { fontSize: 14, fontWeight: '600', color: '#4ADE80' },
-
-  resultActions: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingBottom: 16 },
-  retakeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
-  retakeBtnText: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
-  saveButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#7B5CF0', borderRadius: 14, paddingVertical: 15 },
-  saveButtonText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  capturedWrap:{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  capturedImg: { width: '100%', height: '80%', borderRadius: 18 },
+  successBadge:{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(74,222,128,0.12)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginTop: 16, borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)' },
+  successText: { fontSize: 14, fontWeight: '600', color: '#4ADE80' },
+  resultRow:   { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingBottom: 16 },
+  retakeBtn:   { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  retakeText:  { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  saveBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 15 },
+  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });

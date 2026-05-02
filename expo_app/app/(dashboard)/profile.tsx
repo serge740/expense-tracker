@@ -1,4 +1,4 @@
-import React, { ComponentProps, useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, TouchableOpacity, StyleSheet, StatusBar, ScrollView,
   Image, ActivityIndicator,
@@ -11,67 +11,68 @@ import { Text } from '@/components/text';
 import { logout, getMe, ClientProfile } from '@/services/client-auth.service';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { registerDevice } from '@/services/device.service';
+import { getTransactions } from '@/services/transaction.service';
+import { getReportSummary } from '@/services/reports.service';
+import { getWalletSummary } from '@/services/wallet.service';
 import ENV from '@/env';
 import { FadeInView } from '@/components/fade-in-view';
+import { useThemePreference } from '@/context/theme-context';
+import { useCurrency } from '@/context/currency-context';
 
-type IconName = ComponentProps<typeof MaterialIcons>['name'];
+type ActionItem = {
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
+  label: string;
+  sub: string;
+  color: string;
+  bg: string;
+  onPress?: () => void;
+};
 
-interface SettingItem {
-  icon: IconName; iconColor: string; iconBg: string; label: string; onPress?: () => void;
-}
-
-export default function SettingsScreen() {
+export default function ProfileScreen() {
   const theme = useAppTheme();
-  const [profile, setProfile] = useState<ClientProfile | null>(null);
+  const { preference } = useThemePreference();
+  const { currency } = useCurrency();
+  const sym = currency.symbol;
+
+  const [profile,        setProfile]        = useState<ClientProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [txCount,        setTxCount]        = useState<number | null>(null);
+  const [netSaved,       setNetSaved]       = useState<number | null>(null);
+  const [walletCount,    setWalletCount]    = useState<number | null>(null);
+
+  const now   = new Date();
+  const month = now.getMonth() + 1;
+  const year  = now.getFullYear();
 
   const load = useCallback(async () => {
-    try { setProfile(await getMe()); }
-    catch { /* handled */ }
+    try {
+      const [p, txResp, summary, walletSum] = await Promise.all([
+        getMe(),
+        getTransactions({ limit: 1 }),
+        getReportSummary({ month, year }),
+        getWalletSummary(),
+      ]);
+      setProfile(p);
+      setTxCount(txResp.total);
+      setNetSaved(summary.net);
+      setWalletCount(walletSum.walletCount);
+    } catch { /* handled */ }
     finally { setLoadingProfile(false); }
-  }, []);
+  }, [month, year]);
 
   useEffect(() => {
     load();
     registerDevice();
   }, [load]);
 
-  const SECTIONS: { title: string; items: SettingItem[] }[] = [
-    {
-      title: 'Account',
-      items: [
-        { icon: 'person',                 iconColor: '#60A5FA', iconBg: 'rgba(96,165,250,0.15)',  label: 'Edit Profile',     onPress: () => router.push('/(dashboard)/(settings)/profile') },
-        { icon: 'devices',                iconColor: '#4ADE80', iconBg: 'rgba(74,222,128,0.15)',  label: 'Devices',          onPress: () => router.push('/(dashboard)/(settings)/devices') },
-        { icon: 'account-balance-wallet', iconColor: '#A78BFA', iconBg: 'rgba(167,139,250,0.15)', label: 'Payment Methods' },
-      ],
-    },
-    {
-      title: 'Preferences',
-      items: [
-        { icon: 'notifications', iconColor: '#FBBF24', iconBg: 'rgba(251,191,36,0.15)',  label: 'Notifications', onPress: () => router.push('/(dashboard)/(settings)/notifications') },
-        { icon: 'attach-money',  iconColor: '#4ADE80', iconBg: 'rgba(74,222,128,0.15)',  label: 'Currency' },
-        { icon: 'dark-mode',     iconColor: '#94A3B8', iconBg: 'rgba(148,163,184,0.15)', label: 'Appearance' },
-      ],
-    },
-    {
-      title: 'Support',
-      items: [
-        { icon: 'help-outline', iconColor: '#60A5FA', iconBg: 'rgba(96,165,250,0.15)',  label: 'Help & FAQ' },
-        { icon: 'privacy-tip',  iconColor: '#F472B6', iconBg: 'rgba(244,114,182,0.15)', label: 'Privacy Policy' },
-        { icon: 'info-outline', iconColor: '#94A3B8', iconBg: 'rgba(148,163,184,0.15)', label: 'About App' },
-      ],
-    },
-  ];
-
-  const handleSignOut = async () => {
-    try { await GoogleSignin.signOut(); } catch {}
-    await logout();
-    router.replace('/(auth)');
-  };
+  const themeLabel    = preference === 'system' ? 'System default' : preference === 'dark' ? 'Dark mode' : 'Light mode';
+  const currencyLabel = `${currency.flag} ${currency.code} (${currency.symbol})`;
 
   const fullName = profile
     ? `${profile.firstName}${profile.lastName ? ' ' + profile.lastName : ''}`
-    : '';
+    : 'Loading...';
+
+  const email = profile?.email ?? '—';
 
   const initials = profile
     ? `${profile.firstName[0]}${profile.lastName?.[0] ?? ''}`.toUpperCase()
@@ -83,77 +84,147 @@ export default function SettingsScreen() {
         : `${ENV.UPLOADS_URL}/${profile.profileImage}`)
     : null;
 
+  // Format net savings: show + prefix if positive
+  const savedLabel = netSaved === null
+    ? '—'
+    : `${netSaved >= 0 ? '+' : '-'}${sym}${Math.abs(Math.round(netSaved)).toLocaleString()}`;
+
+  const ACTIONS: ActionItem[] = [
+    { icon: 'document-scanner', label: 'Scan Receipt',      sub: 'Auto-log from photo',         color: '#7B7FD4', bg: 'rgba(123,127,212,0.12)', onPress: () => router.push('/(dashboard)/scan') },
+    { icon: 'devices',           label: 'Device Management', sub: 'Manage linked devices',        color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/devices') },
+    { icon: 'notifications',    label: 'Notifications',     sub: 'Budget alerts on',             color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/notifications') },
+    { icon: 'fingerprint',      label: 'Security',          sub: 'Biometric enabled',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/profile') },
+    { icon: 'person-outline',   label: 'Account Details',   sub: 'Edit your information',        color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/profile') },
+    { icon: 'attach-money',     label: 'Currency',          sub: currencyLabel,                  color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/currency') },
+    { icon: 'dark-mode',        label: 'Appearance',        sub: themeLabel,                     color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', onPress: () => router.push('/(dashboard)/(settings)/appearance') },
+    { icon: 'help-outline',     label: 'Help & FAQ',        sub: 'Support & guides',             color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/help') },
+    { icon: 'privacy-tip',      label: 'Privacy Policy',    sub: 'Your data & rights',           color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/privacy') },
+    { icon: 'info-outline',     label: 'About App',         sub: 'Version 1.0.0',                color: '#94A3B8', bg: 'rgba(148,163,184,0.12)', onPress: () => router.push('/(dashboard)/(settings)/about') },
+  ];
+
+  const handleSignOut = async () => {
+    try { await GoogleSignin.signOut(); } catch {}
+    await logout();
+    router.replace('/(auth)');
+  };
+
+  const STATS = [
+    { label: 'SAVED',        value: loadingProfile ? null : savedLabel },
+    { label: 'TRANSACTIONS', value: txCount === null ? null : String(txCount) },
+    { label: 'WALLETS',      value: walletCount === null ? null : String(walletCount) },
+  ];
+
   return (
-    <SafeAreaView style={[s.safe, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.headerBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
+      <ScrollView
+        contentContainerStyle={[s.scroll, { backgroundColor: theme.background }]}
+        showsVerticalScrollIndicator={false}
+      >
 
-        <FadeInView delay={40} slideFrom="top" distance={14}>
-          <View style={s.header}>
-            <Text style={[s.headerTitle, { color: theme.text }]}>Settings</Text>
-          </View>
-        </FadeInView>
+        {/* ── Header (deep koamaru) ── */}
+        <View style={[s.header, { backgroundColor: theme.headerBg }]}>
+          <View style={s.decA} />
+          <View style={s.decB} />
 
-        {/* Profile card */}
-        <FadeInView delay={100} slideFrom="bottom" distance={20}>
-        <TouchableOpacity
-          style={[s.profileCard, { backgroundColor: theme.primary }]}
-          activeOpacity={0.8}
-          onPress={() => router.push('/(dashboard)/(settings)/profile')}
-        >
-          <View style={[s.avatarBox, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-            {loadingProfile ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={s.avatarImg} />
-            ) : (
-              <Text style={s.avatarInitials}>{initials}</Text>
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.cardName}>{fullName || 'View your profile'}</Text>
-            <Text style={s.cardSub}>
-              {profile?.email ?? 'Tap to see and edit your details'}
-            </Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={22} color="rgba(255,255,255,0.6)" />
-        </TouchableOpacity>
-        </FadeInView>
+          <FadeInView delay={0} slideFrom="top" distance={14}>
+            <View style={s.topBar}>
+              <Text style={s.screenTitle}>Profile</Text>
+              <TouchableOpacity
+                style={[s.editBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
+                activeOpacity={0.75}
+                onPress={() => router.push('/(dashboard)/(settings)/profile')}
+              >
+                <MaterialIcons name="edit" size={16} color="#FFFFFF" />
+                <Text style={s.editText}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+          </FadeInView>
 
-        {SECTIONS.map((section, si) => (
-          <FadeInView key={section.title} delay={180 + si * 70} slideFrom="bottom" distance={18}>
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: theme.textMuted }]}>{section.title}</Text>
-            <View style={[s.sectionCard, { backgroundColor: theme.surface }]}>
-              {section.items.map((item, i) => (
-                <React.Fragment key={item.label}>
-                  <TouchableOpacity style={s.row} activeOpacity={0.7} onPress={item.onPress}>
-                    <View style={[s.rowIcon, { backgroundColor: item.iconBg }]}>
-                      <MaterialIcons name={item.icon} size={20} color={item.iconColor} />
-                    </View>
-                    <Text style={[s.rowLabel, { color: theme.text }]}>{item.label}</Text>
-                    <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
-                  </TouchableOpacity>
-                  {i < section.items.length - 1 && (
-                    <View style={[s.rowDivider, { backgroundColor: theme.border }]} />
+          {/* Avatar + name + email */}
+          <FadeInView delay={60} slideFrom="bottom" distance={20}>
+            <View style={s.avatarSection}>
+              <View style={[s.avatarRing, { borderColor: 'rgba(255,255,255,0.25)' }]}>
+                {loadingProfile ? (
+                  <View style={[s.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                    <ActivityIndicator color="#fff" size="small" />
+                  </View>
+                ) : avatarUri ? (
+                  <Image source={{ uri: avatarUri }} style={s.avatarImg} />
+                ) : (
+                  <View style={[s.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                    <Text style={s.avatarInitials}>{initials}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={s.profileName}>{fullName}</Text>
+              <Text style={s.profileEmail}>{email}</Text>
+              <View style={s.badgeRow}>
+                <View style={s.planBadge}>
+                  <Text style={s.planText}>Pro Plan</Text>
+                </View>
+                <View style={s.activeBadge}>
+                  <View style={s.activeDot} />
+                  <Text style={s.activeText}>Active</Text>
+                </View>
+              </View>
+            </View>
+          </FadeInView>
+
+          {/* Stats strip — real data */}
+          <FadeInView delay={110} slideFrom="bottom" distance={16}>
+            <View style={s.statsRow}>
+              {STATS.map((stat, i) => (
+                <View key={stat.label} style={[
+                  s.statCard,
+                  { backgroundColor: 'rgba(255,255,255,0.1)' },
+                  i === 1 && s.statCardCenter,
+                ]}>
+                  {stat.value === null ? (
+                    <ActivityIndicator color="#fff" size="small" style={{ marginBottom: 4 }} />
+                  ) : (
+                    <Text style={s.statVal}>{stat.value}</Text>
                   )}
-                </React.Fragment>
+                  <Text style={s.statLabel}>{stat.label}</Text>
+                </View>
               ))}
             </View>
-          </View>
           </FadeInView>
-        ))}
+        </View>
 
-        <FadeInView delay={420} slideFrom="bottom" distance={16}>
-        <TouchableOpacity
-          style={[s.logoutBtn, { borderColor: 'rgba(248,113,113,0.25)', backgroundColor: 'rgba(248,113,113,0.08)' }]}
-          activeOpacity={0.8}
-          onPress={handleSignOut}
-        >
-          <MaterialIcons name="logout" size={20} color="#F87171" />
-          <Text style={s.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
+        {/* ── Action list ── */}
+        <FadeInView delay={180} slideFrom="bottom" distance={16}>
+          <View style={[s.listCard, { backgroundColor: theme.surface }]}>
+            {ACTIONS.map((item, i) => (
+              <React.Fragment key={item.label}>
+                <TouchableOpacity style={s.actionRow} activeOpacity={0.75} onPress={item.onPress}>
+                  <View style={[s.actionIcon, { backgroundColor: item.bg }]}>
+                    <MaterialIcons name={item.icon} size={20} color={item.color} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.actionLabel, { color: theme.text }]}>{item.label}</Text>
+                    <Text style={[s.actionSub, { color: theme.textSecondary }]} numberOfLines={1}>{item.sub}</Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
+                </TouchableOpacity>
+                {i < ACTIONS.length - 1 && (
+                  <View style={[s.sep, { backgroundColor: theme.border }]} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+        </FadeInView>
 
+        {/* Sign out */}
+        <FadeInView delay={260} slideFrom="bottom" distance={14}>
+          <TouchableOpacity
+            style={[s.signOutBtn, { borderColor: 'rgba(248,113,113,0.25)', backgroundColor: 'rgba(248,113,113,0.08)' }]}
+            activeOpacity={0.8}
+            onPress={handleSignOut}
+          >
+            <MaterialIcons name="logout" size={20} color="#F87171" />
+            <Text style={s.signOutText}>Sign Out</Text>
+          </TouchableOpacity>
         </FadeInView>
 
         <Text style={[s.version, { color: theme.textMuted }]}>ABY Expense v1.0.0</Text>
@@ -163,36 +234,47 @@ export default function SettingsScreen() {
 }
 
 const s = StyleSheet.create({
-  safe:    { flex: 1 },
-  scroll:  { paddingBottom: 32 },
-  header:  { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  headerTitle: { fontSize: 24, fontWeight: '700' },
+  safe:   { flex: 1 },
+  scroll: { flexGrow: 1, paddingBottom: 40 },
 
-  profileCard: {
-    flexDirection: 'row', alignItems: 'center',
-    marginHorizontal: 20, marginTop: 16, marginBottom: 8,
-    borderRadius: 20, padding: 18,
-  },
-  avatarBox: {
-    width: 56, height: 56, borderRadius: 28,
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 14, overflow: 'hidden',
-  },
-  avatarImg:      { width: 56, height: 56 },
-  avatarInitials: { fontSize: 20, fontWeight: '800', color: '#fff' },
-  cardName:    { fontSize: 17, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
-  cardSub:     { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  header: { paddingBottom: 28, overflow: 'hidden' },
+  decA:   { position: 'absolute', width: 280, height: 280, borderRadius: 140, backgroundColor: 'rgba(255,255,255,0.05)', top: -80, right: -60 },
+  decB:   { position: 'absolute', width: 180, height: 180, borderRadius: 90,  backgroundColor: 'rgba(255,255,255,0.04)', bottom: -40, left: -20 },
 
-  section:      { marginTop: 22, paddingHorizontal: 20 },
-  sectionTitle: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 },
-  sectionCard:  { borderRadius: 18, overflow: 'hidden' },
+  topBar:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 10 },
+  screenTitle:{ fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  editBtn:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  editText:   { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 
-  row:      { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  rowIcon:  { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '500' },
-  rowDivider: { height: 1, marginLeft: 66 },
+  avatarSection: { alignItems: 'center', paddingTop: 6, paddingBottom: 20 },
+  avatarRing:    { width: 96, height: 96, borderRadius: 48, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  avatarCircle:  { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
+  avatarImg:     { width: 88, height: 88, borderRadius: 44 },
+  avatarInitials:{ fontSize: 34, fontWeight: '800', color: '#FFFFFF' },
+  profileName:   { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  profileEmail:  { fontSize: 14, color: 'rgba(255,255,255,0.55)', marginBottom: 12 },
 
-  logoutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginTop: 28, borderRadius: 16, paddingVertical: 14, gap: 10, borderWidth: 1 },
-  logoutText: { fontSize: 15, fontWeight: '600', color: '#F87171' },
-  version:    { textAlign: 'center', fontSize: 12, marginTop: 20 },
+  badgeRow:   { flexDirection: 'row', gap: 8 },
+  planBadge:  { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.25)' },
+  planText:   { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  activeBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(74,222,128,0.15)', borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)' },
+  activeDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ADE80' },
+  activeText: { fontSize: 12, fontWeight: '700', color: '#4ADE80' },
+
+  statsRow:       { flexDirection: 'row', paddingHorizontal: 20, gap: 8 },
+  statCard:       { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
+  statCardCenter: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 0 },
+  statVal:        { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 3 },
+  statLabel:      { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8 },
+
+  listCard:   { marginHorizontal: 20, borderRadius: 20, overflow: 'hidden', marginTop: 20 },
+  actionRow:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+  actionIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  actionLabel:{ fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  actionSub:  { fontSize: 12 },
+  sep:        { height: 1, marginHorizontal: 16 },
+
+  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginTop: 20, borderRadius: 16, paddingVertical: 14, gap: 10, borderWidth: 1 },
+  signOutText:{ fontSize: 15, fontWeight: '600', color: '#F87171' },
+  version:    { textAlign: 'center', fontSize: 12, marginTop: 16 },
 });
