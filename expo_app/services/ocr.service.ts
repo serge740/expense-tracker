@@ -4,7 +4,10 @@ export interface OcrResult {
   amount: number | null;
   merchant: string | null;
   date: string | null;
+  category: string | null;
+  description: string | null;
   confidence: number;
+  rawText?: string;
 }
 
 export const scanReceipt = async (imageUri: string): Promise<OcrResult> => {

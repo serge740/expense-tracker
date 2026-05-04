@@ -39,23 +39,47 @@ export default function AddExpenseScreen() {
   const { currency } = useCurrency();
   const sym = currency.symbol;
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ amount?: string; merchant?: string; date?: string; type?: string }>();
+  const params = useLocalSearchParams<{
+    amount?: string; merchant?: string; date?: string;
+    type?: string; category?: string; description?: string;
+  }>();
 
   const [step,           setStep]           = useState(1);
-  const [txType,         setTxType]         = useState<TransactionType>((params.type as TransactionType) ?? 'EXPENSE');
-  const [amount,         setAmount]         = useState(params.amount ?? '');
+  const [txType,         setTxType]         = useState<TransactionType>('EXPENSE');
+  const [amount,         setAmount]         = useState('');
   const [selectedCat,    setSelectedCat]    = useState<CategorySlug>('food');
-  const [merchant,       setMerchant]       = useState(params.merchant ?? '');
+  const [merchant,       setMerchant]       = useState('');
   const [wallets,        setWallets]        = useState<Wallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string | undefined>(undefined);
   const [saving,         setSaving]         = useState(false);
+  const [selectedDate,   setSelectedDate]   = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Sync route params into state every time the screen receives new params.
+  // useState initial values only run on first mount — this screen stays mounted
+  // as a hidden tab, so we need useEffect to pick up params from subsequent navigations.
+  useEffect(() => {
+    if (params.amount || params.merchant || params.description || params.category) {
+      if (params.amount)   setAmount(params.amount);
+      if (params.type)     setTxType(params.type as TransactionType);
+      if (params.category) {
+        const cat = CATEGORIES.find(c => c.id === params.category);
+        if (cat) setSelectedCat(cat.id);
+      }
+      setMerchant(params.description || params.merchant || '');
+      if (params.date) {
+        const d = new Date(params.date);
+        if (!isNaN(d.getTime())) setSelectedDate(d);
+      }
+      // Jump to step 3 only when amount + category are both pre-filled from scan
+      if (params.amount && params.category) setStep(3);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.amount, params.category, params.date, params.description, params.merchant, params.type]);
 
   const isIncome   = txType === 'INCOME';
   const accent     = isIncome ? '#22C55E' : theme.buttonBg;
   const selectedCatObj = CATEGORIES.find(c => c.id === selectedCat);
-
-  const [selectedDate,   setSelectedDate]   = useState<Date>(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const dateLabel = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const timeLabel = selectedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -86,17 +110,18 @@ export default function AddExpenseScreen() {
   };
 
   const resetForm = () => {
-    setStep(1);
-    setTxType('EXPENSE');
-    setAmount('');
-    setSelectedCat('food');
-    setMerchant('');
-    setSaving(false);
+    setStep(1); setTxType('EXPENSE'); setAmount('');
+    setSelectedCat('food'); setMerchant(''); setSelectedDate(new Date()); setSaving(false);
   };
 
   const handleSave = async () => {
     if (!merchant.trim()) {
       Alert.alert('Missing Description', 'Please enter a description for this transaction.');
+      return;
+    }
+    const parsedAmount = parseFloat(amount);
+    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0.');
       return;
     }
     setSaving(true);
@@ -105,9 +130,9 @@ export default function AddExpenseScreen() {
         type: txType,
         category: selectedCat,
         title: merchant.trim(),
-        amount: parseFloat(amount),
+        amount: parsedAmount,
         walletId: selectedWallet,
-        date: params.date ? new Date(params.date).toISOString() : selectedDate.toISOString(),
+        date: selectedDate.toISOString(),
       });
       resetForm();
       router.back();

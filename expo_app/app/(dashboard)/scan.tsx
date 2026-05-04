@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, TouchableOpacity, StyleSheet, StatusBar,
-  Animated, Easing, Image, Alert, ActivityIndicator,
+  Animated, Easing, Image, Alert, ActivityIndicator, ScrollView,
 } from 'react-native';
 import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,12 +9,30 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { scanReceipt } from '@/services/ocr.service';
+import { scanReceipt, OcrResult } from '@/services/ocr.service';
+import { CATEGORY_ICON, CATEGORY_LABEL } from '@/services/transaction.service';
 
-type ScanState = 'idle' | 'scanning' | 'result' | 'processing';
+type ScanState = 'idle' | 'scanning' | 'result' | 'processing' | 'preview';
 
 const BRAND   = '#2D336B';
 const BRACKET = '#5B6AD4';
+
+const CAT_COLOR: Record<string, string> = {
+  food: '#FF8C42', transport: '#60A5FA', shopping: '#A78BFA', health: '#F472B6',
+  entertainment: '#FBBF24', travel: '#7B7FD4', groceries: '#4ADE80', salary: '#34D399', other: '#94A3B8',
+};
+
+function fmtAmount(n: number | null) {
+  if (n === null) return '—';
+  return `$${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -22,6 +40,7 @@ export default function ScanScreen() {
   const [flash, setFlash]               = useState<FlashMode>('off');
   const [scanState, setScanState]       = useState<ScanState>('idle');
   const [capturedUri, setCapturedUri]   = useState<string | null>(null);
+  const [ocrResult,   setOcrResult]     = useState<OcrResult | null>(null);
 
   const cameraRef = useRef<CameraView>(null);
   const scanLine  = useRef(new Animated.Value(0)).current;
@@ -64,28 +83,35 @@ export default function ScanScreen() {
     }
   };
 
-  const handleReset = () => { setCapturedUri(null); setScanState('idle'); };
+  const handleReset = () => { setCapturedUri(null); setScanState('idle'); setOcrResult(null); };
 
-  const handleProcessOcr = async () => {
+  const handleAnalyze = async () => {
     if (!capturedUri) return;
     setScanState('processing');
     try {
-      const ocr = await scanReceipt(capturedUri);
-      router.push({
-        pathname: '/(dashboard)/add',
-        params: {
-          amount:   ocr.amount?.toString()   ?? '',
-          merchant: ocr.merchant ?? '',
-          date:     ocr.date ?? '',
-          type:     'EXPENSE',
-        },
-      });
-    } catch {
-      Alert.alert('OCR Failed', 'Could not read receipt. You can still enter details manually.');
-      router.push('/(dashboard)/add');
-    } finally {
+      const result = await scanReceipt(capturedUri);
+      setOcrResult(result);
+      setScanState('preview');
+    } catch (e: any) {
       setScanState('result');
+      const msg = e?.response?.data?.message || e?.message || 'Could not analyze the receipt.';
+      Alert.alert('Analysis Failed', msg + '\n\nPlease retake the photo and try again.');
     }
+  };
+
+  const handleConfirm = () => {
+    if (!ocrResult) return;
+    router.push({
+      pathname: '/(dashboard)/add',
+      params: {
+        amount:      ocrResult.amount?.toString() ?? '',
+        merchant:    ocrResult.merchant ?? '',
+        date:        ocrResult.date ?? '',
+        type:        'EXPENSE',
+        category:    ocrResult.category ?? '',
+        description: ocrResult.description ?? '',
+      },
+    });
   };
 
   // ── Permission ──
@@ -112,7 +138,94 @@ export default function ScanScreen() {
     );
   }
 
-  // ── Result ──
+  // ── AI Preview ──
+  if (scanState === 'preview' && ocrResult) {
+    const catColor = CAT_COLOR[ocrResult.category ?? 'other'] ?? '#94A3B8';
+    const catIcon  = CATEGORY_ICON[ocrResult.category as keyof typeof CATEGORY_ICON] ?? 'receipt';
+    const catLabel = CATEGORY_LABEL[ocrResult.category as keyof typeof CATEGORY_LABEL] ?? 'Other';
+    const pct      = Math.round(ocrResult.confidence * 100);
+
+    return (
+      <View style={s.bg}>
+        <StatusBar barStyle="light-content" />
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={s.header}>
+            <TouchableOpacity style={s.backBtn} onPress={() => setScanState('result')} activeOpacity={0.7}>
+              <MaterialIcons name="arrow-back" size={20} color="#fff" />
+            </TouchableOpacity>
+            <Text style={s.headerTitle}>Receipt Analyzed</Text>
+            <View style={{ width: 38 }} />
+          </View>
+
+          <ScrollView contentContainerStyle={s.previewScroll} showsVerticalScrollIndicator={false}>
+            {/* AI confidence badge */}
+            <View style={s.aiBadge}>
+              <MaterialIcons name="auto-awesome" size={14} color="#FBBF24" />
+              <Text style={s.aiBadgeText}>GPT-4o · {pct}% confident</Text>
+            </View>
+
+            {/* Main receipt card */}
+            <View style={s.previewCard}>
+              {/* Category pill */}
+              <View style={[s.catPill, { backgroundColor: catColor + '22' }]}>
+                <View style={[s.catIconBg, { backgroundColor: catColor }]}>
+                  <MaterialIcons name={catIcon} size={18} color="#fff" />
+                </View>
+                <Text style={[s.catLabel, { color: catColor }]}>{catLabel}</Text>
+              </View>
+
+              {/* Merchant & amount */}
+              <Text style={s.merchantName}>{ocrResult.merchant ?? 'Unknown Merchant'}</Text>
+              <Text style={s.amountText}>{fmtAmount(ocrResult.amount)}</Text>
+
+              <View style={s.divider} />
+
+              {/* Detail rows */}
+              <View style={s.detailRow}>
+                <MaterialIcons name="event" size={16} color="rgba(255,255,255,0.45)" />
+                <Text style={s.detailLabel}>Date</Text>
+                <Text style={s.detailValue}>{fmtDate(ocrResult.date)}</Text>
+              </View>
+
+              {ocrResult.description ? (
+                <View style={s.detailRow}>
+                  <MaterialIcons name="notes" size={16} color="rgba(255,255,255,0.45)" />
+                  <Text style={s.detailLabel}>Note</Text>
+                  <Text style={[s.detailValue, { flex: 1 }]} numberOfLines={3}>{ocrResult.description}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            {ocrResult.rawText ? (
+              <View style={s.rawCard}>
+                <View style={s.rawHeader}>
+                  <MaterialIcons name="psychology" size={14} color="rgba(255,255,255,0.4)" />
+                  <Text style={s.rawTitle}>What AI saw</Text>
+                </View>
+                <Text style={s.rawText} numberOfLines={6}>{ocrResult.rawText}</Text>
+              </View>
+            ) : null}
+
+            <Text style={s.previewHint}>Review the details above, then confirm to add this expense.</Text>
+          </ScrollView>
+
+          {/* Action buttons */}
+          <View style={s.resultRow}>
+            <TouchableOpacity style={s.retakeBtn} onPress={handleReset} activeOpacity={0.8}>
+              <MaterialIcons name="replay" size={18} color="rgba(255,255,255,0.8)" />
+              <Text style={s.retakeText}>Retake</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.saveBtn, { backgroundColor: BRAND }]} onPress={handleConfirm} activeOpacity={0.85}>
+              <MaterialIcons name="add-circle-outline" size={18} color="#fff" />
+              <Text style={s.saveBtnText}>Confirm & Add</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ── Result (captured, awaiting analysis) ──
   if ((scanState === 'result' || scanState === 'processing') && capturedUri) {
     return (
       <View style={s.bg}>
@@ -123,13 +236,13 @@ export default function ScanScreen() {
               <MaterialIcons name="arrow-back" size={20} color="#fff" />
             </TouchableOpacity>
             <Text style={s.headerTitle}>Receipt Captured</Text>
-            <View style={{ width: 40 }} />
+            <View style={{ width: 38 }} />
           </View>
           <View style={s.capturedWrap}>
             <Image source={{ uri: capturedUri }} style={s.capturedImg} resizeMode="contain" />
             <View style={s.successBadge}>
               <MaterialIcons name="check-circle" size={18} color="#4ADE80" />
-              <Text style={s.successText}>Receipt Detected</Text>
+              <Text style={s.successText}>Photo Ready</Text>
             </View>
           </View>
           <View style={s.resultRow}>
@@ -140,15 +253,18 @@ export default function ScanScreen() {
             <TouchableOpacity
               style={[s.saveBtn, { backgroundColor: BRAND, opacity: scanState === 'processing' ? 0.7 : 1 }]}
               activeOpacity={0.85}
-              onPress={handleProcessOcr}
+              onPress={handleAnalyze}
               disabled={scanState === 'processing'}
             >
               {scanState === 'processing' ? (
-                <ActivityIndicator color="#fff" />
+                <>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={s.saveBtnText}>Analyzing…</Text>
+                </>
               ) : (
                 <>
-                  <MaterialIcons name="receipt-long" size={18} color="#fff" />
-                  <Text style={s.saveBtnText}>Review & Save</Text>
+                  <MaterialIcons name="auto-awesome" size={18} color="#fff" />
+                  <Text style={s.saveBtnText}>Analyze Receipt</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -209,7 +325,7 @@ export default function ScanScreen() {
             {scanState === 'scanning' ? 'Scanning…' : 'Point camera at receipt'}
           </Text>
           <Text style={s.instrSub}>
-            {scanState === 'scanning' ? 'Hold steady' : 'Hold steady · Auto-detects edges'}
+            {scanState === 'scanning' ? 'Hold steady' : 'AI will extract all expense details'}
           </Text>
         </View>
 
@@ -278,13 +394,33 @@ const s = StyleSheet.create({
   shutterRing:  { width: 78, height: 78, borderRadius: 39, borderWidth: 3, borderColor: '#fff', backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFFFFF' },
 
-  capturedWrap:{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  capturedImg: { width: '100%', height: '80%', borderRadius: 18 },
-  successBadge:{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(74,222,128,0.12)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginTop: 16, borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)' },
-  successText: { fontSize: 14, fontWeight: '600', color: '#4ADE80' },
-  resultRow:   { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingBottom: 16 },
-  retakeBtn:   { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
-  retakeText:  { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
-  saveBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 15 },
-  saveBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+  capturedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  capturedImg:  { width: '100%', height: '80%', borderRadius: 18 },
+  successBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(74,222,128,0.12)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, marginTop: 16, borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)' },
+  successText:  { fontSize: 14, fontWeight: '600', color: '#4ADE80' },
+  resultRow:    { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingBottom: 16 },
+  retakeBtn:    { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingVertical: 15, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.1)' },
+  retakeText:   { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  saveBtn:      { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 15 },
+  saveBtnText:  { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  previewScroll:  { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16 },
+  aiBadge:        { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', backgroundColor: 'rgba(251,191,36,0.12)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(251,191,36,0.25)' },
+  aiBadgeText:    { fontSize: 13, fontWeight: '600', color: '#FBBF24' },
+  previewCard:    { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 22, padding: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  catPill:        { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start', borderRadius: 14, paddingRight: 14, paddingVertical: 4, marginBottom: 18 },
+  catIconBg:      { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  catLabel:       { fontSize: 14, fontWeight: '700' },
+  merchantName:   { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 6 },
+  amountText:     { fontSize: 38, fontWeight: '800', color: '#4ADE80', marginBottom: 20 },
+  divider:        { height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 16 },
+  detailRow:      { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  detailLabel:    { fontSize: 13, color: 'rgba(255,255,255,0.45)', width: 44 },
+  detailValue:    { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.85)' },
+  previewHint:    { fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 16 },
+
+  rawCard:   { marginTop: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  rawHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  rawTitle:  { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5, textTransform: 'uppercase' },
+  rawText:   { fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 18 },
 });
