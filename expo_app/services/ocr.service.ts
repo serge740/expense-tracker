@@ -8,6 +8,7 @@ export interface OcrResult {
   description: string | null;
   confidence: number;
   rawText?: string;
+  receiptUrl: string;
 }
 
 export const scanReceipt = async (imageUri: string): Promise<OcrResult> => {

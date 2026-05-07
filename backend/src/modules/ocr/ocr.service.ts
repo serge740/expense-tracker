@@ -1,4 +1,7 @@
 import { Injectable, HttpException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 
 export interface OcrResult {
@@ -9,6 +12,7 @@ export interface OcrResult {
   description: string | null;
   confidence: number;
   rawText?: string;
+  receiptUrl: string;
 }
 
 const VALID_CATEGORIES = new Set([
@@ -50,15 +54,25 @@ export class OcrService {
     this.client = new OpenAI({ apiKey });
   }
 
+  private saveBufferToDisk(buffer: Buffer, mimeType: string): string {
+    const ext      = mimeType.includes('png') ? 'png' : 'jpg';
+    const filename = `${randomUUID()}.${ext}`;
+    const dir      = path.join(process.cwd(), 'uploads', 'receipts');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, filename), buffer);
+    return `/uploads/receipts/${filename}`;
+  }
+
   async scanReceipt(buffer: Buffer, mimeType = 'image/jpeg'): Promise<OcrResult> {
     const apiKey = (process.env.OPEN_AI_KEY ?? '').trim();
     if (!apiKey) {
       throw new HttpException('OpenAI API key not configured on server', 500);
     }
 
-    const safeType = mimeType.startsWith('image/') ? mimeType : 'image/jpeg';
-    const base64   = buffer.toString('base64');
-    const dataUrl  = `data:${safeType};base64,${base64}`;
+    const safeType  = mimeType.startsWith('image/') ? mimeType : 'image/jpeg';
+    const base64    = buffer.toString('base64');
+    const dataUrl   = `data:${safeType};base64,${base64}`;
+    const receiptUrl = this.saveBufferToDisk(buffer, safeType);
 
     console.log(`[OCR] Sending image to GPT-4o (${Math.round(buffer.length / 1024)}KB, ${safeType})`);
 
@@ -92,16 +106,17 @@ export class OcrService {
         description: typeof parsed.description === 'string' ? parsed.description : null,
         confidence:  0.95,
         rawText:     rawContent,
+        receiptUrl,
       };
     } catch (err: any) {
       console.error('[OCR] Error:', err?.message ?? err);
-      // If GPT responded but JSON parse failed, still return the raw text so the user knows what was seen
       if (rawContent) {
         console.error('[OCR] Unparseable response:', rawContent);
         return {
           amount: null, merchant: null, date: null,
           category: 'other', description: rawContent.slice(0, 200),
           confidence: 0.3, rawText: rawContent,
+          receiptUrl,
         };
       }
       throw new HttpException(

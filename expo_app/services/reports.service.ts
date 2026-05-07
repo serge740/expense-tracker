@@ -50,3 +50,13 @@ export const getReportSummary = (params: DateRangeParams): Promise<ReportSummary
 
 export const getTopExpenses = (month?: number, year?: number, limit = 4): Promise<any[]> =>
   api.get('/reports/top-expenses', { params: { month, year, limit } }).then(r => r.data);
+
+export interface AiAdvice {
+  verdict: 'good' | 'fair' | 'poor';
+  summary: string;
+  advice: string;
+  tips: string[];
+}
+
+export const getAiAdvice = (params: DateRangeParams & { currency?: string }): Promise<AiAdvice> =>
+  api.get('/reports/ai-advice', { params }).then(r => r.data);

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Modal, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -10,8 +10,8 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
 import {
-  getMonthlyReport, getCategoryBreakdown, getReportSummary,
-  MonthlyData, CategoryBreakdown, CATEGORY_COLOR, DateRangeParams,
+  getMonthlyReport, getCategoryBreakdown, getReportSummary, getAiAdvice,
+  MonthlyData, CategoryBreakdown, CATEGORY_COLOR, DateRangeParams, AiAdvice,
 } from '@/services/reports.service';
 import { useCurrency } from '@/context/currency-context';
 import { DatePickerModal } from '@/components/date-picker-modal';
@@ -64,6 +64,10 @@ export default function ReportsScreen() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const [showAdvice,    setShowAdvice]    = useState(false);
+  const [advice,        setAdvice]        = useState<AiAdvice | null>(null);
+  const [loadingAdvice, setLoadingAdvice] = useState(false);
+
   const load = useCallback(async (df: DateFilter, cStart?: Date, cEnd?: Date, silent = false) => {
     if (!silent) setLoading(true);
     const range = getDateRange(df, cStart, cEnd);
@@ -112,6 +116,25 @@ export default function ReportsScreen() {
   const customLabel = customStart && customEnd
     ? `${customStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${customEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : 'Custom';
+
+  const handleGetAdvice = async () => {
+    setAdvice(null);
+    setShowAdvice(true);
+    setLoadingAdvice(true);
+    const range = getDateRange(dateFilter, customStart, customEnd);
+    try {
+      const result = await getAiAdvice({ ...range, currency: currency.code });
+      setAdvice(result);
+    } catch {
+      setShowAdvice(false);
+      Alert.alert('Error', 'Could not get AI advice. Please try again.');
+    } finally {
+      setLoadingAdvice(false);
+    }
+  };
+
+  const verdictColor = advice?.verdict === 'good' ? '#4ADE80' : advice?.verdict === 'poor' ? '#F87171' : '#FBBF24';
+  const verdictLabel = advice?.verdict === 'good' ? 'Good' : advice?.verdict === 'poor' ? 'Poor' : 'Fair';
 
   return (
     <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.headerBg }]}>
@@ -273,8 +296,76 @@ export default function ReportsScreen() {
           </View>
         </FadeInView>
 
+        {/* AI Advisor button */}
+        <FadeInView delay={280} slideFrom="bottom" distance={14}>
+          <TouchableOpacity
+            style={[s.aiBtn, { backgroundColor: theme.primary }]}
+            onPress={handleGetAdvice}
+            activeOpacity={0.85}
+          >
+            <MaterialIcons name="auto-awesome" size={18} color="#fff" />
+            <Text style={s.aiBtnText}>Get AI Financial Advice</Text>
+          </TouchableOpacity>
+        </FadeInView>
+
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      {/* AI Advice Modal */}
+      <Modal visible={showAdvice} animationType="slide" transparent onRequestClose={() => setShowAdvice(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.modalSheet, { backgroundColor: theme.surface }]}>
+            {/* Header */}
+            <View style={s.modalHeader}>
+              <View style={s.modalTitleRow}>
+                <MaterialIcons name="auto-awesome" size={20} color={theme.primary} />
+                <Text style={[s.modalTitle, { color: theme.text }]}>AI Financial Advisor</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowAdvice(false)} activeOpacity={0.7}>
+                <MaterialIcons name="close" size={22} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {loadingAdvice ? (
+              <View style={s.modalLoading}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[s.modalLoadingText, { color: theme.textMuted }]}>Analyzing your finances…</Text>
+              </View>
+            ) : advice ? (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.modalBody}>
+                {/* Verdict badge */}
+                <View style={[s.verdictBadge, { backgroundColor: verdictColor + '22', borderColor: verdictColor + '55' }]}>
+                  <Text style={[s.verdictText, { color: verdictColor }]}>{verdictLabel} Spending Health</Text>
+                </View>
+
+                {/* Summary */}
+                <Text style={[s.modalSection, { color: theme.textMuted }]}>SUMMARY</Text>
+                <Text style={[s.modalPara, { color: theme.text }]}>{advice.summary}</Text>
+
+                {/* Advice */}
+                <Text style={[s.modalSection, { color: theme.textMuted }]}>RECOMMENDATION</Text>
+                <Text style={[s.modalPara, { color: theme.text }]}>{advice.advice}</Text>
+
+                {/* Tips */}
+                {advice.tips.length > 0 && (
+                  <>
+                    <Text style={[s.modalSection, { color: theme.textMuted }]}>ACTION TIPS</Text>
+                    {advice.tips.map((tip, i) => (
+                      <View key={i} style={s.tipRow}>
+                        <View style={[s.tipNum, { backgroundColor: theme.primary }]}>
+                          <Text style={s.tipNumText}>{i + 1}</Text>
+                        </View>
+                        <Text style={[s.tipText, { color: theme.text }]}>{tip}</Text>
+                      </View>
+                    ))}
+                  </>
+                )}
+              </ScrollView>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -324,4 +415,27 @@ const s = StyleSheet.create({
   catAmt:    { fontSize: 13, fontWeight: '700', width: 44, textAlign: 'right' },
 
   emptyText: { fontSize: 14, textAlign: 'center', paddingVertical: 16 },
+
+  aiBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, borderRadius: 16, paddingVertical: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  aiBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalSheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 32 },
+  modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+  modalTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalTitle:   { fontSize: 18, fontWeight: '700' },
+  modalLoading: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 16 },
+  modalLoadingText: { fontSize: 14 },
+  modalBody:    { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
+
+  verdictBadge: { alignSelf: 'flex-start', borderRadius: 20, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 8, marginBottom: 20 },
+  verdictText:  { fontSize: 14, fontWeight: '700' },
+
+  modalSection: { fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 8 },
+  modalPara:    { fontSize: 14, lineHeight: 22, marginBottom: 20 },
+
+  tipRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  tipNum:     { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  tipNumText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  tipText:    { flex: 1, fontSize: 14, lineHeight: 20 },
 });

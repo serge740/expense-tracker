@@ -25,11 +25,14 @@ const CAT_SLUG: Record<string, CategorySlug | undefined> = {
   Groceries: 'groceries', Salary: 'salary', Other: 'other',
 };
 
-const DATE_FILTERS = ['Today', 'Week', 'Month', 'Year', 'Custom'] as const;
+const DATE_FILTERS = ['All', 'Today', 'Week', 'Month', 'Year', 'Custom'] as const;
 type DateFilter = typeof DATE_FILTERS[number];
 
 function getDateRange(filter: DateFilter, customStart?: Date, customEnd?: Date) {
   const now = new Date();
+  if (filter === 'All') {
+    return {};
+  }
   if (filter === 'Today') {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
     const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
@@ -101,8 +104,10 @@ export default function HistoryScreen() {
       setCustomPhase('start');
     } else {
       setDateFilter(df);
-      setCustomStart(undefined);
-      setCustomEnd(undefined);
+      if (df !== 'Custom') {
+        setCustomStart(undefined);
+        setCustomEnd(undefined);
+      }
     }
   };
 

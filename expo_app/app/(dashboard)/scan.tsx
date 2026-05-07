@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View, TouchableOpacity, StyleSheet, StatusBar,
   Animated, Easing, Image, Alert, ActivityIndicator, ScrollView,
@@ -6,7 +6,7 @@ import {
 import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { scanReceipt, OcrResult } from '@/services/ocr.service';
@@ -83,7 +83,23 @@ export default function ScanScreen() {
     }
   };
 
-  const handleReset = () => { setCapturedUri(null); setScanState('idle'); setOcrResult(null); };
+  const handleReset = useCallback(() => {
+    setCapturedUri(null); setScanState('idle'); setOcrResult(null);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      // When returning from add screen after saving, reset to camera-idle
+      setScanState(prev => {
+        if (prev === 'preview' || prev === 'processing') {
+          setCapturedUri(null);
+          setOcrResult(null);
+          return 'idle';
+        }
+        return prev;
+      });
+    }, [])
+  );
 
   const handleAnalyze = async () => {
     if (!capturedUri) return;
@@ -110,6 +126,7 @@ export default function ScanScreen() {
         type:        'EXPENSE',
         category:    ocrResult.category ?? '',
         description: ocrResult.description ?? '',
+        receiptUrl:  ocrResult.receiptUrl ?? '',
       },
     });
   };

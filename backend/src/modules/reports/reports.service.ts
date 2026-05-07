@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import OpenAI from 'openai';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -9,9 +10,20 @@ const CATEGORY_LABELS: Record<string, string> = {
   groceries: 'Groceries', salary: 'Salary', other: 'Other',
 };
 
+export interface AiAdvice {
+  verdict: 'good' | 'fair' | 'poor';
+  summary: string;
+  advice: string;
+  tips: string[];
+}
+
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private openai: OpenAI;
+
+  constructor(private readonly prisma: PrismaService) {
+    this.openai = new OpenAI({ apiKey: (process.env.OPEN_AI_KEY ?? '').trim() });
+  }
 
   async monthly(clientId: string, year: number, months: number) {
     const now = new Date();
@@ -100,5 +112,74 @@ export class ReportsService {
       amount: -Number(t.amount),
       date: t.date,
     }));
+  }
+
+  async aiAdvice(
+    clientId: string,
+    month: number,
+    year: number,
+    startDate?: string,
+    endDate?: string,
+    currency = 'USD',
+  ): Promise<AiAdvice> {
+    const apiKey = (process.env.OPEN_AI_KEY ?? '').trim();
+    if (!apiKey) throw new HttpException('OpenAI API key not configured on server', 500);
+
+    const [cats, sum] = await Promise.all([
+      this.byCategory(clientId, month, year, startDate, endDate),
+      this.summary(clientId, month, year, startDate, endDate),
+    ]);
+
+    const periodLabel = startDate && endDate
+      ? `${new Date(startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+      : `${MONTH_NAMES[month - 1]} ${year}`;
+
+    const catLines = cats.length > 0
+      ? cats.map(c => `  - ${CATEGORY_LABELS[c.category] ?? c.category}: ${currency} ${c.amount.toFixed(2)} (${c.percentage}%)`).join('\n')
+      : '  - No expenses recorded';
+
+    const netDir = sum.net >= 0 ? 'surplus' : 'deficit';
+
+    const prompt = `You are a personal finance advisor. Analyze this expense report and give honest, actionable advice.
+
+Period: ${periodLabel}
+Currency: ${currency}
+Total Income: ${currency} ${sum.totalIncome.toFixed(2)}
+Total Spent: ${currency} ${sum.totalExpense.toFixed(2)}
+Net Balance: ${currency} ${Math.abs(sum.net).toFixed(2)} (${netDir})
+
+Spending by Category:
+${catLines}
+
+Return ONLY a JSON object with no markdown or code fences:
+{
+  "verdict": "good" or "fair" or "poor",
+  "summary": "2-3 sentences on the person's overall financial health this period",
+  "advice": "Main recommendation paragraph on spending and saving habits",
+  "tips": ["tip 1", "tip 2", "tip 3", "tip 4"]
+}`;
+
+    let raw = '';
+    try {
+      const res = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        max_tokens: 600,
+        temperature: 0.4,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      raw = res.choices[0]?.message?.content?.trim() ?? '';
+      // Strip markdown fences if present
+      raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+      const parsed = JSON.parse(raw);
+      return {
+        verdict: ['good', 'fair', 'poor'].includes(parsed.verdict) ? parsed.verdict : 'fair',
+        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+        advice:  typeof parsed.advice  === 'string' ? parsed.advice  : '',
+        tips:    Array.isArray(parsed.tips) ? parsed.tips.filter((t: any) => typeof t === 'string') : [],
+      };
+    } catch (err: any) {
+      console.error('[Reports] AI advice error:', err?.message ?? err, raw);
+      throw new HttpException('AI advice generation failed', 500);
+    }
   }
 }

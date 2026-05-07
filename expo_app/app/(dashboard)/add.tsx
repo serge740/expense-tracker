@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, ComponentProps } from 'react';
 import {
-  View, TouchableOpacity, StyleSheet, StatusBar, TextInput,
+  View, TouchableOpacity, StyleSheet, StatusBar, TextInput, Image,
   Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions,
 } from 'react-native';
 import { DatePickerModal } from '@/components/date-picker-modal';
@@ -12,6 +12,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { createTransaction, CategorySlug, TransactionType } from '@/services/transaction.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
 import { useCurrency } from '@/context/currency-context';
+import ENV from '@/env';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 interface Category { id: CategorySlug; label: string; icon: IconName }
@@ -42,9 +43,11 @@ export default function AddExpenseScreen() {
   const params = useLocalSearchParams<{
     amount?: string; merchant?: string; date?: string;
     type?: string; category?: string; description?: string;
+    receiptUrl?: string;
   }>();
 
   const [step,           setStep]           = useState(1);
+  const [receiptUrl,     setReceiptUrl]     = useState('');
   const [txType,         setTxType]         = useState<TransactionType>('EXPENSE');
   const [amount,         setAmount]         = useState('');
   const [selectedCat,    setSelectedCat]    = useState<CategorySlug>('food');
@@ -71,11 +74,12 @@ export default function AddExpenseScreen() {
         const d = new Date(params.date);
         if (!isNaN(d.getTime())) setSelectedDate(d);
       }
+      setReceiptUrl(params.receiptUrl ?? '');
       // Jump to step 3 only when amount + category are both pre-filled from scan
       if (params.amount && params.category) setStep(3);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.amount, params.category, params.date, params.description, params.merchant, params.type]);
+  }, [params.amount, params.category, params.date, params.description, params.merchant, params.type, params.receiptUrl]);
 
   const isIncome   = txType === 'INCOME';
   const accent     = isIncome ? '#22C55E' : theme.buttonBg;
@@ -111,7 +115,8 @@ export default function AddExpenseScreen() {
 
   const resetForm = () => {
     setStep(1); setTxType('EXPENSE'); setAmount('');
-    setSelectedCat('food'); setMerchant(''); setSelectedDate(new Date()); setSaving(false);
+    setSelectedCat('food'); setMerchant(''); setSelectedDate(new Date());
+    setReceiptUrl(''); setSaving(false);
   };
 
   const handleSave = async () => {
@@ -133,6 +138,7 @@ export default function AddExpenseScreen() {
         amount: parsedAmount,
         walletId: selectedWallet,
         date: selectedDate.toISOString(),
+        receiptUrl: receiptUrl || undefined,
       });
       resetForm();
       router.back();
@@ -323,6 +329,20 @@ export default function AddExpenseScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {receiptUrl ? (
+              <View style={[s.receiptThumb, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Image
+                  source={{ uri: ENV.API_URL + receiptUrl }}
+                  style={s.receiptThumbImg}
+                  resizeMode="cover"
+                />
+                <View style={s.receiptThumbInfo}>
+                  <Text style={[s.receiptThumbTitle, { color: theme.text }]}>Receipt attached</Text>
+                  <Text style={[s.receiptThumbSub, { color: theme.textMuted }]}>Scanned & saved to server</Text>
+                </View>
+                <MaterialIcons name="check-circle" size={18} color="#4ADE80" />
+              </View>
+            ) : null}
             <Text style={[s.fieldLabel, { color: theme.textMuted }]}>DESCRIPTION *</Text>
             <View style={[s.inputRow, s.textAreaRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <MaterialIcons name="receipt" size={18} color={theme.textMuted} style={[s.inputIcon, { marginTop: 4 }]} />
@@ -474,6 +494,11 @@ const s = StyleSheet.create({
 
   // Step 3
   detailsContent: { paddingHorizontal: 20, paddingTop: 20 },
+  receiptThumb:     { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 10, marginBottom: 20 },
+  receiptThumbImg:  { width: 60, height: 60, borderRadius: 10 },
+  receiptThumbInfo: { flex: 1 },
+  receiptThumbTitle:{ fontSize: 13, fontWeight: '600' },
+  receiptThumbSub:  { fontSize: 11, marginTop: 2 },
   fieldLabel:     { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, marginBottom: 8 },
   inputRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 54, marginBottom: 20 },
   textAreaRow:    { alignItems: 'flex-start', height: 90, paddingTop: 14, paddingBottom: 10 },

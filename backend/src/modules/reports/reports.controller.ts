@@ -89,4 +89,29 @@ export class ReportsController {
       throw new HttpException(e.message || 'Failed to fetch top expenses', 400);
     }
   }
+
+  @Get('ai-advice')
+  async aiAdvice(
+    @Req() req: RequestWithClient,
+    @Query('month')     month?:     string,
+    @Query('year')      year?:      string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate')   endDate?:   string,
+    @Query('currency')  currency?:  string,
+  ) {
+    try {
+      const now = new Date();
+      return await this.reportsService.aiAdvice(
+        req.client.id,
+        month ? Number(month) : now.getMonth() + 1,
+        year  ? Number(year)  : now.getFullYear(),
+        startDate,
+        endDate,
+        currency,
+      );
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      throw new HttpException(e.message || 'Failed to get AI advice', 500);
+    }
+  }
 }
