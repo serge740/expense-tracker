@@ -178,7 +178,7 @@ export default function ScanScreen() {
             {/* AI confidence badge */}
             <View style={s.aiBadge}>
               <MaterialIcons name="auto-awesome" size={14} color="#FBBF24" />
-              <Text style={s.aiBadgeText}>GPT-4o · {pct}% confident</Text>
+              <Text style={s.aiBadgeText}>{pct}% match</Text>
             </View>
 
             {/* Main receipt card */}
@@ -217,7 +217,7 @@ export default function ScanScreen() {
               <View style={s.rawCard}>
                 <View style={s.rawHeader}>
                   <MaterialIcons name="psychology" size={14} color="rgba(255,255,255,0.4)" />
-                  <Text style={s.rawTitle}>What AI saw</Text>
+                  <Text style={s.rawTitle}>Detected text</Text>
                 </View>
                 <Text style={s.rawText} numberOfLines={6}>{ocrResult.rawText}</Text>
               </View>
@@ -342,7 +342,7 @@ export default function ScanScreen() {
             {scanState === 'scanning' ? 'Scanning…' : 'Point camera at receipt'}
           </Text>
           <Text style={s.instrSub}>
-            {scanState === 'scanning' ? 'Hold steady' : 'AI will extract all expense details'}
+            {scanState === 'scanning' ? 'Hold steady' : 'Auto-fills expense details from your receipt'}
           </Text>
         </View>
 

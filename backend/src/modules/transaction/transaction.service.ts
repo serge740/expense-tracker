@@ -11,7 +11,7 @@ export class TransactionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(clientId: string, query: QueryTransactionDto) {
-    const { type, category, walletId, month, year, startDate, endDate, page = 1, limit = 20 } = query;
+    const { type, category, walletId, month, year, startDate, endDate, page = 1, limit = 20, search } = query;
 
     const where: Prisma.TransactionWhereInput = { clientId };
     if (type === 'income')  where.type = 'INCOME';
@@ -25,6 +25,12 @@ export class TransactionService {
       };
     } else if (month && year) {
       where.date = { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) };
+    }
+    if (search) {
+      where.OR = [
+        { title:       { contains: search } },
+        { description: { contains: search } },
+      ];
     }
 
     const [data, total] = await Promise.all([
@@ -50,7 +56,7 @@ export class TransactionService {
   }
 
   async history(clientId: string, query: QueryTransactionDto) {
-    const { category, month, year, startDate, endDate } = query;
+    const { category, month, year, startDate, endDate, search } = query;
     const where: Prisma.TransactionWhereInput = { clientId };
 
     if (category) where.category = category as CategorySlug;
@@ -61,6 +67,12 @@ export class TransactionService {
       };
     } else if (month && year) {
       where.date = { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) };
+    }
+    if (search) {
+      where.OR = [
+        { title:       { contains: search } },
+        { description: { contains: search } },
+      ];
     }
 
     const txns = await this.prisma.transaction.findMany({

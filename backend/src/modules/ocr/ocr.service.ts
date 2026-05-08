@@ -1,8 +1,6 @@
 import { Injectable, HttpException } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
-import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 export interface OcrResult {
   amount: number | null;
@@ -37,30 +35,20 @@ If you cannot read any text, still return your best estimate based on what you c
 
 function parseJsonFromLlm(raw: string): any {
   let text = raw.trim();
-  // strip markdown code fences if present
   text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   return JSON.parse(text);
 }
 
 @Injectable()
 export class OcrService {
-  private client: OpenAI;
+  private openai: OpenAI;
 
-  constructor() {
+  constructor(private readonly cloudinaryService: CloudinaryService) {
     const apiKey = (process.env.OPEN_AI_KEY ?? '').trim();
     if (!apiKey) {
       console.error('[OCR] OPEN_AI_KEY is not set in environment variables');
     }
-    this.client = new OpenAI({ apiKey });
-  }
-
-  private saveBufferToDisk(buffer: Buffer, mimeType: string): string {
-    const ext      = mimeType.includes('png') ? 'png' : 'jpg';
-    const filename = `${randomUUID()}.${ext}`;
-    const dir      = path.join(process.cwd(), 'uploads', 'receipts');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, filename), buffer);
-    return `/uploads/receipts/${filename}`;
+    this.openai = new OpenAI({ apiKey });
   }
 
   async scanReceipt(buffer: Buffer, mimeType = 'image/jpeg'): Promise<OcrResult> {
@@ -69,16 +57,18 @@ export class OcrService {
       throw new HttpException('OpenAI API key not configured on server', 500);
     }
 
-    const safeType  = mimeType.startsWith('image/') ? mimeType : 'image/jpeg';
-    const base64    = buffer.toString('base64');
-    const dataUrl   = `data:${safeType};base64,${base64}`;
-    const receiptUrl = this.saveBufferToDisk(buffer, safeType);
+    const safeType = mimeType.startsWith('image/') ? mimeType : 'image/jpeg';
+    const base64   = buffer.toString('base64');
+    const dataUrl  = `data:${safeType};base64,${base64}`;
 
-    console.log(`[OCR] Sending image to GPT-4o (${Math.round(buffer.length / 1024)}KB, ${safeType})`);
+    // Upload to Cloudinary immediately — even if GPT fails the image is preserved
+    const receiptUrl = await this.cloudinaryService.uploadReceiptBuffer(buffer, safeType);
+
+    console.log(`[OCR] Sending image to vision model (${Math.round(buffer.length / 1024)}KB, ${safeType})`);
 
     let rawContent = '';
     try {
-      const response = await this.client.chat.completions.create({
+      const response = await this.openai.chat.completions.create({
         model: 'gpt-4o',
         max_tokens: 400,
         temperature: 0,
@@ -94,7 +84,7 @@ export class OcrService {
       });
 
       rawContent = response.choices[0]?.message?.content?.trim() ?? '';
-      console.log('[OCR] GPT-4o raw response:', rawContent);
+      console.log('[OCR] Raw response:', rawContent);
 
       const parsed = parseJsonFromLlm(rawContent);
 
@@ -120,7 +110,7 @@ export class OcrService {
         };
       }
       throw new HttpException(
-        err?.message?.includes('API key') ? 'OpenAI API key is invalid' : 'Receipt analysis failed',
+        err?.message?.includes('API key') ? 'API key is invalid' : 'Receipt analysis failed',
         500,
       );
     }

@@ -117,13 +117,22 @@ export default function HomeScreen() {
                 <Text style={s.greeting}>GOOD MORNING</Text>
                 <Text style={s.userName}>{firstName || 'Welcome'}</Text>
               </View>
-              <TouchableOpacity
-                style={[s.bellBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
-                activeOpacity={0.7}
-                onPress={() => router.push('/(dashboard)/(settings)/notifications')}
-              >
-                <MaterialIcons name="notifications-none" size={22} color="#FFFFFF" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[s.bellBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
+                  activeOpacity={0.7}
+                  onPress={() => router.push({ pathname: '/(dashboard)/history', params: { openSearch: 'true' } } as any)}
+                >
+                  <MaterialIcons name="search" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.bellBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/(dashboard)/(settings)/notifications')}
+                >
+                  <MaterialIcons name="notifications-none" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           </FadeInView>
 
@@ -242,7 +251,15 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={[s.txRow, { backgroundColor: theme.surface }]}
                 activeOpacity={0.75}
-                onPress={() => router.push('/(dashboard)/history')}
+                onPress={() => router.push({
+                  pathname: '/(dashboard)/transaction-detail',
+                  params: {
+                    id: t.id, type: t.type, category: t.category,
+                    title: t.title, description: t.description ?? '',
+                    amount: String(t.amount), date: String(t.date),
+                    walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
+                  },
+                } as any)}
               >
                 <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
                   <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={20} color={theme.primary} />

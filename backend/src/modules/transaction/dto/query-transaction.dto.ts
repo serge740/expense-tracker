@@ -10,4 +10,5 @@ export class QueryTransactionDto {
   endDate?: string;   // ISO string
   page?: number;
   limit?: number;
+  search?: string;    // searches title + description (case-insensitive)
 }

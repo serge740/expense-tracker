@@ -12,7 +12,6 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { createTransaction, CategorySlug, TransactionType } from '@/services/transaction.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
 import { useCurrency } from '@/context/currency-context';
-import ENV from '@/env';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 interface Category { id: CategorySlug; label: string; icon: IconName }
@@ -332,7 +331,7 @@ export default function AddExpenseScreen() {
             {receiptUrl ? (
               <View style={[s.receiptThumb, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Image
-                  source={{ uri: ENV.API_URL + receiptUrl }}
+                  source={{ uri: receiptUrl }}
                   style={s.receiptThumbImg}
                   resizeMode="cover"
                 />

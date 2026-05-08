@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  ActivityIndicator, Alert, RefreshControl,
+  ActivityIndicator, Alert, RefreshControl, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
@@ -14,7 +14,6 @@ import {
   TransactionGroup, Transaction, CategorySlug,
 } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
-import { TransactionDetailModal } from '@/components/transaction-detail-modal';
 import { DatePickerModal } from '@/components/date-picker-modal';
 
 const CATS = ['All', 'Food', 'Shopping', 'Transport', 'Health', 'Entertainment', 'Travel', 'Groceries', 'Salary', 'Other'];
@@ -69,23 +68,34 @@ export default function HistoryScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
   const sym = currency.symbol;
+  const params = useLocalSearchParams<{ openSearch?: string }>();
 
   const [active,       setActive]       = useState('All');
   const [dateFilter,   setDateFilter]   = useState<DateFilter>('Month');
   const [groups,       setGroups]       = useState<TransactionGroup[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [refreshing,   setRefreshing]   = useState(false);
-  const [detailTx,     setDetailTx]     = useState<Transaction | null>(null);
   const [customStart,  setCustomStart]  = useState<Date | undefined>();
   const [customEnd,    setCustomEnd]    = useState<Date | undefined>();
   const [customPhase,  setCustomPhase]  = useState<null | 'start' | 'end'>(null);
+  const [searchOpen,   setSearchOpen]   = useState(false);
+  const [searchQuery,  setSearchQuery]  = useState('');
+  const searchRef = useRef<TextInput>(null);
 
-  const load = useCallback(async (cat: string, df: DateFilter, cStart?: Date, cEnd?: Date, silent = false) => {
+  // Auto-open search when navigated here with openSearch param
+  useEffect(() => {
+    if (params.openSearch === 'true') {
+      setSearchOpen(true);
+      setTimeout(() => searchRef.current?.focus(), 200);
+    }
+  }, [params.openSearch]);
+
+  const load = useCallback(async (cat: string, df: DateFilter, cStart?: Date, cEnd?: Date, search?: string, silent = false) => {
     if (!silent) setLoading(true);
     try {
       const slug = cat === 'All' ? undefined : CAT_SLUG[cat];
       const range = getDateRange(df, cStart, cEnd);
-      const data = await getTransactionHistory({ category: slug, ...range });
+      const data = await getTransactionHistory({ category: slug, ...range, search: search || undefined });
       setGroups(data);
     } catch {
       setGroups([]);
@@ -95,9 +105,15 @@ export default function HistoryScreen() {
     }
   }, []);
 
-  useEffect(() => { load(active, dateFilter, customStart, customEnd); }, [active, dateFilter, customStart, customEnd]);
+  useEffect(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, [active, dateFilter, customStart, customEnd]);
 
-  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, true); }, [active, dateFilter, customStart, customEnd, load]));
+  // Debounce search query changes
+  useEffect(() => {
+    const t = setTimeout(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, searchQuery, true); }, [active, dateFilter, customStart, customEnd, load]));
 
   const handleDateFilter = (df: DateFilter) => {
     if (df === 'Custom') {
@@ -157,23 +173,21 @@ export default function HistoryScreen() {
     ? `${customStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${customEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : 'Custom';
 
+  const goToDetail = (t: Transaction) => {
+    router.push({
+      pathname: '/(dashboard)/transaction-detail',
+      params: {
+        id: t.id, type: t.type, category: t.category,
+        title: t.title, description: t.description ?? '',
+        amount: String(t.amount), date: String(t.date),
+        walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
+      },
+    });
+  };
+
   return (
     <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.headerBg }]}>
       <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
-
-      <TransactionDetailModal
-        visible={!!detailTx}
-        transaction={detailTx}
-        onClose={() => setDetailTx(null)}
-        onDeleted={(id) => {
-          setDetailTx(null);
-          setGroups(prev =>
-            prev
-              .map(g => ({ ...g, items: g.items.filter(i => i.id !== id) }))
-              .filter(g => g.items.length > 0),
-          );
-        }}
-      />
 
       <DatePickerModal
         visible={customPhase !== null}
@@ -203,11 +217,40 @@ export default function HistoryScreen() {
           <FadeInView delay={0} slideFrom="top" distance={14}>
             <View style={s.topBar}>
               <Text style={s.title}>History</Text>
-              <TouchableOpacity style={s.searchBtn} activeOpacity={0.7}>
-                <MaterialIcons name="search" size={20} color="#fff" />
+              <TouchableOpacity
+                style={s.searchBtn}
+                activeOpacity={0.7}
+                onPress={() => { setSearchOpen(o => !o); if (!searchOpen) setTimeout(() => searchRef.current?.focus(), 150); }}
+              >
+                <MaterialIcons name={searchOpen ? 'close' : 'search'} size={20} color="#fff" />
               </TouchableOpacity>
             </View>
           </FadeInView>
+
+          {/* Search bar */}
+          {searchOpen && (
+            <FadeInView delay={0} slideFrom="top" distance={8}>
+              <View style={[s.searchRow, { backgroundColor: 'rgba(255,255,255,0.12)' }]}>
+                <MaterialIcons name="search" size={18} color="rgba(255,255,255,0.6)" />
+                <TextInput
+                  ref={searchRef}
+                  style={s.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search transactions…"
+                  placeholderTextColor="rgba(255,255,255,0.4)"
+                  selectionColor="#fff"
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                    <MaterialIcons name="cancel" size={18} color="rgba(255,255,255,0.5)" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </FadeInView>
+          )}
 
           {/* Stats strip */}
           <FadeInView delay={50} slideFrom="bottom" distance={16}>
@@ -293,7 +336,7 @@ export default function HistoryScreen() {
                     <TouchableOpacity
                       style={s.txRow}
                       activeOpacity={0.75}
-                      onPress={() => setDetailTx(t)}
+                      onPress={() => goToDetail(t)}
                       onLongPress={() => handleDelete(t)}
                     >
                       <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
@@ -336,6 +379,8 @@ const s = StyleSheet.create({
   topBar:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 14 },
   title:     { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
   searchBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginBottom: 12, borderRadius: 14, paddingHorizontal: 14, height: 44 },
+  searchInput:{ flex: 1, fontSize: 15, color: '#fff', paddingVertical: 0 },
 
   statsRow:  { flexDirection: 'row', gap: 8, paddingHorizontal: 20 },
   statCard:  { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },

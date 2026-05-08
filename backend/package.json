@@ -38,6 +38,7 @@
     "@vladmandic/face-api": "^1.7.15",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
+    "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "google-auth-library": "^10.6.2",
     "handlebars": "^4.7.8",

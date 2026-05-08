@@ -127,7 +127,7 @@ export default function ReportsScreen() {
       setAdvice(result);
     } catch {
       setShowAdvice(false);
-      Alert.alert('Error', 'Could not get AI advice. Please try again.');
+      Alert.alert('Error', 'Could not generate insights. Please try again.');
     } finally {
       setLoadingAdvice(false);
     }
@@ -303,8 +303,8 @@ export default function ReportsScreen() {
             onPress={handleGetAdvice}
             activeOpacity={0.85}
           >
-            <MaterialIcons name="auto-awesome" size={18} color="#fff" />
-            <Text style={s.aiBtnText}>Get AI Financial Advice</Text>
+            <MaterialIcons name="bar-chart" size={18} color="#fff" />
+            <Text style={s.aiBtnText}>Get Financial Insights</Text>
           </TouchableOpacity>
         </FadeInView>
 
@@ -318,8 +318,8 @@ export default function ReportsScreen() {
             {/* Header */}
             <View style={s.modalHeader}>
               <View style={s.modalTitleRow}>
-                <MaterialIcons name="auto-awesome" size={20} color={theme.primary} />
-                <Text style={[s.modalTitle, { color: theme.text }]}>AI Financial Advisor</Text>
+                <MaterialIcons name="insights" size={20} color={theme.primary} />
+                <Text style={[s.modalTitle, { color: theme.text }]}>Financial Insights</Text>
               </View>
               <TouchableOpacity onPress={() => setShowAdvice(false)} activeOpacity={0.7}>
                 <MaterialIcons name="close" size={22} color={theme.textMuted} />
