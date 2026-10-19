@@ -11,13 +11,13 @@ import { ComponentProps } from 'react';
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
 const TAB_CONFIG: Record<string, { icon: IconName; label: string }> = {
-  index:   { icon: 'home',                   label: 'Home'    },
-  wallets: { icon: 'account-balance-wallet', label: 'Wallets' },
-  reports: { icon: 'bar-chart',              label: 'Reports' },
-  profile: { icon: 'settings',               label: 'Settings' },
+  index:   { icon: 'home',      label: 'Home'     },
+  budget:  { icon: 'tune',      label: 'Budget'   },
+  reports: { icon: 'bar-chart', label: 'Reports'  },
+  profile: { icon: 'settings',  label: 'Settings' },
 };
 
-const VISIBLE_TABS = ['index', 'wallets', 'reports', 'profile'];
+const VISIBLE_TABS = ['index', 'budget', 'reports', 'profile'];
 
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const theme = useAppTheme();

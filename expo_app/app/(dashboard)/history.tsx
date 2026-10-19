@@ -178,7 +178,8 @@ export default function HistoryScreen() {
       pathname: '/(dashboard)/transaction-detail',
       params: {
         id: t.id, type: t.type, category: t.category,
-        title: t.title, description: t.description ?? '',
+        title: t.title, subCategory: t.subCategory ?? '',
+        description: t.description ?? '',
         amount: String(t.amount), date: String(t.date),
         walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
       },

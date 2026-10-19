@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, ComponentProps } from 'react';
 import {
   View, TouchableOpacity, StyleSheet, StatusBar, TextInput, Image,
-  Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions,
+  Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { DatePickerModal } from '@/components/date-picker-modal';
 import { Text } from '@/components/text';
@@ -34,6 +34,18 @@ const CAT_COLORS: Record<CategorySlug, string> = {
   groceries: '#4ADE80', salary: '#34D399', other: '#94A3B8',
 };
 
+const SUBCATEGORIES: Record<CategorySlug, string[]> = {
+  food:          ['Restaurant', 'Fast Food', 'Coffee & Drinks', 'Bakery', 'Street Food'],
+  transport:     ['Fuel / Gas', 'Bus / Train', 'Taxi / Uber', 'Parking', 'Car Maintenance'],
+  shopping:      ['Clothing', 'Electronics', 'Home & Garden', 'Beauty', 'Books'],
+  health:        ['Pharmacy', 'Doctor Visit', 'Gym', 'Supplements', 'Dental'],
+  entertainment: ['Movies', 'Streaming', 'Games', 'Concert / Event', 'Sports'],
+  travel:        ['Flights', 'Hotel', 'Car Rental', 'Tours', 'Visa / Fees'],
+  groceries:     ['Supermarket', 'Fresh Produce', 'Bakery', 'Beverages', 'Household'],
+  salary:        ['Monthly Salary', 'Freelance', 'Bonus', 'Commission', 'Other Income'],
+  other:         ['Subscription', 'Gift', 'Charity', 'Education', 'Miscellaneous'],
+};
+
 export default function AddExpenseScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
@@ -45,21 +57,21 @@ export default function AddExpenseScreen() {
     receiptUrl?: string;
   }>();
 
-  const [step,           setStep]           = useState(1);
-  const [receiptUrl,     setReceiptUrl]     = useState('');
-  const [txType,         setTxType]         = useState<TransactionType>('EXPENSE');
-  const [amount,         setAmount]         = useState('');
-  const [selectedCat,    setSelectedCat]    = useState<CategorySlug>('food');
-  const [merchant,       setMerchant]       = useState('');
-  const [wallets,        setWallets]        = useState<Wallet[]>([]);
-  const [selectedWallet, setSelectedWallet] = useState<string | undefined>(undefined);
-  const [saving,         setSaving]         = useState(false);
-  const [selectedDate,   setSelectedDate]   = useState<Date>(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [step,             setStep]             = useState(1);
+  const [receiptUrl,       setReceiptUrl]       = useState('');
+  const [txType,           setTxType]           = useState<TransactionType>('EXPENSE');
+  const [amount,           setAmount]           = useState('');
+  const [selectedCat,      setSelectedCat]      = useState<CategorySlug>('food');
+  const [selectedSubCat,   setSelectedSubCat]   = useState('');
+  const [customSubCat,     setCustomSubCat]     = useState('');
+  const [showCustomInput,  setShowCustomInput]  = useState(false);
+  const [merchant,         setMerchant]         = useState('');
+  const [wallets,          setWallets]          = useState<Wallet[]>([]);
+  const [selectedWallet,   setSelectedWallet]   = useState<string | undefined>(undefined);
+  const [saving,           setSaving]           = useState(false);
+  const [selectedDate,     setSelectedDate]     = useState<Date>(new Date());
+  const [showDatePicker,   setShowDatePicker]   = useState(false);
 
-  // Sync route params into state every time the screen receives new params.
-  // useState initial values only run on first mount — this screen stays mounted
-  // as a hidden tab, so we need useEffect to pick up params from subsequent navigations.
   useEffect(() => {
     if (params.amount || params.merchant || params.description || params.category) {
       if (params.amount)   setAmount(params.amount);
@@ -74,15 +86,16 @@ export default function AddExpenseScreen() {
         if (!isNaN(d.getTime())) setSelectedDate(d);
       }
       setReceiptUrl(params.receiptUrl ?? '');
-      // Jump to step 3 only when amount + category are both pre-filled from scan
-      if (params.amount && params.category) setStep(3);
+      // OCR pre-fill: skip category + sub-cat pickers
+      if (params.amount && params.category) setStep(4);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.amount, params.category, params.date, params.description, params.merchant, params.type, params.receiptUrl]);
 
-  const isIncome   = txType === 'INCOME';
-  const accent     = isIncome ? '#22C55E' : theme.buttonBg;
+  const isIncome       = txType === 'INCOME';
+  const accent         = isIncome ? '#22C55E' : theme.buttonBg;
   const selectedCatObj = CATEGORIES.find(c => c.id === selectedCat);
+  const catColor       = CAT_COLORS[selectedCat];
 
   const dateLabel = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const timeLabel = selectedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -114,8 +127,9 @@ export default function AddExpenseScreen() {
 
   const resetForm = () => {
     setStep(1); setTxType('EXPENSE'); setAmount('');
-    setSelectedCat('food'); setMerchant(''); setSelectedDate(new Date());
-    setReceiptUrl(''); setSaving(false);
+    setSelectedCat('food'); setSelectedSubCat(''); setCustomSubCat('');
+    setShowCustomInput(false); setMerchant('');
+    setSelectedDate(new Date()); setReceiptUrl(''); setSaving(false);
   };
 
   const handleSave = async () => {
@@ -134,6 +148,7 @@ export default function AddExpenseScreen() {
         type: txType,
         category: selectedCat,
         title: merchant.trim(),
+        subCategory: selectedSubCat || undefined,
         amount: parsedAmount,
         walletId: selectedWallet,
         date: selectedDate.toISOString(),
@@ -146,6 +161,20 @@ export default function AddExpenseScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSubCatSelect = (sub: string) => {
+    setSelectedSubCat(sub);
+    setMerchant(sub);
+    setShowCustomInput(false);
+    setStep(4);
+  };
+
+  const handleCustomConfirm = () => {
+    if (!customSubCat.trim()) return;
+    setSelectedSubCat(customSubCat.trim());
+    setMerchant(customSubCat.trim());
+    setStep(4);
   };
 
   return (
@@ -170,9 +199,9 @@ export default function AddExpenseScreen() {
               <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
-            {/* Step dots */}
+            {/* Step dots — 4 steps */}
             <View style={s.dotsRow}>
-              {[1, 2, 3].map(n => (
+              {[1, 2, 3, 4].map(n => (
                 <View
                   key={n}
                   style={[
@@ -198,7 +227,7 @@ export default function AddExpenseScreen() {
             )}
           </View>
 
-          {/* ── Step 1 header: type toggle + big amount ── */}
+          {/* Step 1 header */}
           {step === 1 && (
             <>
               <View style={s.typeRow}>
@@ -215,7 +244,6 @@ export default function AddExpenseScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-
               <View style={s.amountBlock}>
                 <Text style={s.amountCue}>Enter amount</Text>
                 <View style={s.amountRow}>
@@ -235,7 +263,7 @@ export default function AddExpenseScreen() {
             </>
           )}
 
-          {/* ── Step 2 header: category label ── */}
+          {/* Step 2 header — category */}
           {step === 2 && (
             <View style={s.stepHeadBlock}>
               <Text style={s.stepTitle}>Choose Category</Text>
@@ -243,19 +271,33 @@ export default function AddExpenseScreen() {
             </View>
           )}
 
-          {/* ── Step 3 header: amount + category summary ── */}
+          {/* Step 3 header — sub-category */}
           {step === 3 && (
             <View style={s.stepHeadBlock}>
               <View style={s.summaryRow}>
                 <Text style={s.summaryAmt}>{sym}{amount}</Text>
-                <View style={[s.summaryBadge, { backgroundColor: CAT_COLORS[selectedCat] + '33' }]}>
-                  <MaterialIcons name={selectedCatObj?.icon ?? 'receipt'} size={13} color={CAT_COLORS[selectedCat]} />
-                  <Text style={[s.summaryBadgeText, { color: CAT_COLORS[selectedCat] }]}>
-                    {selectedCatObj?.label}
-                  </Text>
+                <View style={[s.summaryBadge, { backgroundColor: catColor + '33' }]}>
+                  <MaterialIcons name={selectedCatObj?.icon ?? 'receipt'} size={13} color={catColor} />
+                  <Text style={[s.summaryBadgeText, { color: catColor }]}>{selectedCatObj?.label}</Text>
                 </View>
               </View>
-              <Text style={s.stepSub}>Add a description so you remember this later</Text>
+              <Text style={s.stepSub}>What specifically did you spend on?</Text>
+            </View>
+          )}
+
+          {/* Step 4 header — details */}
+          {step === 4 && (
+            <View style={s.stepHeadBlock}>
+              <View style={s.summaryRow}>
+                <Text style={s.summaryAmt}>{sym}{amount}</Text>
+                <View style={[s.summaryBadge, { backgroundColor: catColor + '33' }]}>
+                  <MaterialIcons name={selectedCatObj?.icon ?? 'receipt'} size={13} color={catColor} />
+                  <Text style={[s.summaryBadgeText, { color: catColor }]}>{selectedCatObj?.label}</Text>
+                </View>
+              </View>
+              <Text style={s.stepSub}>
+                {selectedSubCat ? `${selectedSubCat} · ` : ''}Add a description so you remember this later
+              </Text>
             </View>
           )}
 
@@ -265,9 +307,13 @@ export default function AddExpenseScreen() {
       {/* ── Light body ── */}
       <View style={[s.body, { backgroundColor: theme.background }]}>
 
-        {/* STEP 1 BODY — Continue button */}
+        {/* STEP 1 BODY */}
         {step === 1 && (
-          <View style={[s.step1Body, { paddingBottom: insets.bottom + 16 }]}>
+          <ScrollView
+            contentContainerStyle={[s.step1Body, { paddingBottom: insets.bottom + 16 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             <TouchableOpacity
               style={[s.continueBtn, { backgroundColor: accent }]}
               onPress={() => { if (validateAmount()) setStep(2); }}
@@ -276,7 +322,7 @@ export default function AddExpenseScreen() {
               <Text style={s.continueBtnText}>Continue</Text>
               <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         )}
 
         {/* STEP 2 BODY — Category grid */}
@@ -287,30 +333,31 @@ export default function AddExpenseScreen() {
           >
             <View style={s.catGrid}>
               {CATEGORIES.map(cat => {
-                const active   = selectedCat === cat.id;
-                const catColor = CAT_COLORS[cat.id];
+                const active = selectedCat === cat.id;
+                const cc     = CAT_COLORS[cat.id];
                 return (
                   <TouchableOpacity
                     key={cat.id}
                     style={[
                       s.catTile,
-                      {
-                        backgroundColor: theme.surface,
-                        borderColor: active ? catColor : theme.border,
-                      },
-                      active && { backgroundColor: catColor + '15' },
+                      { backgroundColor: theme.surface, borderColor: active ? cc : theme.border },
+                      active && { backgroundColor: cc + '15' },
                     ]}
-                    onPress={() => { setSelectedCat(cat.id); setStep(3); }}
+                    onPress={() => {
+                      setSelectedCat(cat.id);
+                      setSelectedSubCat('');
+                      setCustomSubCat('');
+                      setShowCustomInput(false);
+                      setStep(3);
+                    }}
                     activeOpacity={0.7}
                   >
-                    <View style={[s.catIconBg, { backgroundColor: catColor + '22' }]}>
-                      <MaterialIcons name={cat.icon} size={26} color={catColor} />
+                    <View style={[s.catIconBg, { backgroundColor: cc + '22' }]}>
+                      <MaterialIcons name={cat.icon} size={26} color={cc} />
                     </View>
-                    <Text style={[s.catTileLabel, { color: active ? catColor : theme.text }]}>
-                      {cat.label}
-                    </Text>
+                    <Text style={[s.catTileLabel, { color: active ? cc : theme.text }]}>{cat.label}</Text>
                     {active && (
-                      <View style={[s.catCheck, { backgroundColor: catColor }]}>
+                      <View style={[s.catCheck, { backgroundColor: cc }]}>
                         <MaterialIcons name="check" size={10} color="#fff" />
                       </View>
                     )}
@@ -321,8 +368,68 @@ export default function AddExpenseScreen() {
           </ScrollView>
         )}
 
-        {/* STEP 3 BODY — Description + wallet + save */}
+        {/* STEP 3 BODY — Sub-category list */}
         {step === 3 && (
+          <ScrollView
+            contentContainerStyle={[s.subCatList, { paddingBottom: insets.bottom + 16 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {SUBCATEGORIES[selectedCat].map(sub => (
+              <TouchableOpacity
+                key={sub}
+                style={[s.subCatChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={() => handleSubCatSelect(sub)}
+                activeOpacity={0.7}
+              >
+                <View style={[s.subCatDot, { backgroundColor: catColor }]} />
+                <Text style={[s.subCatLabel, { color: theme.text }]}>{sub}</Text>
+                <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
+              </TouchableOpacity>
+            ))}
+
+            <TouchableOpacity
+              style={[
+                s.subCatChip,
+                {
+                  backgroundColor: 'transparent',
+                  borderColor: showCustomInput ? accent : theme.border,
+                  borderStyle: 'dashed',
+                },
+              ]}
+              onPress={() => setShowCustomInput(true)}
+              activeOpacity={0.7}
+            >
+              <MaterialIcons name="edit" size={16} color={accent} />
+              <Text style={[s.subCatLabel, { color: accent }]}>Custom…</Text>
+            </TouchableOpacity>
+
+            {showCustomInput && (
+              <View style={[s.customInputRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <TextInput
+                  style={[s.customInput, { color: theme.text }]}
+                  value={customSubCat}
+                  onChangeText={setCustomSubCat}
+                  placeholder="Describe what you spent on…"
+                  placeholderTextColor={theme.textMuted}
+                  autoFocus
+                  returnKeyType="done"
+                  onSubmitEditing={handleCustomConfirm}
+                />
+                <TouchableOpacity
+                  style={[s.customConfirmBtn, { backgroundColor: accent }]}
+                  onPress={handleCustomConfirm}
+                  activeOpacity={0.85}
+                >
+                  <Text style={s.customConfirmText}>Confirm</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        )}
+
+        {/* STEP 4 BODY — Description + wallet + date + save */}
+        {step === 4 && (
           <ScrollView
             contentContainerStyle={[s.detailsContent, { paddingBottom: insets.bottom + 16 }]}
             keyboardShouldPersistTaps="handled"
@@ -330,11 +437,7 @@ export default function AddExpenseScreen() {
           >
             {receiptUrl ? (
               <View style={[s.receiptThumb, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Image
-                  source={{ uri: receiptUrl }}
-                  style={s.receiptThumbImg}
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: receiptUrl }} style={s.receiptThumbImg} resizeMode="cover" />
                 <View style={s.receiptThumbInfo}>
                   <Text style={[s.receiptThumbTitle, { color: theme.text }]}>Receipt attached</Text>
                   <Text style={[s.receiptThumbSub, { color: theme.textMuted }]}>Scanned & saved to server</Text>
@@ -342,6 +445,7 @@ export default function AddExpenseScreen() {
                 <MaterialIcons name="check-circle" size={18} color="#4ADE80" />
               </View>
             ) : null}
+
             <Text style={[s.fieldLabel, { color: theme.textMuted }]}>DESCRIPTION *</Text>
             <View style={[s.inputRow, s.textAreaRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <MaterialIcons name="receipt" size={18} color={theme.textMuted} style={[s.inputIcon, { marginTop: 4 }]} />
@@ -384,10 +488,7 @@ export default function AddExpenseScreen() {
                         activeOpacity={0.75}
                       >
                         <MaterialIcons name="credit-card" size={14} color={active ? accent : theme.textMuted} />
-                        <Text
-                          style={[s.walletChipText, { color: active ? accent : theme.text }]}
-                          numberOfLines={1}
-                        >
+                        <Text style={[s.walletChipText, { color: active ? accent : theme.text }]} numberOfLines={1}>
                           {w.name}{w.last4 ? ` ···${w.last4}` : ''}
                         </Text>
                       </TouchableOpacity>
@@ -420,7 +521,7 @@ export default function AddExpenseScreen() {
               ) : (
                 <>
                   <MaterialIcons name="check" size={20} color="#FFFFFF" />
-                  <Text style={s.saveBtnText}>Save {isIncome ? 'Income' : 'Expense'}</Text>
+                  <Text style={s.saveBtnText}>Saves {isIncome ? 'Income' : 'Expense'}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -443,7 +544,6 @@ export default function AddExpenseScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1 },
-
   headerSection: { overflow: 'hidden' },
 
   toolbar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
@@ -451,14 +551,14 @@ const s = StyleSheet.create({
   scanChip:   { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20 },
   scanText:   { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
 
-  dotsRow:    { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  dot:        { width: 8, height: 8, borderRadius: 4 },
-  dotActive:  { width: 22, borderRadius: 4 },
+  dotsRow:   { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  dot:       { width: 8, height: 8, borderRadius: 4 },
+  dotActive: { width: 22, borderRadius: 4 },
 
-  typeRow:        { flexDirection: 'row', marginHorizontal: 20, marginTop: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', padding: 3 },
-  typeBtn:        { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 18 },
-  typeBtnActive:  { backgroundColor: 'rgba(255,255,255,0.2)' },
-  typeBtnText:    { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
+  typeRow:           { flexDirection: 'row', marginHorizontal: 20, marginTop: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', padding: 3 },
+  typeBtn:           { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 18 },
+  typeBtnActive:     { backgroundColor: 'rgba(255,255,255,0.2)' },
+  typeBtnText:       { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
   typeBtnTextActive: { color: '#FFFFFF' },
 
   amountBlock: { alignItems: 'center', paddingTop: 12, paddingBottom: 28 },
@@ -467,23 +567,20 @@ const s = StyleSheet.create({
   amountSym:   { fontSize: 32, fontWeight: '600', marginBottom: 8 },
   amountInput: { fontSize: 72, fontWeight: '800', color: '#FFFFFF', minWidth: 100, maxWidth: 260 },
 
-  stepHeadBlock: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 22 },
-  stepTitle:     { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-  stepSub:       { fontSize: 13, color: 'rgba(255,255,255,0.55)' },
-
-  summaryRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  summaryAmt:        { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-  summaryBadge:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  summaryBadgeText:  { fontSize: 13, fontWeight: '600' },
+  stepHeadBlock:    { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 22 },
+  stepTitle:        { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
+  stepSub:          { fontSize: 13, color: 'rgba(255,255,255,0.55)' },
+  summaryRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  summaryAmt:       { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  summaryBadge:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  summaryBadgeText: { fontSize: 13, fontWeight: '600' },
 
   body: { flex: 1 },
 
-  // Step 1
-  step1Body:    { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 20 },
-  continueBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, paddingVertical: 17, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
+  step1Body:       { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 20 },
+  continueBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, paddingVertical: 17, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
   continueBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
 
-  // Step 2
   catContainer: { paddingHorizontal: 20, paddingTop: 20 },
   catGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   catTile:      { width: '30%', flexGrow: 1, borderRadius: 16, borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', gap: 8, position: 'relative' },
@@ -491,19 +588,27 @@ const s = StyleSheet.create({
   catTileLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   catCheck:     { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
 
-  // Step 3
-  detailsContent: { paddingHorizontal: 20, paddingTop: 20 },
-  receiptThumb:     { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 10, marginBottom: 20 },
-  receiptThumbImg:  { width: 60, height: 60, borderRadius: 10 },
-  receiptThumbInfo: { flex: 1 },
-  receiptThumbTitle:{ fontSize: 13, fontWeight: '600' },
-  receiptThumbSub:  { fontSize: 11, marginTop: 2 },
-  fieldLabel:     { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, marginBottom: 8 },
-  inputRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 54, marginBottom: 20 },
-  textAreaRow:    { alignItems: 'flex-start', height: 90, paddingTop: 14, paddingBottom: 10 },
-  inputIcon:      { marginRight: 10 },
-  textInput:      { flex: 1, fontSize: 15 },
-  textArea:       { height: 64, textAlignVertical: 'top' },
+  subCatList:       { paddingHorizontal: 20, paddingTop: 16, gap: 10 },
+  subCatChip:       { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 16 },
+  subCatDot:        { width: 8, height: 8, borderRadius: 4 },
+  subCatLabel:      { flex: 1, fontSize: 15, fontWeight: '600' },
+  customInputRow:   { borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 14, paddingVertical: 10, gap: 10 },
+  customInput:      { fontSize: 15, paddingVertical: 4 },
+  customConfirmBtn: { borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  customConfirmText:{ fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+
+  detailsContent:    { paddingHorizontal: 20, paddingTop: 20 },
+  receiptThumb:      { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 10, marginBottom: 20 },
+  receiptThumbImg:   { width: 60, height: 60, borderRadius: 10 },
+  receiptThumbInfo:  { flex: 1 },
+  receiptThumbTitle: { fontSize: 13, fontWeight: '600' },
+  receiptThumbSub:   { fontSize: 11, marginTop: 2 },
+  fieldLabel:        { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, marginBottom: 8 },
+  inputRow:          { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 54, marginBottom: 20 },
+  textAreaRow:       { alignItems: 'flex-start', height: 90, paddingTop: 14, paddingBottom: 10 },
+  inputIcon:         { marginRight: 10 },
+  textInput:         { flex: 1, fontSize: 15 },
+  textArea:          { height: 64, textAlignVertical: 'top' },
 
   walletScroll:        { marginBottom: 20 },
   walletScrollContent: { gap: 8 },

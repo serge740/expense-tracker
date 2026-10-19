@@ -117,6 +117,7 @@ export class TransactionService {
           type: dto.type,
           category: dto.category,
           title: dto.title,
+          subCategory: dto.subCategory,
           description: dto.description,
           amount,
           date,
@@ -210,13 +211,14 @@ export class TransactionService {
     return { success: true };
   }
 
-  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null }) {
+  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null }) {
     const raw = Number(t.amount);
     return {
       id: t.id,
       type: t.type,
       category: t.category,
       title: t.title,
+      subCategory: t.subCategory ?? null,
       description: t.description,
       amount: t.type === 'INCOME' ? raw : -raw,
       date: t.date,

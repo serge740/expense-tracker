@@ -147,6 +147,7 @@ model Transaction {
   type        TransactionType
   category    CategorySlug
   title       String
+  subCategory String?
   description String?
   amount      Decimal         @db.Decimal(12, 2)
   date        DateTime        @default(now())

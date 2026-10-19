@@ -4,7 +4,7 @@ import { BackHandler, Alert } from 'react-native';
 import { CustomTabBar } from '@/components/custom-tab-bar';
 
 // Segment names that correspond to the four visible tabs
-const MAIN_TAB_SEGMENTS = new Set(['index', 'wallets', 'reports', 'profile']);
+const MAIN_TAB_SEGMENTS = new Set(['index', 'budget', 'reports', 'profile']);
 
 export default function DashboardLayout() {
   const segments = useSegments() as string[];
@@ -41,16 +41,18 @@ export default function DashboardLayout() {
   return (
     <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index"   />
-      <Tabs.Screen name="wallets" />
+      <Tabs.Screen name="budget"  />
       <Tabs.Screen name="reports" />
       <Tabs.Screen name="profile" />
       {/* Hidden from tab bar — navigated to programmatically */}
-      <Tabs.Screen name="add"        options={{ href: null }} />
-      <Tabs.Screen name="scan"       options={{ href: null }} />
-      <Tabs.Screen name="history"    options={{ href: null }} />
-      <Tabs.Screen name="expense"       options={{ href: null }} />
-      <Tabs.Screen name="wallet-detail" options={{ href: null }} />
-      <Tabs.Screen name="(settings)" options={{ href: null }} />
+      <Tabs.Screen name="add"                options={{ href: null }} />
+      <Tabs.Screen name="scan"               options={{ href: null }} />
+      <Tabs.Screen name="history"            options={{ href: null }} />
+      <Tabs.Screen name="expense"            options={{ href: null }} />
+      <Tabs.Screen name="wallets"            options={{ href: null }} />
+      <Tabs.Screen name="wallet-detail"      options={{ href: null }} />
+      <Tabs.Screen name="transaction-detail" options={{ href: null }} />
+      <Tabs.Screen name="(settings)"         options={{ href: null }} />
     </Tabs>
   );
 }

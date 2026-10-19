@@ -10,6 +10,9 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { deleteTransaction, CATEGORY_ICON, CATEGORY_LABEL, CategorySlug } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
+import { ImageViewerModal } from '@/components/image-viewer-modal';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
 const CATEGORY_COLOR: Record<string, { color: string; bg: string }> = {
   salary:        { color: '#4ADE80', bg: 'rgba(74,222,128,0.15)'   },
@@ -27,15 +30,17 @@ export default function TransactionDetailScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
   const sym = currency.symbol;
-  const [deleting, setDeleting] = useState(false);
+  const [deleting,    setDeleting]    = useState(false);
+  const [viewerOpen,  setViewerOpen]  = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const params = useLocalSearchParams<{
     id: string; type: string; category: string; title: string;
-    description: string; amount: string; date: string;
+    subCategory: string; description: string; amount: string; date: string;
     walletId: string; receiptUrl: string;
   }>();
 
-  const { id, type, category, title, description, walletId, receiptUrl } = params;
+  const { id, type, category, title, subCategory, description, walletId, receiptUrl } = params;
   const amount   = parseFloat(params.amount ?? '0');
   const date     = new Date(params.date ?? Date.now());
   const isIncome = type === 'INCOME';
@@ -49,6 +54,27 @@ export default function TransactionDetailScreen() {
   const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   const amtStr  = (amount >= 0 ? `+${sym}` : `-${sym}`) +
     Math.abs(amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  const handleDownloadReceipt = async () => {
+    if (!receiptUrl) return;
+    setDownloading(true);
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Allow photo library access to save images.');
+        return;
+      }
+      const ext      = receiptUrl.split('?')[0].split('.').pop() ?? 'jpg';
+      const localUri = FileSystem.cacheDirectory + `receipt_${Date.now()}.${ext}`;
+      await FileSystem.downloadAsync(receiptUrl, localUri);
+      await MediaLibrary.saveToLibraryAsync(localUri);
+      Alert.alert('Saved', 'Receipt saved to your photo library.');
+    } catch {
+      Alert.alert('Error', 'Could not save the receipt image.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleDelete = () => {
     Alert.alert(
@@ -108,15 +134,50 @@ export default function TransactionDetailScreen() {
       >
         {/* Receipt image */}
         {!!receiptUrl && (
-          <View style={[s.receiptCard, { backgroundColor: theme.surface }]}>
-            <Text style={[s.sectionLabel, { color: theme.textMuted }]}>RECEIPT</Text>
-            <Image source={{ uri: receiptUrl }} style={s.receiptImg} resizeMode="contain" />
-          </View>
+          <>
+            <ImageViewerModal
+              visible={viewerOpen}
+              uri={receiptUrl}
+              onClose={() => setViewerOpen(false)}
+            />
+            <View style={[s.receiptCard, { backgroundColor: theme.surface }]}>
+              <View style={s.receiptHeader}>
+                <Text style={[s.sectionLabel, { color: theme.textMuted }]}>RECEIPT</Text>
+                <TouchableOpacity
+                  style={[s.downloadBtn, { backgroundColor: theme.primaryBg }]}
+                  onPress={handleDownloadReceipt}
+                  disabled={downloading}
+                  activeOpacity={0.75}
+                >
+                  {downloading
+                    ? <ActivityIndicator size="small" color={theme.primary} />
+                    : <MaterialIcons name="download" size={16} color={theme.primary} />
+                  }
+                  <Text style={[s.downloadBtnText, { color: theme.primary }]}>
+                    {downloading ? 'Saving…' : 'Download'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={() => setViewerOpen(true)} activeOpacity={0.9}>
+                <Image source={{ uri: receiptUrl }} style={s.receiptImg} resizeMode="contain" />
+                <View style={s.zoomHint}>
+                  <MaterialIcons name="zoom-in" size={14} color="rgba(255,255,255,0.8)" />
+                  <Text style={s.zoomHintText}>Tap to zoom</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
 
         {/* Details card */}
         <View style={[s.detailCard, { backgroundColor: theme.surface }]}>
           <DetailRow icon="category" label="Category" value={catName} color={cfg.color} theme={theme} />
+          {!!subCategory && (
+            <>
+              <View style={[s.sep, { backgroundColor: theme.border }]} />
+              <DetailRow icon="label" label="Sub" value={subCategory} color={cfg.color} theme={theme} />
+            </>
+          )}
           <View style={[s.sep, { backgroundColor: theme.border }]} />
           <DetailRow icon="calendar-today" label="Date" value={dateStr} color={theme.primary} theme={theme} />
           <View style={[s.sep, { backgroundColor: theme.border }]} />
@@ -185,9 +246,14 @@ const s = StyleSheet.create({
 
   body: { paddingHorizontal: 20, paddingTop: 20, flexGrow: 1 },
 
-  receiptCard: { borderRadius: 18, padding: 16, marginBottom: 14 },
-  sectionLabel:{ fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 12 },
-  receiptImg:  { width: '100%', height: 220, borderRadius: 12 },
+  receiptCard:     { borderRadius: 18, padding: 16, marginBottom: 14 },
+  receiptHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionLabel:    { fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  downloadBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
+  downloadBtnText: { fontSize: 12, fontWeight: '600' },
+  receiptImg:      { width: '100%', height: 220, borderRadius: 12 },
+  zoomHint:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 8 },
+  zoomHintText:    { fontSize: 11, color: 'rgba(150,150,150,0.9)' },
 
   detailCard: { borderRadius: 18, paddingVertical: 4, paddingHorizontal: 16, marginBottom: 20 },
   detailRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },

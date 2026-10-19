@@ -32,6 +32,7 @@ export interface Transaction {
   type: TransactionType;
   category: CategorySlug;
   title: string;
+  subCategory: string | null;
   description: string | null;
   amount: number;
   date: string;
@@ -55,6 +56,7 @@ export interface CreateTransactionDto {
   type: TransactionType;
   category: CategorySlug;
   title: string;
+  subCategory?: string;
   description?: string;
   amount: number;
   date?: string;

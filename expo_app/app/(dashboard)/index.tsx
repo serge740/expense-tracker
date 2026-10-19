@@ -10,7 +10,6 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
 import { getMe } from '@/services/client-auth.service';
-import { getWalletSummary } from '@/services/wallet.service';
 import { getRecentTransactions, CATEGORY_ICON, formatSubtitle, Transaction } from '@/services/transaction.service';
 import { getCurrentBudget, BudgetStatus } from '@/services/budget.service';
 import { getReportSummary, ReportSummary } from '@/services/reports.service';
@@ -34,7 +33,6 @@ export default function HomeScreen() {
   const sym = currency.symbol;
 
   const [firstName,      setFirstName]      = useState('');
-  const [summary,        setSummary]        = useState<{ totalBalance: number; walletCount: number } | null>(null);
   const [budget,         setBudget]         = useState<BudgetStatus | null>(null);
   const [recent,         setRecent]         = useState<Transaction[]>([]);
   const [monthlySummary, setMonthlySummary] = useState<ReportSummary | null>(null);
@@ -50,15 +48,13 @@ export default function HomeScreen() {
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [profile, sum, bud, txns, monthly] = await Promise.all([
+      const [profile, bud, txns, monthly] = await Promise.all([
         getMe(),
-        getWalletSummary(),
         getCurrentBudget(),
         getRecentTransactions(3),
         getReportSummary({ month, year }),
       ]);
       setFirstName(profile.firstName);
-      setSummary(sum);
       setBudget(bud);
       setRecent(txns);
       setMonthlySummary(monthly);
@@ -139,15 +135,22 @@ export default function HomeScreen() {
           {/* Balance card */}
           <FadeInView delay={60} slideFrom="bottom" distance={20}>
             <View style={s.balanceCard}>
-              <Text style={s.balLabel}>TOTAL BALANCE</Text>
+              <Text style={s.balLabel}>{monthName.toUpperCase()} NET</Text>
               {loading ? (
                 <ActivityIndicator color="#fff" style={{ marginVertical: 12 }} />
-              ) : (
-                <Text style={s.balAmount}>
-                  {fmtBalance(summary?.totalBalance ?? 0, sym).replace(/(\.\d{2})$/, '')}
-                  <Text style={s.balCents}>{`.${((summary?.totalBalance ?? 0).toFixed(2).split('.')[1])}`}</Text>
-                </Text>
-              )}
+              ) : (() => {
+                const net     = monthlySummary?.net ?? 0;
+                const netAbs  = Math.abs(net).toFixed(2);
+                const intPart = netAbs.split('.')[0];
+                const decPart = netAbs.split('.')[1];
+                const sign    = net >= 0 ? `+${sym}` : `-${sym}`;
+                return (
+                  <Text style={[s.balAmount, { color: net >= 0 ? '#fff' : '#FDA4A4' }]}>
+                    {sign}{parseInt(intPart, 10).toLocaleString()}
+                    <Text style={s.balCents}>.{decPart}</Text>
+                  </Text>
+                );
+              })()}
               <View style={s.balStats}>
                 <View>
                   <Text style={s.balStatLabel}>INCOME</Text>
@@ -255,7 +258,8 @@ export default function HomeScreen() {
                   pathname: '/(dashboard)/transaction-detail',
                   params: {
                     id: t.id, type: t.type, category: t.category,
-                    title: t.title, description: t.description ?? '',
+                    title: t.title, subCategory: t.subCategory ?? '',
+                    description: t.description ?? '',
                     amount: String(t.amount), date: String(t.date),
                     walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
                   },
