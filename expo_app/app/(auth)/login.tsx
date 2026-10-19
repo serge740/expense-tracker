@@ -1,493 +1,87 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View, TouchableOpacity, StyleSheet, StatusBar,
-  ActivityIndicator, Alert, Modal, Animated, Easing, Dimensions,
-} from 'react-native';
-import { Text } from '@/components/text';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import { TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { router } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useAppTheme } from '@/hooks/use-app-theme';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Text } from '@/components/text';
+import { loginClient } from '@/services/client-auth.service';
+import { signInWithGoogle, signInWithApple, appleSignInSupported, useFacebookSignIn } from '@/services/social-auth';
 import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
-import {
-  googleAuthClient,
-  faceIdentify,
-} from '@/services/client-auth.service';
-import { FadeInView } from '@/components/fade-in-view';
+  AUTH, AuthScreen, Field, PhoneField, PrimaryButton, ModeTabs, OrDivider, SocialRow, FooterLink, errorMessage, Social,
+} from '@/components/auth/ui';
+import { COUNTRIES, DEFAULT_COUNTRY_ISO } from '@/components/auth/countries';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const OVAL_W = 224;
-const OVAL_H = 288;
-const MESH_ROWS = 8;
-const MESH_COLS = 7;
+export default function LoginScreen() {
+  const [mode, setMode]         = useState<'email' | 'phone'>('email');
+  const [email, setEmail]       = useState('');
+  const [country, setCountry]   = useState(COUNTRIES.find(c => c.iso === DEFAULT_COUNTRY_ISO)!);
+  const [phone, setPhone]       = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading]   = useState<'form' | Social | null>(null);
+  const signInWithFacebook = useFacebookSignIn();
 
-type ScanState = 'idle' | 'scanning' | 'success' | 'failed';
+  const identifier = () =>
+    mode === 'email'
+      ? email.trim().toLowerCase()
+      : `${country.dial}${phone.replace(/\D/g, '').replace(/^0+/, '')}`;
 
-// ── Animated face mesh grid ───────────────────────────────────────────────
-function FaceMesh({ visible, color }: { visible: boolean; color: string }) {
-  const rowAnims = useRef(
-    Array.from({ length: MESH_ROWS }, () => new Animated.Value(0)),
-  ).current;
-
-  useEffect(() => {
-    if (!visible) {
-      rowAnims.forEach(a => a.setValue(0));
+  const handleLogin = async () => {
+    if (!(mode === 'email' ? email.trim() : phone.trim()) || !password) {
+      Alert.alert('Missing details', `Please enter your ${mode === 'email' ? 'email' : 'phone number'} and password.`);
       return;
     }
-    const loops = rowAnims.map((anim, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 100),
-          Animated.timing(anim, { toValue: 0.6, duration: 350, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0.1, duration: 350, useNativeDriver: true }),
-          Animated.delay(Math.max(0, (MESH_ROWS - i) * 100)),
-        ]),
-      ),
-    );
-    loops.forEach(l => l.start());
-    return () => loops.forEach(l => l.stop());
-  }, [visible]);
-
-  return (
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
-      {rowAnims.map((anim, row) => (
-        <Animated.View
-          key={row}
-          style={{
-            flex: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-around',
-            opacity: anim,
-          }}
-        >
-          {Array.from({ length: MESH_COLS }, (_, col) => (
-            <View
-              key={col}
-              style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: color }}
-            />
-          ))}
-        </Animated.View>
-      ))}
-    </View>
-  );
-}
-
-// ── Face scanner overlay ──────────────────────────────────────────────────
-function FaceScanner({
-  onClose,
-  onIdentified,
-}: {
-  onClose: () => void;
-  onIdentified: () => void;
-}) {
-  const cameraRef    = useRef<CameraView>(null);
-  const scanLine     = useRef(new Animated.Value(0)).current;
-  const borderPulse  = useRef(new Animated.Value(1)).current;
-  const lineLoop     = useRef<Animated.CompositeAnimation | null>(null);
-  const pulseLoop    = useRef<Animated.CompositeAnimation | null>(null);
-  const captureTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const [scanState, setScanState] = useState<ScanState>('idle');
-  const [noFace, setNoFace]       = useState(false);
-  const scanRef  = useRef<ScanState>('idle');
-  const noFaceRef = useRef(false);
-
-  const setScan = (s: ScanState) => { scanRef.current = s; setScanState(s); };
-  const setNF   = (v: boolean)   => { noFaceRef.current = v; setNoFace(v); };
-
-  const startSweep = useCallback(() => {
-    lineLoop.current?.stop();
-    scanLine.setValue(0);
-    lineLoop.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(scanLine, { toValue: 1, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(scanLine, { toValue: 0, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ]),
-    );
-    lineLoop.current.start();
-  }, [scanLine]);
-
-  useEffect(() => {
-    startSweep();
-    scheduleCapture();
-    return () => {
-      lineLoop.current?.stop();
-      pulseLoop.current?.stop();
-      if (captureTimer.current) clearTimeout(captureTimer.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    pulseLoop.current?.stop();
-    if (scanState === 'scanning') {
-      pulseLoop.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(borderPulse, { toValue: 0.3, duration: 500, useNativeDriver: false }),
-          Animated.timing(borderPulse, { toValue: 1, duration: 500, useNativeDriver: false }),
-        ]),
-      );
-      pulseLoop.current.start();
-    } else {
-      borderPulse.setValue(1);
-    }
-  }, [scanState]);
-
-  const scheduleCapture = () => {
-    if (captureTimer.current) clearTimeout(captureTimer.current);
-    captureTimer.current = setTimeout(() => {
-      if (scanRef.current === 'idle') capture();
-    }, 1800);
-  };
-
-  const capture = async () => {
-    if (!cameraRef.current || scanRef.current !== 'idle') return;
-    setNF(false);
-    setScan('scanning');
-    lineLoop.current?.stop();
-
+    setLoading('form');
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.75, skipMetadata: true });
-      if (!photo?.uri) throw new Error('No photo captured');
-
-      await faceIdentify(photo.uri);
-
-      setScan('success');
-      setTimeout(onIdentified, 900);
-    } catch (err: any) {
-      const msg: string = err?.response?.data?.message || err?.message || '';
-      const isNoFace = msg.toLowerCase().includes('no face') || msg.toLowerCase().includes('not detected');
-
-      if (isNoFace) {
-        setNF(true);
-        setScan('idle');
-        startSweep();
-        captureTimer.current = setTimeout(() => {
-          if (scanRef.current === 'idle') { setNF(false); capture(); }
-        }, 2500);
-      } else {
-        setScan('failed');
-        setTimeout(() => { setScan('idle'); startSweep(); scheduleCapture(); }, 2000);
-      }
-    }
-  };
-
-  const ovalColor =
-    scanState === 'success'  ? '#22c55e' :
-    scanState === 'failed'   ? '#ef4444' :
-    scanState === 'scanning' ? '#60a5fa' :
-    noFace ? 'rgba(251,191,36,0.85)' :
-    'rgba(255,255,255,0.65)';
-
-  const meshColor =
-    scanState === 'success' ? '#22c55e' : '#60a5fa';
-
-  const statusMsg =
-    scanState === 'success'  ? 'Face recognised!' :
-    scanState === 'failed'   ? 'Not recognised — try again' :
-    scanState === 'scanning' ? 'Analysing…' :
-    noFace ? "We can't see your face" :
-    'Position your face in the oval';
-
-  const hintMsg =
-    noFace ? 'Move closer or improve lighting' : 'Scanning automatically…';
-
-  const scanLineY = scanLine.interpolate({ inputRange: [0, 1], outputRange: [0, OVAL_H - 2] });
-  const showMesh  = scanState === 'scanning' || scanState === 'success';
-  const showLine  = !showMesh && scanState !== 'failed';
-
-  return (
-    <View style={sf.root}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFillObject} facing="front" />
-
-      <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-        <View style={sf.overlay} pointerEvents="none" />
-
-        <SafeAreaView edges={['top']} style={sf.topBar}>
-          <TouchableOpacity style={sf.closeBtn} onPress={onClose}>
-            <MaterialIcons name="close" size={22} color="#fff" />
-          </TouchableOpacity>
-          <Text style={sf.title}>ABY Face ID</Text>
-          <View style={{ width: 44 }} />
-        </SafeAreaView>
-
-        <View style={sf.ovalWrap} pointerEvents="none">
-          <Animated.View style={[sf.oval, {
-            borderColor: ovalColor,
-            opacity: scanState === 'scanning' ? borderPulse : 1,
-          }]}>
-            {/* Mesh overlay when scanning or success */}
-            <FaceMesh visible={showMesh} color={meshColor} />
-
-            {/* Sweep line when idle / no-face */}
-            {showLine && (
-              <Animated.View style={[sf.line, {
-                transform: [{ translateY: scanLineY }],
-                backgroundColor: noFace
-                  ? 'rgba(251,191,36,0.6)'
-                  : 'rgba(255,255,255,0.35)',
-              }]} />
-            )}
-
-            {scanState === 'success' && (
-              <View style={sf.iconOverlay}>
-                <MaterialIcons name="check-circle" size={72} color="#22c55e" />
-              </View>
-            )}
-            {scanState === 'failed' && (
-              <View style={sf.iconOverlay}>
-                <MaterialIcons name="cancel" size={72} color="#ef4444" />
-              </View>
-            )}
-            {noFace && scanState === 'idle' && (
-              <View style={sf.iconOverlay}>
-                <MaterialIcons name="face-retouching-off" size={54} color="rgba(251,191,36,0.9)" />
-              </View>
-            )}
-          </Animated.View>
-
-          {/* Corner markers */}
-          <View style={[sf.corner, { top: -3, left: -3 }, sf.cornerTL, { borderColor: ovalColor }]} />
-          <View style={[sf.corner, { top: -3, right: -3 }, sf.cornerTR, { borderColor: ovalColor }]} />
-          <View style={[sf.corner, { bottom: -3, left: -3 }, sf.cornerBL, { borderColor: ovalColor }]} />
-          <View style={[sf.corner, { bottom: -3, right: -3 }, sf.cornerBR, { borderColor: ovalColor }]} />
-        </View>
-
-        <View style={sf.statusWrap} pointerEvents="none">
-          {scanState === 'scanning' && (
-            <ActivityIndicator color="#60a5fa" size="small" style={{ marginBottom: 8 }} />
-          )}
-          <Text style={[sf.statusText, {
-            color: scanState === 'success' ? '#22c55e' :
-                   scanState === 'failed'  ? '#ef4444' :
-                   noFace ? '#FBBF24' : '#ffffff',
-          }]}>
-            {statusMsg}
-          </Text>
-          {(scanState === 'idle') && (
-            <Text style={[sf.hintText, noFace ? { color: 'rgba(251,191,36,0.7)' } : {}]}>
-              {hintMsg}
-            </Text>
-          )}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// ── Login screen ──────────────────────────────────────────────────────────
-export default function LoginScreen() {
-  const theme = useAppTheme();
-  const [loading, setLoading]            = useState<'google' | null>(null);
-  const [cameraVisible, setCameraVisible] = useState(false);
-  const [permission, requestPermission]  = useCameraPermissions();
-
-  useEffect(() => {
-    GoogleSignin.configure({
-      webClientId: '936996911068-a2e2v1jjq9c7hmotp339l1spqe75g102.apps.googleusercontent.com',
-      offlineAccess: true,
-    });
-  }, []);
-
-  const handleGoogle = async () => {
-    setLoading('google');
-    try {
-      await GoogleSignin.hasPlayServices();
-      try { await GoogleSignin.signOut(); } catch {}
-      const response = await GoogleSignin.signIn();
-      const idToken  = response.data?.idToken;
-      if (!idToken) throw new Error('No ID token received');
-      await googleAuthClient(idToken);
+      await loginClient(identifier(), password);
       router.replace('/(dashboard)');
-    } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
-      if (error.code === statusCodes.IN_PROGRESS) return;
-      Alert.alert('Google Sign-In Failed', error.message || 'Please try again.');
+    } catch (e) {
+      Alert.alert('Login failed', errorMessage(e));
     } finally {
       setLoading(null);
     }
   };
 
-  const handleFaceLogin = async () => {
-    if (!permission?.granted) {
-      const { granted } = await requestPermission();
-      if (!granted) {
-        Alert.alert('Camera Permission', 'Camera access is required for face recognition.');
-        return;
-      }
+  const handleSocial = async (kind: Social) => {
+    setLoading(kind);
+    try {
+      const ok = kind === 'apple'    ? await signInWithApple()
+               : kind === 'facebook' ? await signInWithFacebook()
+               : await signInWithGoogle();
+      if (ok) router.replace('/(dashboard)');
+    } catch (e) {
+      const name = kind === 'apple' ? 'Apple' : kind === 'facebook' ? 'Facebook' : 'Google';
+      Alert.alert(`${name} sign-in failed`, errorMessage(e));
+    } finally {
+      setLoading(null);
     }
-    setCameraVisible(true);
   };
 
   return (
-    <View style={[s.root, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+    <AuthScreen title="Welcome Back!" subtitle="Sign in to continue">
+      <ModeTabs mode={mode} onChange={setMode} />
 
-      <Modal visible={cameraVisible} animationType="slide" onRequestClose={() => setCameraVisible(false)}>
-        <FaceScanner
-          onClose={() => setCameraVisible(false)}
-          onIdentified={() => { setCameraVisible(false); router.replace('/(dashboard)'); }}
-        />
-      </Modal>
+      {mode === 'email'
+        ? <Field label="Email" placeholder="Enter your email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+        : <PhoneField country={country} onCountry={setCountry} value={phone} onChangeText={setPhone} />}
+      <Field label="Password" placeholder="Enter your password" value={password} onChangeText={setPassword} secure autoCapitalize="none" />
 
-      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
-        <View style={s.inner}>
+      <TouchableOpacity style={s.forgot} onPress={() => router.push('/(auth)/forgot-password')} hitSlop={6}>
+        <Text style={s.forgotText}>Forgot password?</Text>
+      </TouchableOpacity>
 
-          {/* ── Top branding ── */}
-          <FadeInView delay={40} slideFrom="top" distance={20}>
-            <View style={s.brandRow}>
-              <View style={[s.avatar, { backgroundColor: theme.surface }]}>
-                <Text style={[s.avatarText, { color: theme.primary }]}>A</Text>
-              </View>
-            </View>
-            <Text style={[s.heading, { color: theme.text }]}>Welcome back</Text>
-            <Text style={[s.subHeading, { color: theme.textSecondary }]}>Sign in to your account</Text>
-          </FadeInView>
+      <PrimaryButton label="Login" onPress={handleLogin} loading={loading === 'form'} />
 
-          <View style={s.spacer} />
+      <OrDivider />
+      <SocialRow
+        items={appleSignInSupported ? ['google', 'facebook', 'apple'] : ['google', 'facebook']}
+        onPress={handleSocial}
+        busy={loading === 'form' ? null : loading}
+      />
 
-          {/* ── Face Recognition button ── */}
-          <FadeInView delay={160} slideFrom="bottom" distance={20}>
-            <TouchableOpacity
-              style={[s.faceBtn, { backgroundColor: theme.buttonBg }]}
-              activeOpacity={0.85}
-              onPress={handleFaceLogin}
-              disabled={loading !== null}
-            >
-              <MaterialIcons name="face" size={24} color="#fff" />
-              <Text style={s.faceBtnText}>Sign In with Face</Text>
-            </TouchableOpacity>
-          </FadeInView>
-
-          {/* ── Divider ── */}
-          <FadeInView delay={220} slideFrom="none">
-            <View style={s.divider}>
-              <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
-              <Text style={[s.dividerText, { color: theme.textMuted }]}>or</Text>
-              <View style={[s.dividerLine, { backgroundColor: theme.border }]} />
-            </View>
-          </FadeInView>
-
-          {/* ── Google ── */}
-          <FadeInView delay={280} slideFrom="bottom" distance={16}>
-            <TouchableOpacity
-              style={[s.googleBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-              activeOpacity={0.8}
-              onPress={handleGoogle}
-              disabled={loading !== null}
-            >
-              {loading === 'google'
-                ? <ActivityIndicator color={theme.text} size="small" />
-                : <MaterialIcons name="language" size={20} color={theme.text} />}
-              <Text style={[s.googleText, { color: theme.text }]}>Continue with Google</Text>
-            </TouchableOpacity>
-          </FadeInView>
-
-          <View style={s.spacer} />
-
-          {/* ── Sign up link ── */}
-          <FadeInView delay={360} slideFrom="none">
-            <View style={s.signupRow}>
-              <Text style={[s.signupPrompt, { color: theme.textSecondary }]}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
-                <Text style={[s.signupLink, { color: theme.buttonBg }]}>Sign up</Text>
-              </TouchableOpacity>
-            </View>
-          </FadeInView>
-
-        </View>
-      </SafeAreaView>
-    </View>
+      <FooterLink prompt="Don't have an account?" link="Sign Up" onPress={() => router.push('/(auth)/register')} />
+    </AuthScreen>
   );
 }
 
-// ── Scanner StyleSheet ────────────────────────────────────────────────────
-const sf = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: '#000' },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.42)' },
-
-  topBar: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8,
-  },
-  closeBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
-  },
-  title: { color: '#fff', fontSize: 16, fontWeight: '700' },
-
-  ovalWrap: {
-    position: 'absolute',
-    top: (SCREEN_H - OVAL_H) / 2 - 20,
-    left: (SCREEN_W - OVAL_W) / 2,
-    width: OVAL_W,
-    height: OVAL_H,
-  },
-  oval: {
-    width: OVAL_W, height: OVAL_H,
-    borderRadius: OVAL_W / 2,
-    borderWidth: 2.5,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconOverlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  line: { position: 'absolute', left: 0, right: 0, height: 2, top: 0 },
-
-  corner: { position: 'absolute', width: 30, height: 30 },
-  cornerTL: { borderTopWidth: 3, borderLeftWidth: 3,  borderTopLeftRadius: 14 },
-  cornerTR: { borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 14 },
-  cornerBL: { borderBottomWidth: 3, borderLeftWidth: 3,  borderBottomLeftRadius: 14 },
-  cornerBR: { borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 14 },
-
-  statusWrap: {
-    position: 'absolute', bottom: 100,
-    left: 0, right: 0, alignItems: 'center',
-  },
-  statusText: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  hintText:   { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
-});
-
-// ── Login screen StyleSheet ───────────────────────────────────────────────
 const s = StyleSheet.create({
-  root:  { flex: 1 },
-  inner: { flex: 1, paddingHorizontal: 28, paddingTop: 20, paddingBottom: 16 },
-  spacer:{ flex: 1 },
-
-  brandRow:    { marginBottom: 24 },
-  avatar:      { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  avatarText:  { fontSize: 24, fontWeight: '800' },
-  heading:     { fontSize: 30, fontWeight: '800', marginBottom: 6, lineHeight: 36 },
-  subHeading:  { fontSize: 15 },
-
-  faceBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, borderRadius: 16, paddingVertical: 17, marginBottom: 16,
-    shadowColor: '#2D336B', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28, shadowRadius: 14, elevation: 7,
-  },
-  faceBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
-
-  divider:     { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
-  dividerLine: { flex: 1, height: 1 },
-  dividerText: { fontSize: 13 },
-
-  googleBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 10, borderRadius: 16, paddingVertical: 16, borderWidth: 1.5,
-  },
-  googleText: { fontSize: 15, fontWeight: '600' },
-
-  signupRow:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  signupPrompt: { fontSize: 14 },
-  signupLink:   { fontSize: 14, fontWeight: '700' },
+  forgot:     { alignSelf: 'flex-end', marginTop: -2, marginBottom: 14 },
+  forgotText: { fontSize: 12, fontWeight: '500', color: AUTH.primary },
 });

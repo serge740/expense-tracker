@@ -4,7 +4,7 @@ import {
   TouchableOpacity, Switch, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -36,6 +36,7 @@ function timeStr(dateStr: string): string {
 }
 
 export default function NotificationsScreen() {
+  const goBack = useSettingsBack();
   const theme = useAppTheme();
   const [tab, setTab]                 = useState<'list' | 'settings'>('list');
   const [items, setItems]             = useState<NotificationItem[]>([]);
@@ -103,7 +104,7 @@ export default function NotificationsScreen() {
 
   const handleTestPush = async () => {
     try {
-      await sendTestPush('Test Notification', 'This is a test push notification from ABY Expense.');
+      await sendTestPush('Test Notification', 'This is a test push notification from Rabbit Tracker.');
       Alert.alert('Sent', 'A test push notification has been sent to your devices.');
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message || 'Could not send test notification.');
@@ -115,7 +116,7 @@ export default function NotificationsScreen() {
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       <View style={[s.topBar, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={s.backBtn} onPress={() => goBack()} activeOpacity={0.7}>
           <MaterialIcons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
         <Text style={[s.topTitle, { color: theme.text }]}>Notifications</Text>

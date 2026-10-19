@@ -1,31 +1,19 @@
 import api from '@/api';
 import { ComponentProps } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { CATEGORIES, CategorySlug } from '@/constants/categories';
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
-export type CategorySlug =
-  | 'food' | 'transport' | 'shopping' | 'health'
-  | 'entertainment' | 'travel' | 'groceries' | 'salary' | 'other';
+export type { CategorySlug } from '@/constants/categories';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
-export const CATEGORY_ICON: Record<CategorySlug, IconName> = {
-  food:          'restaurant',
-  transport:     'directions-car',
-  shopping:      'shopping-bag',
-  health:        'local-hospital',
-  entertainment: 'movie',
-  travel:        'flight',
-  groceries:     'local-grocery-store',
-  salary:        'trending-up',
-  other:         'more-horiz',
-};
+export const CATEGORY_ICON = Object.fromEntries(CATEGORIES.map(c => [c.id, c.icon])) as Record<CategorySlug, IconName>;
 
-export const CATEGORY_LABEL: Record<CategorySlug, string> = {
-  food: 'Food', transport: 'Transport', shopping: 'Shopping',
-  health: 'Health', entertainment: 'Entertainment', travel: 'Travel',
-  groceries: 'Groceries', salary: 'Salary', other: 'Other',
-};
+/** English fallback labels for older screens; new screens use t('cat.<id>'). */
+export const CATEGORY_LABEL = Object.fromEntries(
+  CATEGORIES.map(c => [c.id, c.id.replace('_', ' ').replace(/^./, s => s.toUpperCase())]),
+) as Record<CategorySlug, string>;
 
 export interface Transaction {
   id: string;
@@ -92,4 +80,14 @@ export function formatSubtitle(tx: Transaction): string {
   else dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return `${cat} · ${dateStr}`;
+}
+
+/** Upload a receipt photo; returns the path to store on the transaction. */
+export async function uploadReceipt(uri: string): Promise<string> {
+  const form = new FormData();
+  const ext = uri.split('.').pop()?.toLowerCase();
+  const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+  form.append('image', { uri, type, name: `receipt.${ext === 'png' || ext === 'webp' ? ext : 'jpg'}` } as any);
+  const res = await api.post<{ receiptUrl: string }>('/transactions/receipt', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  return res.data.receiptUrl;
 }

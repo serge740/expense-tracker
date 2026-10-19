@@ -1,52 +1,66 @@
 {
   "expo": {
-    "name": "ABY Expense",
+    "name": "Rabbit Tracker",
     "slug": "expense-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo/light.png",
+    "icon": "./assets/images/logo/rabbit-icon.png",
     "scheme": "expensetracker",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "icon": {
-        "light": "./assets/images/logo/light.png",
-        "dark": "./assets/images/logo/dark.png",
-        "tinted": "./assets/images/logo/dark.png"
-      }
+      "icon": "./assets/images/logo/rabbit-icon.png",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#2D336B",
-        "foregroundImage": "./assets/images/logo/dark.png",
-        "monochromeImage": "./assets/images/logo/dark.png"
+        "backgroundColor": "#00627F",
+        "foregroundImage": "./assets/images/logo/rabbit-adaptive.png",
+        "monochromeImage": "./assets/images/logo/rabbit-adaptive.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.abyride.expensetracker"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/logo/light.png"
+      "favicon": "./assets/images/logo/rabbit-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo/dark.png",
-          "imageWidth": 180,
+          "image": "./assets/images/logo/rabbit.png",
+          "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#2D336B",
+          "backgroundColor": "#00627F",
           "dark": {
-            "image": "./assets/images/logo/dark.png",
-            "backgroundColor": "#131628"
+            "image": "./assets/images/logo/rabbit.png",
+            "backgroundColor": "#00627F"
           }
         }
       ],
       "@react-native-google-signin/google-signin",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font",
+      "expo-image",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-web-browser",
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/logo/notification-icon.png",
+          "color": "#00627F",
+          "sounds": [
+            "./assets/sounds/chime.wav",
+            "./assets/sounds/bell.wav",
+            "./assets/sounds/pop.wav",
+            "./assets/sounds/ding.wav"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

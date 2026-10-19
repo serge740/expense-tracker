@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -27,6 +27,7 @@ const LINKS: { icon: keyof typeof MaterialIcons.glyphMap; label: string; url: st
 ];
 
 export default function AboutScreen() {
+  const goBack = useSettingsBack();
   const theme = useAppTheme();
 
   return (
@@ -35,7 +36,7 @@ export default function AboutScreen() {
 
       <FadeInView delay={0} slideFrom="top" distance={12}>
         <View style={[s.header, { borderBottomColor: theme.border }]}>
-          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
+          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => goBack()} activeOpacity={0.7}>
             <MaterialIcons name="arrow-back" size={20} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.title, { color: theme.text }]}>About App</Text>
@@ -49,11 +50,11 @@ export default function AboutScreen() {
         <FadeInView delay={60} slideFrom="bottom" distance={20}>
           <View style={[s.brandCard, { backgroundColor: theme.buttonBg }]}>
             <Image
-              source={require('@/assets/images/logo/dark.png')}
-              style={s.logoImg}
+              source={require('@/assets/images/logo/rabbit.png')}
+              style={[s.logoImg, { tintColor: '#FFFFFF' }]}
               resizeMode="contain"
             />
-            <Text style={s.appName}>ABY Expense</Text>
+            <Text style={s.appName}>Rabbit Tracker</Text>
             <Text style={s.tagline}>Smart Money Management</Text>
             <View style={[s.versionBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
               <Text style={s.versionText}>v{APP_VERSION} · Build {BUILD_NUMBER}</Text>
@@ -64,10 +65,10 @@ export default function AboutScreen() {
         {/* Description */}
         <FadeInView delay={140} slideFrom="bottom" distance={14}>
           <View style={[s.section, { backgroundColor: theme.surface }]}>
-            <Text style={[s.sectionTitle, { color: theme.text }]}>About ABY Expense</Text>
+            <Text style={[s.sectionTitle, { color: theme.text }]}>About Rabbit Tracker</Text>
             <Text style={[s.body, { color: theme.textSecondary }]}>
-              ABY Expense is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits — all secured with cutting-edge face recognition technology.{'\n\n'}
-              Built with privacy-first principles, ABY never connects to your bank accounts. You stay in full control of your data.
+              Rabbit Tracker is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits — all secured with cutting-edge face recognition technology.{'\n\n'}
+              Built with privacy-first principles, Rabbit Tracker never connects to your bank accounts. You stay in full control of your data.
             </Text>
           </View>
         </FadeInView>

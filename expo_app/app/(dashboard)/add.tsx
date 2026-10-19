@@ -1,518 +1,324 @@
-import React, { useState, useCallback, useEffect, ComponentProps } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View, TouchableOpacity, StyleSheet, StatusBar, TextInput, Image,
-  Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform, useWindowDimensions,
+  View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, TextInput, Alert, ActivityIndicator, Image,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { DatePickerModal } from '@/components/date-picker-modal';
-import { Text } from '@/components/text';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router, useLocalSearchParams } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { createTransaction, CategorySlug, TransactionType } from '@/services/transaction.service';
+import { Text } from '@/components/text';
+import { useI18n } from '@/context/language-context';
+import { useCurrency, currencyByCode } from '@/context/currency-context';
+import { createTransaction, uploadReceipt } from '@/services/transaction.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
-import { useCurrency } from '@/context/currency-context';
+import { CATEGORIES, CategorySlug, categoryOf } from '@/constants/categories';
+import { DatePickerModal } from '@/components/date-picker-modal';
+import { WalletChips } from '@/components/wallet/wallet-chips';
+import ENV from '@/env';
 
-type IconName = ComponentProps<typeof MaterialIcons>['name'];
-interface Category { id: CategorySlug; label: string; icon: IconName }
-
-const CATEGORIES: Category[] = [
-  { id: 'food',          label: 'Food',          icon: 'restaurant'          },
-  { id: 'transport',     label: 'Transport',      icon: 'directions-car'      },
-  { id: 'shopping',      label: 'Shopping',       icon: 'shopping-bag'        },
-  { id: 'health',        label: 'Health',         icon: 'local-hospital'      },
-  { id: 'entertainment', label: 'Entertainment',  icon: 'movie'               },
-  { id: 'travel',        label: 'Travel',         icon: 'flight'              },
-  { id: 'groceries',     label: 'Groceries',      icon: 'local-grocery-store' },
-  { id: 'salary',        label: 'Salary',         icon: 'payments'            },
-  { id: 'other',         label: 'Other',          icon: 'more-horiz'          },
+type Kind = 'EXPENSE' | 'INCOME';
+const KINDS: { id: Kind; icon: React.ComponentProps<typeof MaterialIcons>['name']; label: 'add.expense' | 'add.income' }[] = [
+  { id: 'EXPENSE', icon: 'arrow-upward',   label: 'add.expense' },
+  { id: 'INCOME',  icon: 'arrow-downward', label: 'add.income' },
 ];
+const COLLAPSED = 8;
 
-const CAT_COLORS: Record<CategorySlug, string> = {
-  food: '#FF8C42', transport: '#60A5FA', shopping: '#A78BFA',
-  health: '#F472B6', entertainment: '#FBBF24', travel: '#7B7FD4',
-  groceries: '#4ADE80', salary: '#34D399', other: '#94A3B8',
-};
-
-export default function AddExpenseScreen() {
+export default function AddTransactionScreen() {
   const theme = useAppTheme();
-  const { currency } = useCurrency();
-  const sym = currency.symbol;
-  const insets = useSafeAreaInsets();
+  const { t, formatDate } = useI18n();
+  const { currency: mainCurrency } = useCurrency();
   const params = useLocalSearchParams<{
-    amount?: string; merchant?: string; date?: string;
-    type?: string; category?: string; description?: string;
-    receiptUrl?: string;
+    type?: string; walletId?: string; amount?: string; category?: string;
+    description?: string; merchant?: string; date?: string; receiptUrl?: string;
   }>();
 
-  const [step,           setStep]           = useState(1);
-  const [receiptUrl,     setReceiptUrl]     = useState('');
-  const [txType,         setTxType]         = useState<TransactionType>('EXPENSE');
-  const [amount,         setAmount]         = useState('');
-  const [selectedCat,    setSelectedCat]    = useState<CategorySlug>('food');
-  const [merchant,       setMerchant]       = useState('');
-  const [wallets,        setWallets]        = useState<Wallet[]>([]);
-  const [selectedWallet, setSelectedWallet] = useState<string | undefined>(undefined);
-  const [saving,         setSaving]         = useState(false);
-  const [selectedDate,   setSelectedDate]   = useState<Date>(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [kind, setKind]           = useState<Kind>('EXPENSE');
+  const [amount, setAmount]       = useState('');
+  const [category, setCategory]   = useState<CategorySlug>('food');
+  const [showAllCats, setShowAllCats] = useState(false);
+  const [description, setDescription] = useState('');
+  const [wallets, setWallets]     = useState<Wallet[]>([]);
+  const [walletId, setWalletId]   = useState<string | null>(null);
+  const [date, setDate]           = useState(new Date());
+  const [pickDate, setPickDate]   = useState(false);
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [saving, setSaving]       = useState(false);
 
-  // Sync route params into state every time the screen receives new params.
-  // useState initial values only run on first mount — this screen stays mounted
-  // as a hidden tab, so we need useEffect to pick up params from subsequent navigations.
-  useEffect(() => {
-    if (params.amount || params.merchant || params.description || params.category) {
-      if (params.amount)   setAmount(params.amount);
-      if (params.type)     setTxType(params.type as TransactionType);
-      if (params.category) {
-        const cat = CATEGORIES.find(c => c.id === params.category);
-        if (cat) setSelectedCat(cat.id);
-      }
-      setMerchant(params.description || params.merchant || '');
-      if (params.date) {
-        const d = new Date(params.date);
-        if (!isNaN(d.getTime())) setSelectedDate(d);
-      }
-      setReceiptUrl(params.receiptUrl ?? '');
-      // Jump to step 3 only when amount + category are both pre-filled from scan
-      if (params.amount && params.category) setStep(3);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.amount, params.category, params.date, params.description, params.merchant, params.type, params.receiptUrl]);
+  // The screen stays mounted as a hidden tab: reset from params on every visit.
+  useFocusEffect(useCallback(() => {
+    const k: Kind = params.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+    getWallets().then(list => {
+      const usable = list.filter(w => !w.archived);
+      setWallets(usable);
+      setKind(k);
+      setAmount(params.amount ?? '');
+      const preset = CATEGORIES.find(c => c.id === params.category && !c.system);
+      setCategory(preset ? preset.id : k === 'INCOME' ? 'salary' : 'food');
+      setShowAllCats(false);
+      setDescription(params.description || params.merchant || '');
+      const d = params.date ? new Date(params.date) : new Date();
+      setDate(isNaN(d.getTime()) ? new Date() : d);
+      setReceiptUri(params.receiptUrl || null);
+      const pre = usable.find(w => w.id === params.walletId) ?? usable.find(w => w.isDefault) ?? usable[0];
+      setWalletId(pre?.id ?? null);
+    }).catch(() => {});
+  }, [params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl]));
 
-  const isIncome   = txType === 'INCOME';
-  const accent     = isIncome ? '#22C55E' : theme.buttonBg;
-  const selectedCatObj = CATEGORIES.find(c => c.id === selectedCat);
+  const wallet = wallets.find(w => w.id === walletId) ?? null;
+  const currency = wallet?.currency ?? mainCurrency.code;
+  const cats = CATEGORIES.filter(c => !c.system && c.for.includes(kind));
+  const visibleCats = showAllCats ? cats : (() => {
+    const head = cats.slice(0, COLLAPSED);
+    const sel = cats.find(c => c.id === category);
+    return sel && !head.includes(sel) ? [...head.slice(0, COLLAPSED - 1), sel] : head;
+  })();
+  const accent = kind === 'INCOME' ? '#16A34A' : theme.primary;
 
-  const dateLabel = selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const timeLabel = selectedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-  const loadWallets = useCallback(async () => {
-    try {
-      const list = await getWallets();
-      setWallets(list);
-      const def = list.find(w => w.isDefault) ?? list[0];
-      if (def) setSelectedWallet(def.id);
-    } catch {}
-  }, []);
-
-  useEffect(() => { loadWallets(); }, [loadWallets]);
-
-  const goBack = () => {
-    if (step > 1) setStep(s => s - 1);
-    else router.back();
+  const switchKind = (k: Kind) => {
+    setKind(k);
+    if (!categoryOf(category).for.includes(k)) setCategory(k === 'INCOME' ? 'salary' : 'food');
   };
 
-  const validateAmount = () => {
-    const n = parseFloat(amount);
-    if (!amount || isNaN(n) || n <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0.');
-      return false;
-    }
-    return true;
+  const leave = () => {
+    if (params.walletId) router.navigate('/(dashboard)/wallets');
+    else if (router.canGoBack()) router.back();
+    else router.navigate('/(dashboard)');
   };
 
-  const resetForm = () => {
-    setStep(1); setTxType('EXPENSE'); setAmount('');
-    setSelectedCat('food'); setMerchant(''); setSelectedDate(new Date());
-    setReceiptUrl(''); setSaving(false);
-  };
-
-  const handleSave = async () => {
-    if (!merchant.trim()) {
-      Alert.alert('Missing Description', 'Please enter a description for this transaction.');
+  const pickReceipt = async (source: 'camera' | 'library') => {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(t('add.receipt'), t(source === 'camera' ? 'add.cameraPermission' : 'add.photoPermission'));
       return;
     }
-    const parsedAmount = parseFloat(amount);
-    if (!amount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a valid amount greater than 0.');
-      return;
-    }
+    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7, allowsEditing: true };
+    const res = source === 'camera' ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    if (!res.canceled && res.assets[0]) setReceiptUri(res.assets[0].uri);
+  };
+
+  const save = async () => {
+    const value = parseFloat(amount.replace(/,/g, ''));
+    if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
+
     setSaving(true);
     try {
+      // Only local files need uploading; an existing server path is reused as-is.
+      let receiptUrl: string | undefined;
+      if (receiptUri) {
+        if (/^(file|content|ph|assets-library):/.test(receiptUri)) {
+          try { receiptUrl = await uploadReceipt(receiptUri); }
+          catch { Alert.alert(t('add.receipt'), t('add.uploadFailed')); return; }
+        } else {
+          receiptUrl = receiptUri;
+        }
+      }
       await createTransaction({
-        type: txType,
-        category: selectedCat,
-        title: merchant.trim(),
-        amount: parsedAmount,
-        walletId: selectedWallet,
-        date: selectedDate.toISOString(),
-        receiptUrl: receiptUrl || undefined,
+        type: kind,
+        category,
+        title: description.trim() || t(`cat.${category}` as any),
+        description: description.trim() || undefined,
+        amount: value,
+        date: date.toISOString(),
+        walletId: walletId ?? undefined,
+        receiptUrl,
       });
-      resetForm();
-      router.back();
+      leave();
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Failed to save. Please try again.');
+      Alert.alert(t('common.error'), e?.response?.data?.message || t('add.errSave'));
     } finally {
       setSaving(false);
     }
   };
 
+  const receiptPreview = receiptUri
+    ? (/^(file|content|ph|assets-library|https?):/.test(receiptUri) ? receiptUri : `${ENV.UPLOADS_URL}/${receiptUri}`)
+    : null;
+
   return (
-    <KeyboardAvoidingView
-      style={[s.root, { backgroundColor: theme.headerBg }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-    >
-      <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
-
-      {/* ── Dark header ── */}
-      <View style={[s.headerSection, { backgroundColor: theme.headerBg }]}>
-        <SafeAreaView edges={['top']}>
-
-          {/* Toolbar */}
-          <View style={s.toolbar}>
-            <TouchableOpacity
-              style={[s.toolBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
-              onPress={goBack}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="arrow-back" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            {/* Step dots */}
-            <View style={s.dotsRow}>
-              {[1, 2, 3].map(n => (
-                <View
-                  key={n}
-                  style={[
-                    s.dot,
-                    { backgroundColor: n <= step ? accent : 'rgba(255,255,255,0.25)' },
-                    n === step && s.dotActive,
-                  ]}
-                />
-              ))}
-            </View>
-
-            {step === 1 ? (
-              <TouchableOpacity
-                style={[s.scanChip, { backgroundColor: 'rgba(255,255,255,0.14)' }]}
-                onPress={() => router.push('/(dashboard)/scan')}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons name="document-scanner" size={14} color="#FFFFFF" />
-                <Text style={s.scanText}>Scan</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={{ width: 64 }} />
-            )}
-          </View>
-
-          {/* ── Step 1 header: type toggle + big amount ── */}
-          {step === 1 && (
-            <>
-              <View style={s.typeRow}>
-                {(['EXPENSE', 'INCOME'] as TransactionType[]).map(t => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[s.typeBtn, txType === t && s.typeBtnActive]}
-                    onPress={() => setTxType(t)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[s.typeBtnText, txType === t && s.typeBtnTextActive]}>
-                      {t === 'EXPENSE' ? 'Expense' : 'Income'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={s.amountBlock}>
-                <Text style={s.amountCue}>Enter amount</Text>
-                <View style={s.amountRow}>
-                  <Text style={[s.amountSym, { color: isIncome ? '#4ADE80' : 'rgba(255,255,255,0.7)' }]}>{sym}</Text>
-                  <TextInput
-                    style={s.amountInput}
-                    value={amount}
-                    onChangeText={setAmount}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    placeholderTextColor="rgba(255,255,255,0.3)"
-                    selectionColor="rgba(255,255,255,0.7)"
-                    autoFocus
-                  />
-                </View>
-              </View>
-            </>
-          )}
-
-          {/* ── Step 2 header: category label ── */}
-          {step === 2 && (
-            <View style={s.stepHeadBlock}>
-              <Text style={s.stepTitle}>Choose Category</Text>
-              <Text style={s.stepSub}>What type of {isIncome ? 'income' : 'expense'} is this?</Text>
-            </View>
-          )}
-
-          {/* ── Step 3 header: amount + category summary ── */}
-          {step === 3 && (
-            <View style={s.stepHeadBlock}>
-              <View style={s.summaryRow}>
-                <Text style={s.summaryAmt}>{sym}{amount}</Text>
-                <View style={[s.summaryBadge, { backgroundColor: CAT_COLORS[selectedCat] + '33' }]}>
-                  <MaterialIcons name={selectedCatObj?.icon ?? 'receipt'} size={13} color={CAT_COLORS[selectedCat]} />
-                  <Text style={[s.summaryBadgeText, { color: CAT_COLORS[selectedCat] }]}>
-                    {selectedCatObj?.label}
-                  </Text>
-                </View>
-              </View>
-              <Text style={s.stepSub}>Add a description so you remember this later</Text>
-            </View>
-          )}
-
-        </SafeAreaView>
-      </View>
-
-      {/* ── Light body ── */}
-      <View style={[s.body, { backgroundColor: theme.background }]}>
-
-        {/* STEP 1 BODY — Continue button */}
-        {step === 1 && (
-          <View style={[s.step1Body, { paddingBottom: insets.bottom + 16 }]}>
-            <TouchableOpacity
-              style={[s.continueBtn, { backgroundColor: accent }]}
-              onPress={() => { if (validateAmount()) setStep(2); }}
-              activeOpacity={0.85}
-            >
-              <Text style={s.continueBtnText}>Continue</Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* STEP 2 BODY — Category grid */}
-        {step === 2 && (
-          <ScrollView
-            contentContainerStyle={[s.catContainer, { paddingBottom: insets.bottom + 16 }]}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={s.catGrid}>
-              {CATEGORIES.map(cat => {
-                const active   = selectedCat === cat.id;
-                const catColor = CAT_COLORS[cat.id];
-                return (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[
-                      s.catTile,
-                      {
-                        backgroundColor: theme.surface,
-                        borderColor: active ? catColor : theme.border,
-                      },
-                      active && { backgroundColor: catColor + '15' },
-                    ]}
-                    onPress={() => { setSelectedCat(cat.id); setStep(3); }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[s.catIconBg, { backgroundColor: catColor + '22' }]}>
-                      <MaterialIcons name={cat.icon} size={26} color={catColor} />
-                    </View>
-                    <Text style={[s.catTileLabel, { color: active ? catColor : theme.text }]}>
-                      {cat.label}
-                    </Text>
-                    {active && (
-                      <View style={[s.catCheck, { backgroundColor: catColor }]}>
-                        <MaterialIcons name="check" size={10} color="#fff" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-        )}
-
-        {/* STEP 3 BODY — Description + wallet + save */}
-        {step === 3 && (
-          <ScrollView
-            contentContainerStyle={[s.detailsContent, { paddingBottom: insets.bottom + 16 }]}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {receiptUrl ? (
-              <View style={[s.receiptThumb, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Image
-                  source={{ uri: receiptUrl }}
-                  style={s.receiptThumbImg}
-                  resizeMode="cover"
-                />
-                <View style={s.receiptThumbInfo}>
-                  <Text style={[s.receiptThumbTitle, { color: theme.text }]}>Receipt attached</Text>
-                  <Text style={[s.receiptThumbSub, { color: theme.textMuted }]}>Scanned & saved to server</Text>
-                </View>
-                <MaterialIcons name="check-circle" size={18} color="#4ADE80" />
-              </View>
-            ) : null}
-            <Text style={[s.fieldLabel, { color: theme.textMuted }]}>DESCRIPTION *</Text>
-            <View style={[s.inputRow, s.textAreaRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <MaterialIcons name="receipt" size={18} color={theme.textMuted} style={[s.inputIcon, { marginTop: 4 }]} />
-              <TextInput
-                style={[s.textInput, s.textArea, { color: theme.text }]}
-                value={merchant}
-                onChangeText={setMerchant}
-                placeholder="e.g. Lunch at KFC, Monthly salary…"
-                placeholderTextColor={theme.textMuted}
-                autoFocus
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-                returnKeyType="default"
-              />
-            </View>
-
-            {wallets.length > 0 && (
-              <>
-                <Text style={[s.fieldLabel, { color: theme.textMuted }]}>WALLET</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={s.walletScroll}
-                  contentContainerStyle={s.walletScrollContent}
-                >
-                  {wallets.map(w => {
-                    const active = selectedWallet === w.id;
-                    return (
-                      <TouchableOpacity
-                        key={w.id}
-                        style={[
-                          s.walletChip,
-                          {
-                            borderColor: active ? accent : theme.border,
-                            backgroundColor: active ? accent + '18' : theme.surface,
-                          },
-                        ]}
-                        onPress={() => setSelectedWallet(w.id)}
-                        activeOpacity={0.75}
-                      >
-                        <MaterialIcons name="credit-card" size={14} color={active ? accent : theme.textMuted} />
-                        <Text
-                          style={[s.walletChipText, { color: active ? accent : theme.text }]}
-                          numberOfLines={1}
-                        >
-                          {w.name}{w.last4 ? ` ···${w.last4}` : ''}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </>
-            )}
-
-            <Text style={[s.fieldLabel, { color: theme.textMuted }]}>DATE & TIME</Text>
-            <TouchableOpacity
-              style={[s.dateRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.8}
-            >
-              <MaterialIcons name="calendar-today" size={15} color={theme.primary} />
-              <Text style={[s.dateText, { color: theme.text }]}>{dateLabel}</Text>
-              <Text style={[s.dateText, { color: theme.textSecondary, marginLeft: 8 }]}>{timeLabel}</Text>
-              <MaterialIcons name="edit" size={14} color={theme.textMuted} style={{ marginLeft: 'auto' }} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: accent }]}
-              onPress={handleSave}
-              disabled={saving}
-              activeOpacity={0.85}
-            >
-              {saving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <MaterialIcons name="check" size={20} color="#FFFFFF" />
-                  <Text style={s.saveBtnText}>Save {isIncome ? 'Income' : 'Expense'}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        )}
-
-      </View>
-
+    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <DatePickerModal
-        visible={showDatePicker}
-        title="Select Date & Time"
-        value={selectedDate}
+        visible={pickDate}
+        title={t('add.date')}
+        value={date}
         showTime
-        onClose={() => setShowDatePicker(false)}
-        onConfirm={(date) => { setSelectedDate(date); setShowDatePicker(false); }}
+        onClose={() => setPickDate(false)}
+        onConfirm={d => { setDate(d); setPickDate(false); }}
       />
-    </KeyboardAvoidingView>
+
+      <View style={s.header}>
+        <TouchableOpacity style={[s.round, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={leave} hitSlop={6}>
+          <MaterialIcons name="close" size={18} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[s.title, { color: theme.text }]}>{t('add.title')}</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          {/* Expense / Income */}
+          <View style={[s.kinds, { backgroundColor: theme.inputBg }]}>
+            {KINDS.map(k => {
+              const on = kind === k.id;
+              const c = k.id === 'INCOME' ? '#16A34A' : theme.primary;
+              return (
+                <TouchableOpacity key={k.id} onPress={() => switchKind(k.id)} activeOpacity={0.85}
+                                  style={[s.kind, on && { backgroundColor: theme.surface }]}>
+                  <MaterialIcons name={k.icon} size={14} color={on ? c : theme.textMuted} />
+                  <Text style={[s.kindText, { color: on ? c : theme.textMuted }]}>{t(k.label)}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Amount */}
+          <View style={[s.amountBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[s.amountCur, { color: theme.textMuted }]}>{currencyByCode(currency).symbol}</Text>
+            <TextInput
+              value={amount}
+              onChangeText={v => setAmount(v.replace(/[^\d.,]/g, ''))}
+              placeholder="0"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="decimal-pad"
+              style={[s.amountInput, { color: accent }]}
+            />
+            <Text style={[s.amountCode, { color: theme.textMuted }]}>{currency}</Text>
+          </View>
+
+          {/* Category */}
+          <Label text={t('add.category')} />
+          <View style={s.catGrid}>
+            {visibleCats.map(c => {
+              const on = c.id === category;
+              return (
+                <TouchableOpacity key={c.id} onPress={() => setCategory(c.id)} activeOpacity={0.8}
+                                  style={[s.cat, { borderColor: on ? c.color : theme.border, backgroundColor: on ? `${c.color}1A` : theme.surface }]}>
+                  <MaterialIcons name={c.icon} size={15} color={c.color} />
+                  <Text style={[s.catText, { color: on ? theme.text : theme.textSecondary, fontWeight: on ? '700' : '500' }]} numberOfLines={1}>
+                    {t(`cat.${c.id}` as any)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {cats.length > COLLAPSED && (
+              <TouchableOpacity onPress={() => setShowAllCats(v => !v)} activeOpacity={0.8}
+                                style={[s.cat, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                <MaterialIcons name={showAllCats ? 'expand-less' : 'apps'} size={15} color={theme.primary} />
+                <Text style={[s.catText, { color: theme.primary, fontWeight: '700' }]}>{showAllCats ? '−' : `+${cats.length - visibleCats.length}`}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Description */}
+          <Label text={t('add.description')} />
+          <View style={[s.input, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+            <MaterialIcons name="notes" size={16} color={theme.textMuted} />
+            <TextInput value={description} onChangeText={setDescription} placeholder={t('add.descriptionPh')}
+                       placeholderTextColor={theme.textMuted} style={[s.inputText, { color: theme.text, flex: 1 }]} />
+          </View>
+
+          {/* Wallet */}
+          <Label text={t('add.wallet')} />
+          <WalletChips wallets={wallets} value={walletId} onChange={setWalletId} noneLabel={wallets.length ? undefined : t('add.noWallet')} />
+
+          {/* Date */}
+          <Label text={t('add.date')} />
+          <TouchableOpacity style={[s.input, { backgroundColor: theme.inputBg, borderColor: theme.border }]} onPress={() => setPickDate(true)} activeOpacity={0.8}>
+            <MaterialIcons name="calendar-today" size={15} color={theme.textMuted} />
+            <Text style={[s.inputText, { color: theme.text, flex: 1 }]}>
+              {formatDate(date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+            <MaterialIcons name="expand-more" size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+
+          {/* Receipt */}
+          <Label text={`${t('add.receipt')} (${t('add.optional')})`} />
+          {receiptPreview ? (
+            <View style={[s.receipt, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <Image source={{ uri: receiptPreview }} style={s.receiptImg} />
+              <View style={{ flex: 1, gap: 6 }}>
+                <TouchableOpacity onPress={() => pickReceipt('camera')} style={s.receiptAction}>
+                  <MaterialIcons name="photo-camera" size={15} color={theme.primary} />
+                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.takePhoto')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => pickReceipt('library')} style={s.receiptAction}>
+                  <MaterialIcons name="photo-library" size={15} color={theme.primary} />
+                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.chooseImage')}</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={() => setReceiptUri(null)} hitSlop={8} style={[s.removeBtn, { backgroundColor: theme.inputBg }]}>
+                <MaterialIcons name="delete-outline" size={17} color="#DC2626" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => pickReceipt('camera')} activeOpacity={0.8}
+                                style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                <MaterialIcons name="photo-camera" size={18} color={theme.primary} />
+                <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.takePhoto')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => pickReceipt('library')} activeOpacity={0.8}
+                                style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}>
+                <MaterialIcons name="photo-library" size={18} color={theme.primary} />
+                <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.chooseImage')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={[s.footer, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
+          <TouchableOpacity style={[s.save, { backgroundColor: accent }]} onPress={save} disabled={saving} activeOpacity={0.85}>
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.saveText}>{t('add.save')}</Text>}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+function Label({ text }: { text: string }) {
+  const theme = useAppTheme();
+  return <Text style={[s.label, { color: theme.textSecondary }]}>{text}</Text>;
+}
+
 const s = StyleSheet.create({
-  root: { flex: 1 },
+  safe:   { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  round:  { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  title:  { fontSize: 15, fontWeight: '700' },
+  scroll: { paddingHorizontal: 16, paddingBottom: 20 },
 
-  headerSection: { overflow: 'hidden' },
+  kinds:    { flexDirection: 'row', borderRadius: 14, padding: 3 },
+  kind:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 34, borderRadius: 11 },
+  kindText: { fontSize: 12, fontWeight: '700' },
 
-  toolbar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
-  toolBtn:    { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  scanChip:   { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 8, borderRadius: 20 },
-  scanText:   { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  amountBox:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, height: 58, marginTop: 12 },
+  amountCur:   { fontSize: 14, fontWeight: '700' },
+  amountInput: { flex: 1, fontSize: 24, fontWeight: '700', fontFamily: 'Poppins_700Bold', paddingVertical: 0 },
+  amountCode:  { fontSize: 11, fontWeight: '700' },
 
-  dotsRow:    { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  dot:        { width: 8, height: 8, borderRadius: 4 },
-  dotActive:  { width: 22, borderRadius: 4 },
+  label: { fontSize: 11, fontWeight: '600', marginTop: 12, marginBottom: 5, marginLeft: 2 },
 
-  typeRow:        { flexDirection: 'row', marginHorizontal: 20, marginTop: 8, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', padding: 3 },
-  typeBtn:        { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 18 },
-  typeBtnActive:  { backgroundColor: 'rgba(255,255,255,0.2)' },
-  typeBtnText:    { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.5)' },
-  typeBtnTextActive: { color: '#FFFFFF' },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  cat:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, height: 32, borderRadius: 12, borderWidth: 1, maxWidth: '48%' },
+  catText: { fontSize: 11 },
 
-  amountBlock: { alignItems: 'center', paddingTop: 12, paddingBottom: 28 },
-  amountCue:   { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.45)', letterSpacing: 1.5, marginBottom: 8 },
-  amountRow:   { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
-  amountSym:   { fontSize: 32, fontWeight: '600', marginBottom: 8 },
-  amountInput: { fontSize: 72, fontWeight: '800', color: '#FFFFFF', minWidth: 100, maxWidth: 260 },
+  input:     { flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
+  inputText: { fontSize: 13, fontFamily: 'Poppins_400Regular', paddingVertical: 0 },
 
-  stepHeadBlock: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 22 },
-  stepTitle:     { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-  stepSub:       { fontSize: 13, color: 'rgba(255,255,255,0.55)' },
+  receipt:    { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 8 },
+  receiptImg: { width: 64, height: 64, borderRadius: 10 },
+  receiptAction:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  receiptActionText: { fontSize: 12, fontWeight: '600' },
+  removeBtn:  { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  receiptBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed' },
+  receiptBtnText: { fontSize: 12, fontWeight: '600' },
 
-  summaryRow:        { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  summaryAmt:        { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-  summaryBadge:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  summaryBadgeText:  { fontSize: 13, fontWeight: '600' },
-
-  body: { flex: 1 },
-
-  // Step 1
-  step1Body:    { flex: 1, justifyContent: 'flex-end', paddingHorizontal: 20 },
-  continueBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, paddingVertical: 17, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
-  continueBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
-
-  // Step 2
-  catContainer: { paddingHorizontal: 20, paddingTop: 20 },
-  catGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  catTile:      { width: '30%', flexGrow: 1, borderRadius: 16, borderWidth: 1.5, paddingVertical: 16, alignItems: 'center', gap: 8, position: 'relative' },
-  catIconBg:    { width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
-  catTileLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
-  catCheck:     { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-
-  // Step 3
-  detailsContent: { paddingHorizontal: 20, paddingTop: 20 },
-  receiptThumb:     { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 10, marginBottom: 20 },
-  receiptThumbImg:  { width: 60, height: 60, borderRadius: 10 },
-  receiptThumbInfo: { flex: 1 },
-  receiptThumbTitle:{ fontSize: 13, fontWeight: '600' },
-  receiptThumbSub:  { fontSize: 11, marginTop: 2 },
-  fieldLabel:     { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, marginBottom: 8 },
-  inputRow:       { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 54, marginBottom: 20 },
-  textAreaRow:    { alignItems: 'flex-start', height: 90, paddingTop: 14, paddingBottom: 10 },
-  inputIcon:      { marginRight: 10 },
-  textInput:      { flex: 1, fontSize: 15 },
-  textArea:       { height: 64, textAlignVertical: 'top' },
-
-  walletScroll:        { marginBottom: 20 },
-  walletScrollContent: { gap: 8 },
-  walletChip:          { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
-  walletChipText:      { fontSize: 13, fontWeight: '600', maxWidth: 120 },
-
-  dateRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, height: 48, marginBottom: 24 },
-  dateText: { fontSize: 14 },
-
-  saveBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 18, paddingVertical: 17, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 5 },
-  saveBtnText: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  footer:   { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
+  save:     { height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  saveText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
 });

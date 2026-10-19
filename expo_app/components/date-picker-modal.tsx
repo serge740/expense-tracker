@@ -5,12 +5,26 @@ import {
 import { Text } from '@/components/text';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
+import { useI18n } from '@/context/language-context';
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
-const MONTH_NAMES = [
+const WEEKDAYS_EN = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const MONTHS_EN = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
 ];
+
+/** Month / weekday names in the app language; English if the device can't format it. */
+function localNames(locale: string) {
+  try {
+    const months = MONTHS_EN.map((_, m) => new Date(2024, m, 1).toLocaleDateString(locale, { month: 'long' }));
+    // 2024-01-07 is a Sunday.
+    const days = WEEKDAYS_EN.map((_, d) => new Date(2024, 0, 7 + d).toLocaleDateString(locale, { weekday: 'short' }).replace('.', '').slice(0, 3));
+    const ok = months.every(x => x && !/^\d/.test(x)) && days.every(Boolean) && new Set(days).size === 7;
+    return ok ? { months: months.map(x => x[0].toUpperCase() + x.slice(1)), days } : { months: MONTHS_EN, days: WEEKDAYS_EN };
+  } catch {
+    return { months: MONTHS_EN, days: WEEKDAYS_EN };
+  }
+}
 
 interface CalendarDay {
   day: number;
@@ -59,13 +73,15 @@ export interface DatePickerModalProps {
 
 export function DatePickerModal({
   visible,
-  title = 'Select Date',
+  title,
   value,
   showTime = true,
   onClose,
   onConfirm,
 }: DatePickerModalProps) {
   const theme = useAppTheme();
+  const { t, locale } = useI18n();
+  const { months: MONTH_NAMES, days: WEEKDAYS } = localNames(locale);
   const { width: screenWidth } = useWindowDimensions();
 
   const today = new Date();
@@ -143,7 +159,7 @@ export function DatePickerModal({
 
           {/* Header */}
           <View style={[s.cardHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[s.cardTitle, { color: theme.text }]}>{title}</Text>
+            <Text style={[s.cardTitle, { color: theme.text }]}>{title ?? t('date.select')}</Text>
             <TouchableOpacity onPress={onClose} style={s.closeBtn} activeOpacity={0.7}>
               <MaterialIcons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
@@ -164,8 +180,8 @@ export function DatePickerModal({
 
           {/* Weekday headers */}
           <View style={s.weekRow}>
-            {WEEKDAYS.map(wd => (
-              <View key={wd} style={[s.cell, { width: CELL_SIZE, height: CELL_SIZE * 0.75 }]}>
+            {WEEKDAYS.map((wd, i) => (
+              <View key={i} style={[s.cell, { width: CELL_SIZE, height: CELL_SIZE * 0.75 }]}>
                 <Text style={[s.weekdayText, { color: theme.textMuted }]}>{wd}</Text>
               </View>
             ))}
@@ -205,7 +221,7 @@ export function DatePickerModal({
           <View style={[s.selectedRow, { backgroundColor: theme.primaryBg }]}>
             <MaterialIcons name="calendar-today" size={14} color={theme.primary} />
             <Text style={[s.selectedText, { color: theme.primary }]}>
-              {new Date(selYear, selMonth, selDay).toLocaleDateString('en-US', {
+              {new Date(selYear, selMonth, selDay).toLocaleDateString(locale, {
                 weekday: 'short', month: 'long', day: 'numeric', year: 'numeric',
               })}
             </Text>
@@ -214,7 +230,7 @@ export function DatePickerModal({
           {/* Time picker */}
           {showTime && (
             <View style={[s.timeSection, { borderTopColor: theme.border }]}>
-              <Text style={[s.timeSectionLabel, { color: theme.textMuted }]}>TIME</Text>
+              <Text style={[s.timeSectionLabel, { color: theme.textMuted }]}>{t('date.time')}</Text>
               <View style={s.timeRow}>
 
                 {/* Hour */}
@@ -294,7 +310,7 @@ export function DatePickerModal({
             activeOpacity={0.85}
           >
             <MaterialIcons name="check" size={18} color="#FFFFFF" />
-            <Text style={s.confirmText}>Confirm</Text>
+            <Text style={s.confirmText}>{t('date.confirm')}</Text>
           </TouchableOpacity>
 
         </View>
@@ -304,8 +320,8 @@ export function DatePickerModal({
 }
 
 const s = StyleSheet.create({
-  overlay:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
-  centeredWrap:{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  overlay:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)' },
+  centeredWrap:{ ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
 
   card: { borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10 },
 

@@ -13,7 +13,7 @@ import {
   GoogleSignin,
   GoogleSigninButton,
   statusCodes,
-} from '@react-native-google-signin/google-signin';
+} from '@/services/google-signin';
 
 type UserInfo = {
   idToken: string | null;

@@ -11,7 +11,11 @@ export type ClientProfile = {
   email: string;
   phone: string;
   googleId: string | null;
+  appleId?: string | null;
+  facebookId?: string | null;
   isVerified: boolean;
+  emailVerifiedAt?: string | null;
+  phoneVerifiedAt?: string | null;
   profileImage: string | null;
   isActive: boolean;
   isBiometric: boolean;
@@ -51,6 +55,7 @@ export async function registerClient(data: {
   lastName?: string;
   email: string;
   phone: string;
+  password?: string;
 }): Promise<AuthResult> {
   const res = await api.post<AuthResult>('/client-auth/register', data);
   await saveTokens(res.data.accessToken, res.data.refreshToken);
@@ -80,31 +85,53 @@ export async function googleAuthClient(idToken: string, phone?: string): Promise
   return res.data;
 }
 
-// ── Face Enroll ───────────────────────────────────────────────────────────
-export async function enrollFace(imageUri: string): Promise<{ message: string }> {
-  const token = await getToken();
-  if (!token) throw new Error('Not authenticated');
-
-  const formData = new FormData();
-  formData.append('image', { uri: imageUri, type: 'image/jpeg', name: 'face.jpg' } as any);
-
-  const res = await api.post<{ message: string }>(
-    '/client-auth/face-enroll',
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data', ...authHeader(token) } },
-  );
+// ── Email/phone + password login ──────────────────────────────────────────
+export async function loginClient(identifier: string, password: string): Promise<AuthResult> {
+  const res = await api.post<AuthResult>('/client-auth/login', { identifier, password });
+  await saveTokens(res.data.accessToken, res.data.refreshToken);
   return res.data;
 }
 
-// ── Face Identify ─────────────────────────────────────────────────────────
-export async function faceIdentify(imageUri: string): Promise<AuthResult> {
-  const formData = new FormData();
-  formData.append('image', { uri: imageUri, type: 'image/jpeg', name: 'face.jpg' } as any);
-
-  const res = await api.post<AuthResult>('/client-auth/face-identify', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+// ── Apple Auth ────────────────────────────────────────────────────────────
+export async function appleAuthClient(identityToken: string, firstName?: string, lastName?: string): Promise<AuthResult> {
+  const res = await api.post<AuthResult>('/client-auth/apple-auth', { identityToken, firstName, lastName });
   await saveTokens(res.data.accessToken, res.data.refreshToken);
+  return res.data;
+}
+
+// ── Email / phone verification (signed-in user) ──────────────────────────
+type SendResult = { sentTo: string; devNote?: string };
+
+export async function sendVerificationCode(channel: 'email' | 'phone'): Promise<SendResult> {
+  const res = await api.post<SendResult>(`/client-auth/verification/${channel}/send`);
+  return res.data;
+}
+
+export async function confirmVerificationCode(channel: 'email' | 'phone', otp: string): Promise<ClientProfile> {
+  const res = await api.post<ClientProfile>(`/client-auth/verification/${channel}/confirm`, { otp });
+  return res.data;
+}
+
+// ── Facebook Auth ─────────────────────────────────────────────────────────
+export async function facebookAuthClient(accessToken: string): Promise<AuthResult> {
+  const res = await api.post<AuthResult>('/client-auth/facebook-auth', { accessToken });
+  await saveTokens(res.data.accessToken, res.data.refreshToken);
+  return res.data;
+}
+
+// ── Forgot password (OTP → reset token → new password) ────────────────────
+export async function requestPasswordReset(identifier: string): Promise<{ message: string; sentTo: string }> {
+  const res = await api.post<{ message: string; sentTo: string }>('/client-auth/forgot-password', { identifier });
+  return res.data;
+}
+
+export async function verifyResetOtp(identifier: string, otp: string): Promise<{ resetToken: string }> {
+  const res = await api.post<{ resetToken: string }>('/client-auth/verify-reset-otp', { identifier, otp });
+  return res.data;
+}
+
+export async function resetPassword(resetToken: string, password: string): Promise<{ message: string }> {
+  const res = await api.post<{ message: string }>('/client-auth/reset-password', { resetToken, password });
   return res.data;
 }
 

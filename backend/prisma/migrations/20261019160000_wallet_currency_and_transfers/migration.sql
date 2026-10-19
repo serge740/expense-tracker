@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE `transaction` ADD COLUMN `exchangeRate` DECIMAL(18, 8) NULL,
+    ADD COLUMN `toAmount` DECIMAL(12, 2) NULL,
+    ADD COLUMN `toWalletId` VARCHAR(191) NULL,
+    MODIFY `type` ENUM('INCOME', 'EXPENSE', 'TRANSFER') NOT NULL;
+
+-- AlterTable
+ALTER TABLE `wallet` ADD COLUMN `archived` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `currency` VARCHAR(191) NOT NULL DEFAULT 'RWF',
+    MODIFY `color` VARCHAR(191) NOT NULL DEFAULT '#00627F';
+

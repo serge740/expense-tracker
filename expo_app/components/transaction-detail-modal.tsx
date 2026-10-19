@@ -3,20 +3,11 @@ import { Modal, View, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } f
 import { Text } from '@/components/text';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
-import { Transaction, CATEGORY_ICON, CATEGORY_LABEL, deleteTransaction } from '@/services/transaction.service';
+import { Transaction, CATEGORY_ICON, deleteTransaction } from '@/services/transaction.service';
+import { useI18n } from '@/context/language-context';
+import { categoryOf } from '@/constants/categories';
 import { useCurrency } from '@/context/currency-context';
 
-const CATEGORY_COLOR: Record<string, { color: string; bg: string }> = {
-  salary:        { color: '#4ADE80', bg: 'rgba(74,222,128,0.15)'   },
-  food:          { color: '#FF8C42', bg: 'rgba(255,140,66,0.15)'   },
-  transport:     { color: '#60A5FA', bg: 'rgba(96,165,250,0.15)'   },
-  shopping:      { color: '#A78BFA', bg: 'rgba(167,139,250,0.15)'  },
-  health:        { color: '#F472B6', bg: 'rgba(244,114,182,0.15)'  },
-  entertainment: { color: '#FBBF24', bg: 'rgba(251,191,36,0.15)'   },
-  travel:        { color: '#7B7FD4', bg: 'rgba(123,127,212,0.15)'  },
-  groceries:     { color: '#4ADE80', bg: 'rgba(74,222,128,0.15)'   },
-  other:         { color: '#94A3B8', bg: 'rgba(148,163,184,0.15)'  },
-};
 
 interface Props {
   visible: boolean;
@@ -27,32 +18,36 @@ interface Props {
 
 export function TransactionDetailModal({ visible, transaction, onClose, onDeleted }: Props) {
   const theme = useAppTheme();
+  const { t, locale } = useI18n();
   const { currency } = useCurrency();
   const sym = currency.symbol;
   const [deleting, setDeleting] = useState(false);
 
   if (!transaction) return null;
 
-  const cfg   = CATEGORY_COLOR[transaction.category] ?? { color: '#94A3B8', bg: 'rgba(148,163,184,0.15)' };
+  const catDef = categoryOf(transaction.category);
+  const cfg   = { color: catDef.color, bg: `${catDef.color}26` };
+  // Entries created by Debts & loans are changed from the Debts tab only.
+  const locked = transaction.category === 'loan';
   const icon  = CATEGORY_ICON[transaction.category] ?? 'receipt';
-  const label = CATEGORY_LABEL[transaction.category] ?? transaction.category;
+  const label = t(`cat.${catDef.id}` as any);
   const isPos = transaction.amount >= 0;
 
   const date    = new Date(transaction.date);
-  const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
-  const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = (() => { try { return date.toLocaleDateString(locale, { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }); } catch { return date.toDateString(); } })();
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   const amtStr = (isPos ? `+${sym}` : `-${sym}`) +
     Math.abs(transaction.amount).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete Transaction',
-      `Remove "${transaction.title}"?\nThis will also update your wallet balance.`,
+      t('txd.delete'),
+      t('txd.deleteMsg', { title: transaction.title }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('wallet.deleteBtn'),
           style: 'destructive',
           onPress: async () => {
             setDeleting(true);
@@ -61,7 +56,7 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
               onDeleted(transaction.id);
               onClose();
             } catch (e: any) {
-              Alert.alert('Error', e?.response?.data?.message || 'Could not delete transaction.');
+              Alert.alert(t('common.error'), e?.response?.data?.message || t('txd.errDelete'));
             } finally {
               setDeleting(false);
             }
@@ -104,14 +99,14 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
           <View style={s.rows}>
             <DetailRow
               icon="calendar-today"
-              label="Date"
+              label={t('txd.date')}
               value={dateStr}
               color={theme.primary}
               theme={theme}
             />
             <DetailRow
               icon="access-time"
-              label="Time"
+              label={t('txd.time')}
               value={timeStr}
               color={theme.primary}
               theme={theme}
@@ -119,7 +114,7 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
             {transaction.description && (
               <DetailRow
                 icon="notes"
-                label="Note"
+                label={t('txd.note')}
                 value={transaction.description}
                 color={theme.primary}
                 theme={theme}
@@ -128,15 +123,18 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
             {transaction.walletId && (
               <DetailRow
                 icon="credit-card"
-                label="Wallet"
-                value="Linked wallet"
+                label={t('txd.wallet')}
+                value={t('txd.linked')}
                 color={theme.primary}
                 theme={theme}
               />
             )}
           </View>
 
-          {/* Delete */}
+          {/* Delete (debt entries are managed from the Debts tab) */}
+          {locked ? (
+            <Text style={[s.lockedText, { color: theme.textMuted }]}>{t('debts.locked')}</Text>
+          ) : (
           <TouchableOpacity
             style={[s.deleteBtn, { borderColor: 'rgba(248,113,113,0.3)', backgroundColor: 'rgba(248,113,113,0.08)' }]}
             onPress={handleDelete}
@@ -147,10 +145,11 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
               ? <ActivityIndicator color="#F87171" size="small" />
               : <>
                   <MaterialIcons name="delete-outline" size={18} color="#F87171" />
-                  <Text style={s.deleteText}>Delete Transaction</Text>
+                  <Text style={s.deleteText}>{t('txd.delete')}</Text>
                 </>
             }
           </TouchableOpacity>
+          )}
 
         </View>
       </View>
@@ -171,8 +170,9 @@ function DetailRow({ icon, label, value, color, theme }: any) {
 }
 
 const s = StyleSheet.create({
-  overlay:     { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
-  centeredWrap:{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  lockedText: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 17 },
+  overlay:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)' },
+  centeredWrap:{ ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
 
   card: { width: 320, borderRadius: 24, padding: 24, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 10 },
 

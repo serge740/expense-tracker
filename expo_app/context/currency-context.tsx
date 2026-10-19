@@ -14,6 +14,11 @@ export const CURRENCIES: Currency[] = [
   { code: 'GBP', symbol: '£',    name: 'British Pound',       flag: '🇬🇧' },
   { code: 'NGN', symbol: '₦',    name: 'Nigerian Naira',      flag: '🇳🇬' },
   { code: 'RWF', symbol: 'FRw',  name: 'Rwandan Franc',       flag: '🇷🇼' },
+  { code: 'UGX', symbol: 'USh',  name: 'Ugandan Shilling',    flag: '🇺🇬' },
+  { code: 'TZS', symbol: 'TSh',  name: 'Tanzanian Shilling',  flag: '🇹🇿' },
+  { code: 'BIF', symbol: 'FBu',  name: 'Burundian Franc',     flag: '🇧🇮' },
+  { code: 'CDF', symbol: 'FC',   name: 'Congolese Franc',     flag: '🇨🇩' },
+  { code: 'ETB', symbol: 'Br',   name: 'Ethiopian Birr',      flag: '🇪🇹' },
   { code: 'GHS', symbol: 'GH₵',  name: 'Ghanaian Cedi',       flag: '🇬🇭' },
   { code: 'KES', symbol: 'KSh',  name: 'Kenyan Shilling',     flag: '🇰🇪' },
   { code: 'ZAR', symbol: 'R',    name: 'South African Rand',  flag: '🇿🇦' },
@@ -70,4 +75,20 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
 export function useCurrency() {
   return useContext(CurrencyContext);
+}
+
+// Currencies normally shown without decimals.
+const ZERO_DECIMAL = new Set(['RWF', 'UGX', 'TZS', 'BIF', 'CDF', 'JPY', 'KES', 'NGN']);
+
+export const currencyByCode = (code: string): Currency =>
+  CURRENCIES.find(c => c.code === code) ?? { code, symbol: code, name: code, flag: '🏳️' };
+
+/** "FRw 12,500" / "$ 1,204.50" — or masked when balances are hidden. */
+export function formatMoney(amount: number, code: string, opts: { hidden?: boolean; sign?: boolean } = {}) {
+  const c = currencyByCode(code);
+  if (opts.hidden) return `${c.symbol} ••••`;
+  const digits = ZERO_DECIMAL.has(code) ? 0 : 2;
+  const abs = Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const sign = amount < 0 ? '−' : opts.sign && amount > 0 ? '+' : '';
+  return `${sign}${c.symbol} ${abs}`;
 }

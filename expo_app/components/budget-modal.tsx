@@ -104,7 +104,7 @@ export function BudgetModal({ visible, currentLimit, onClose, onSaved }: Props) 
 }
 
 const s = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)' },
+  overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },
   kvWrap:  { flex: 1, justifyContent: 'flex-end' },
 
   sheet: {

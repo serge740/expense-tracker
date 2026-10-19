@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -19,7 +19,7 @@ const FAQS: { category: string; icon: keyof typeof MaterialIcons.glyphMap; items
     icon: 'rocket-launch',
     items: [
       { q: 'How do I create an account?', a: 'Open the app, tap "Sign up" on the login screen, enter your name, email, and phone number, then set up your sign-in method — either Face Recognition or Google.' },
-      { q: 'How does face recognition work?', a: 'ABY uses your device camera to capture your facial features. These are stored securely on our servers and used only to verify your identity when signing in. No password is ever needed.' },
+      { q: 'How does face recognition work?', a: 'Rabbit Tracker uses your device camera to capture your facial features. These are stored securely on our servers and used only to verify your identity when signing in. No password is ever needed.' },
       { q: 'Can I use multiple sign-in methods?', a: 'Yes. You can register your face and also link your Google account. Either method will sign you in to the same account.' },
     ],
   },
@@ -29,7 +29,7 @@ const FAQS: { category: string; icon: keyof typeof MaterialIcons.glyphMap; items
     items: [
       { q: 'How do I add an expense?', a: 'Tap the "+" button on the home screen or navigate to "Add". Choose the transaction type (Income/Expense), select a category, enter the amount, and save.' },
       { q: 'Can I edit or delete a transaction?', a: 'Yes. Open the transaction from your History or Expense list, then tap the edit icon to modify or the delete icon to remove it.' },
-      { q: 'What categories are available?', a: 'ABY supports: Food, Transport, Shopping, Health, Entertainment, Travel, Groceries, Salary, and Other. More categories will be added in future updates.' },
+      { q: 'What categories are available?', a: 'Rabbit Tracker supports: Food, Transport, Shopping, Health, Entertainment, Travel, Groceries, Salary, and Other. More categories will be added in future updates.' },
     ],
   },
   {
@@ -38,7 +38,7 @@ const FAQS: { category: string; icon: keyof typeof MaterialIcons.glyphMap; items
     items: [
       { q: 'How do I add a wallet?', a: 'Go to the Wallets tab, then tap "Add Wallet". Enter your wallet name, bank, last 4 digits (optional), and starting balance.' },
       { q: 'Can I have multiple wallets?', a: 'Yes. You can manage as many wallets as you like — checking, savings, credit cards, or cash. Your total balance is the sum of all wallets.' },
-      { q: 'Does ABY connect to my bank?', a: 'No. ABY does not connect to real bank accounts. All transactions and balances are entered manually by you for privacy and security.' },
+      { q: 'Does Rabbit Tracker connect to my bank?', a: 'No. Rabbit Tracker does not connect to real bank accounts. All transactions and balances are entered manually by you for privacy and security.' },
     ],
   },
   {
@@ -46,7 +46,7 @@ const FAQS: { category: string; icon: keyof typeof MaterialIcons.glyphMap; items
     icon: 'notifications',
     items: [
       { q: 'How do I enable push notifications?', a: 'Go to Settings → Notifications → Settings tab. Make sure "Push Notifications" is enabled. You may also need to allow notifications in your device settings.' },
-      { q: 'Why am I not receiving notifications?', a: 'Check that push notifications are enabled in both ABY settings and your device system settings. Also ensure your device token is registered by opening the app at least once.' },
+      { q: 'Why am I not receiving notifications?', a: 'Check that push notifications are enabled in both Rabbit Tracker settings and your device system settings. Also ensure your device token is registered by opening the app at least once.' },
     ],
   },
   {
@@ -82,6 +82,7 @@ function FaqItem({ item, theme }: { item: FAQ; theme: ReturnType<typeof useAppTh
 }
 
 export default function HelpScreen() {
+  const goBack = useSettingsBack();
   const theme = useAppTheme();
 
   return (
@@ -90,7 +91,7 @@ export default function HelpScreen() {
 
       <FadeInView delay={0} slideFrom="top" distance={12}>
         <View style={[s.header, { borderBottomColor: theme.border }]}>
-          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
+          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => goBack()} activeOpacity={0.7}>
             <MaterialIcons name="arrow-back" size={20} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.title, { color: theme.text }]}>Help & FAQ</Text>

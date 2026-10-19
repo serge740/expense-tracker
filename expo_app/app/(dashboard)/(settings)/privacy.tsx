@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -33,7 +33,7 @@ const SECTIONS = [
   {
     icon: 'share' as const,
     title: '5. Third-Party Services',
-    body: 'ABY Expense uses the following trusted third-party services:\n• Google Sign-In for authentication\n• Expo Notifications for push notifications\n\nThese services have their own privacy policies. We only share the minimum data necessary for them to function.',
+    body: 'Rabbit Tracker uses the following trusted third-party services:\n• Google Sign-In for authentication\n• Expo Notifications for push notifications\n\nThese services have their own privacy policies. We only share the minimum data necessary for them to function.',
   },
   {
     icon: 'notifications-none' as const,
@@ -48,12 +48,12 @@ const SECTIONS = [
   {
     icon: 'child-care' as const,
     title: '8. Children\'s Privacy',
-    body: 'ABY Expense is not intended for users under the age of 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us immediately.',
+    body: 'Rabbit Tracker is not intended for users under the age of 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us immediately.',
   },
   {
     icon: 'update' as const,
     title: '9. Changes to This Policy',
-    body: 'We may update this Privacy Policy from time to time. We will notify you of significant changes through the app or via email. Your continued use of ABY Expense after changes constitutes acceptance of the updated policy.',
+    body: 'We may update this Privacy Policy from time to time. We will notify you of significant changes through the app or via email. Your continued use of Rabbit Tracker after changes constitutes acceptance of the updated policy.',
   },
   {
     icon: 'mail-outline' as const,
@@ -63,6 +63,7 @@ const SECTIONS = [
 ];
 
 export default function PrivacyScreen() {
+  const goBack = useSettingsBack();
   const theme = useAppTheme();
 
   return (
@@ -71,7 +72,7 @@ export default function PrivacyScreen() {
 
       <FadeInView delay={0} slideFrom="top" distance={12}>
         <View style={[s.header, { borderBottomColor: theme.border }]}>
-          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
+          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => goBack()} activeOpacity={0.7}>
             <MaterialIcons name="arrow-back" size={20} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.title, { color: theme.text }]}>Privacy Policy</Text>
@@ -96,7 +97,7 @@ export default function PrivacyScreen() {
         <FadeInView delay={100} slideFrom="bottom" distance={14}>
           <View style={s.intro}>
             <Text style={[s.introText, { color: theme.textSecondary }]}>
-              ABY Expense ("we", "our", "us") is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information when you use our mobile application.
+              Rabbit Tracker ("we", "our", "us") is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information when you use our mobile application.
             </Text>
           </View>
         </FadeInView>

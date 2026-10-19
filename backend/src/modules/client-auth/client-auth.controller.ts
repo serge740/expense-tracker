@@ -19,6 +19,8 @@ import { Response } from 'express';
 import { ClientAuthService } from './client-auth.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
+import { AppleAuthDto } from './dto/apple-auth.dto';
+import { FacebookAuthDto } from './dto/facebook-auth.dto';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
 import { RequestWithClient } from '../../common/interfaces/client.interface';
 
@@ -78,6 +80,73 @@ export class ClientAuthController {
     }
   }
 
+  @Post('apple-auth')
+  async appleAuth(@Body() dto: AppleAuthDto, @Res() res: Response) {
+    try {
+      const result = await this.clientAuthService.appleAuth(dto);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      return res.json(result);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Apple sign-in failed', error.status || 400);
+    }
+  }
+
+  @Post('facebook-auth')
+  async facebookAuth(@Body() dto: FacebookAuthDto, @Res() res: Response) {
+    try {
+      const result = await this.clientAuthService.facebookAuth(dto);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      return res.json(result);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Facebook sign-in failed', error.status || 400);
+    }
+  }
+
+  @Post('login')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async login(@Body() body: { identifier: string; password: string }, @Res() res: Response) {
+    try {
+      const result = await this.clientAuthService.login(body.identifier, body.password);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      return res.json(result);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Login failed', error.status || 401);
+    }
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async forgotPassword(@Body() body: { identifier: string }) {
+    try {
+      return await this.clientAuthService.forgotPassword(body.identifier);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Failed to send reset code', error.status || 400);
+    }
+  }
+
+  @Post('verify-reset-otp')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async verifyResetOtp(@Body() body: { identifier: string; otp: string }) {
+    try {
+      return await this.clientAuthService.verifyResetOtp(body.identifier, body.otp);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Verification failed', error.status || 400);
+    }
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() body: { resetToken: string; password: string }) {
+    try {
+      return await this.clientAuthService.resetPassword(body.resetToken, body.password);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Password reset failed', error.status || 400);
+    }
+  }
+
   @Post('refresh')
   @HttpCode(200)
   async refresh(@Body() body: { refreshToken: string }, @Res() res: Response) {
@@ -124,6 +193,54 @@ export class ClientAuthController {
       return await this.clientAuthService.enableBiometric(req.client.id);
     } catch (error: any) {
       throw new HttpException(error.message || 'Failed to enable biometric', error.status || 400);
+    }
+  }
+
+  @Post('verification/email/send')
+  @HttpCode(200)
+  @UseGuards(ClientJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async sendEmailVerification(@Req() req: RequestWithClient) {
+    try {
+      return await this.clientAuthService.sendEmailVerification(req.client.id);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Could not send code', error.status || 400);
+    }
+  }
+
+  @Post('verification/email/confirm')
+  @HttpCode(200)
+  @UseGuards(ClientJwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async confirmEmailVerification(@Req() req: RequestWithClient, @Body() body: { otp: string }) {
+    try {
+      return await this.clientAuthService.confirmEmailVerification(req.client.id, body.otp);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Verification failed', error.status || 400);
+    }
+  }
+
+  @Post('verification/phone/send')
+  @HttpCode(200)
+  @UseGuards(ClientJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async sendPhoneVerification(@Req() req: RequestWithClient) {
+    try {
+      return await this.clientAuthService.sendPhoneVerification(req.client.id);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Could not send code', error.status || 400);
+    }
+  }
+
+  @Post('verification/phone/confirm')
+  @HttpCode(200)
+  @UseGuards(ClientJwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async confirmPhoneVerification(@Req() req: RequestWithClient, @Body() body: { otp: string }) {
+    try {
+      return await this.clientAuthService.confirmPhoneVerification(req.client.id, body.otp);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Verification failed', error.status || 400);
     }
   }
 

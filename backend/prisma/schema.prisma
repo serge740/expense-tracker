@@ -27,6 +27,9 @@ model Client {
   email                  String                  @unique
   phone                  String                  @unique
   googleId               String?                 @unique
+  appleId                String?                 @unique
+  facebookId             String?                 @unique
+  passwordHash           String?
   isVerified             Boolean                 @default(false)
   profileImage           String?
   isActive               Boolean                 @default(true)
@@ -35,6 +38,10 @@ model Client {
   faceDescriptor         Json?
   emailOtp               String?
   emailOtpExpiry         DateTime?
+  emailVerifiedAt        DateTime?
+  phoneVerifiedAt        DateTime?
+  phoneOtp               String?
+  phoneOtpExpiry         DateTime?
   refreshTokens          RefreshToken[]
   devices                Device[]
   notifications          Notification[]
@@ -42,6 +49,7 @@ model Client {
   wallets                Wallet[]
   transactions           Transaction[]
   budgets                Budget[]
+  debts                  Debt[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }
@@ -63,6 +71,8 @@ model Device {
   deviceName   String
   platform     String
   pushToken    String?
+  channelId    String?
+  sound        String?
   ipAddress    String?
   lastActiveAt DateTime @default(now())
   createdAt    DateTime @default(now())
@@ -99,6 +109,8 @@ model NotificationPreference {
 enum TransactionType {
   INCOME
   EXPENSE
+  TRANSFER
+  DEBT
 }
 
 enum CategorySlug {
@@ -111,6 +123,22 @@ enum CategorySlug {
   groceries
   salary
   other
+  bills
+  rent
+  utilities
+  education
+  family
+  gifts
+  business
+  investment
+  subscriptions
+  personal_care
+  fuel
+  insurance
+  savings
+  freelance
+  refund
+  loan
 }
 
 enum WalletType {
@@ -118,6 +146,7 @@ enum WalletType {
   SAVINGS
   CREDIT
   CASH
+  MOBILE_MONEY
 }
 
 model Wallet {
@@ -127,7 +156,11 @@ model Wallet {
   name         String
   bank         String
   last4        String?
-  color        String        @default("#2D336B")
+  accountHolder String?
+  accountNumber String?
+  color        String        @default("#0F2F3A")
+  currency     String        @default("RWF")
+  archived     Boolean       @default(false)
   walletType   WalletType    @default(CHECKING)
   balance      Decimal       @default(0) @db.Decimal(12, 2)
   isDefault    Boolean       @default(false)
@@ -151,11 +184,18 @@ model Transaction {
   amount      Decimal         @db.Decimal(12, 2)
   date        DateTime        @default(now())
   receiptUrl  String?
+  // TRANSFER only: money moves from walletId to toWalletId
+  toWalletId   String?
+  toAmount     Decimal?        @db.Decimal(12, 2)
+  exchangeRate Decimal?        @db.Decimal(18, 8)
+  // DEBT only: money borrowed / lent / repaid for this debt
+  debtId       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   @@index([clientId])
   @@index([clientId, date])
+  @@index([debtId])
 }
 
 model Budget {
@@ -170,4 +210,52 @@ model Budget {
 
   @@unique([clientId, month, year])
   @@index([clientId])
+}
+
+// ── Debts & loans ──────────────────────────────────────────────────────────
+
+enum DebtKind {
+  BORROWED // I owe someone
+  LENT     // someone owes me
+}
+
+enum DebtStatus {
+  OPEN
+  SETTLED
+}
+
+model Debt {
+  id        String        @id @default(uuid())
+  clientId  String
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind      DebtKind
+  person    String
+  phone     String?
+  amount    Decimal       @db.Decimal(12, 2)
+  paid      Decimal       @default(0) @db.Decimal(12, 2)
+  currency  String
+  date      DateTime      @default(now())
+  dueDate   DateTime?
+  note      String?
+  walletId  String?
+  status    DebtStatus    @default(OPEN)
+  payments  DebtPayment[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([clientId, status])
+}
+
+model DebtPayment {
+  id            String   @id @default(uuid())
+  debtId        String
+  debt          Debt     @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  amount        Decimal  @db.Decimal(12, 2)
+  date          DateTime @default(now())
+  walletId      String?
+  transactionId String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@index([debtId])
 }

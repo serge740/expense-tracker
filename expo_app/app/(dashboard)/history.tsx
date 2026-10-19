@@ -204,7 +204,7 @@ export default function HistoryScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); load(active, dateFilter, customStart, customEnd, true); }}
+            onRefresh={() => { setRefreshing(true); load(active, dateFilter, customStart, customEnd, searchQuery, true); }}
             tintColor="#fff"
           />
         }

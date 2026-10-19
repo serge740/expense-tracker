@@ -1,21 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionDto } from './dto/query-transaction.dto';
 import { CategorySlug, Prisma, TransactionType } from '../../../generated/prisma';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 @Injectable()
 export class TransactionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async findAll(clientId: string, query: QueryTransactionDto) {
     const { type, category, walletId, month, year, startDate, endDate, page = 1, limit = 20, search } = query;
 
-    const where: Prisma.TransactionWhereInput = { clientId };
-    if (type === 'income')  where.type = 'INCOME';
-    if (type === 'expense') where.type = 'EXPENSE';
+    // Transfers only appear when asked for: older screens treat non-income as spending.
+    const where: Prisma.TransactionWhereInput = { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } };
+    if (type === 'income')   where.type = 'INCOME';
+    if (type === 'expense')  where.type = 'EXPENSE';
+    if (type === 'transfer') where.type = 'TRANSFER';
     if (category)  where.category = category as CategorySlug;
     if (walletId)  where.walletId = walletId;
     if (startDate || endDate) {
@@ -46,9 +52,21 @@ export class TransactionService {
     return { data: data.map(t => this.mapTx(t)), total, page, limit };
   }
 
+  /** Store a receipt image on disk and return its path under /uploads. */
+  async saveReceipt(clientId: string, buffer: Buffer, mimeType: string): Promise<{ receiptUrl: string }> {
+    const { join } = await import('path');
+    const { mkdirSync, writeFileSync } = await import('fs');
+    const ext = mimeType === 'image/png' ? '.png' : mimeType === 'image/webp' ? '.webp' : '.jpg';
+    const filename = `receipt_${clientId.slice(0, 8)}_${Date.now()}${ext}`;
+    const dir = join(process.cwd(), 'uploads', 'receipts');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, filename), buffer);
+    return { receiptUrl: `receipts/${filename}` };
+  }
+
   async findRecent(clientId: string, limit = 3) {
     const txns = await this.prisma.transaction.findMany({
-      where: { clientId },
+      where: { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } },
       orderBy: { date: 'desc' },
       take: limit,
     });
@@ -57,7 +75,7 @@ export class TransactionService {
 
   async history(clientId: string, query: QueryTransactionDto) {
     const { category, month, year, startDate, endDate, search } = query;
-    const where: Prisma.TransactionWhereInput = { clientId };
+    const where: Prisma.TransactionWhereInput = { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } };
 
     if (category) where.category = category as CategorySlug;
     if (startDate || endDate) {
@@ -140,11 +158,48 @@ export class TransactionService {
       return created;
     });
 
+    this.notifyNewTransaction(clientId, tx.type, amount, dto.title, date).catch(() => {});
     return this.mapTx(tx);
+  }
+
+  /** Push for the new transaction, plus a budget alert when it crosses 80% / 100%. */
+  private async notifyNewTransaction(clientId: string, type: TransactionType, amount: number, title: string, date: Date) {
+    const money = amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    this.notifications.notify(
+      clientId,
+      type === 'INCOME' ? 'Money received' : 'New expense',
+      `${type === 'INCOME' ? '+' : '−'}${money} · ${title}`,
+      'transaction',
+    );
+    if (type !== 'EXPENSE') return;
+
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    const budget = await this.prisma.budget.findUnique({ where: { clientId_month_year: { clientId, month, year } } });
+    const limit = budget ? Number(budget.limit) : 0;
+    if (limit <= 0) return;
+
+    const agg = await this.prisma.transaction.aggregate({
+      where: { clientId, type: 'EXPENSE', date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
+      _sum: { amount: true },
+    });
+    const after = Number(agg._sum.amount ?? 0);
+    const before = after - amount;
+    const pct = (v: number) => (v / limit) * 100;
+
+    if (pct(before) < 100 && pct(after) >= 100) {
+      this.notifications.notify(clientId, 'Budget exceeded', `You've spent ${Math.round(pct(after))}% of this month's budget.`, 'transaction');
+    } else if (pct(before) < 80 && pct(after) >= 80) {
+      this.notifications.notify(clientId, 'Budget almost used', `You've used ${Math.round(pct(after))}% of this month's budget.`, 'transaction');
+    }
   }
 
   async update(clientId: string, id: string, dto: Partial<CreateTransactionDto>) {
     const existing = await this.assertOwner(clientId, id);
+    if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
+    if (existing.type === 'TRANSFER' || (dto.type as string) === 'TRANSFER') {
+      throw new BadRequestException('Transfers cannot be edited. Delete it and make a new transfer.');
+    }
     const amount = dto.amount !== undefined ? Math.abs(dto.amount) : undefined;
     const date = dto.date ? new Date(dto.date) : undefined;
 
@@ -190,6 +245,21 @@ export class TransactionService {
 
   async remove(clientId: string, id: string) {
     const existing = await this.assertOwner(clientId, id);
+
+    if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
+    if (existing.type === 'TRANSFER') {
+      // Undo both sides: money goes back to the source, leaves the destination.
+      await this.prisma.$transaction(async (prx) => {
+        await prx.transaction.delete({ where: { id } });
+        if (existing.walletId) {
+          await prx.wallet.updateMany({ where: { id: existing.walletId }, data: { balance: { increment: existing.amount } } });
+        }
+        if (existing.toWalletId) {
+          await prx.wallet.updateMany({ where: { id: existing.toWalletId }, data: { balance: { decrement: existing.toAmount ?? existing.amount } } });
+        }
+      });
+      return { success: true };
+    }
 
     await this.prisma.$transaction(async (prx) => {
       await prx.transaction.delete({ where: { id } });

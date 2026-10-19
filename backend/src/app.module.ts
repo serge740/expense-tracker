@@ -10,6 +10,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { BudgetModule } from './modules/budget/budget.module';
+import { DebtsModule } from './modules/debts/debts.module';
 import { OcrModule } from './modules/ocr/ocr.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { OcrModule } from './modules/ocr/ocr.module';
     TransactionModule,
     ReportsModule,
     BudgetModule,
+    DebtsModule,
     OcrModule,
   ],
   controllers: [AppController],
