@@ -28,11 +28,11 @@ export const Colors = {
 };
 
 export const Dashboard = {
-  primary:       '#2D336B',
-  primaryLight:  '#3D4580',
-  background:    '#1F2550',
-  card:          '#2A2E50',
-  cardBorder:    '#353A60',
+  primary:       '#00627F',
+  primaryLight:  '#1A7896',
+  background:    '#0A4458',
+  card:          '#0F5268',
+  cardBorder:    '#1C6480',
   textPrimary:   '#FFFFFF',
   textSecondary: 'rgba(255,255,255,0.6)',
   textMuted:     'rgba(255,255,255,0.35)',

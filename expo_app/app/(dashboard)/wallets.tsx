@@ -1,219 +1,329 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  ActivityIndicator, Alert, RefreshControl,
+  View, ScrollView, FlatList, TouchableOpacity, StyleSheet, StatusBar, Alert, RefreshControl, useWindowDimensions,
+  NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
-import { getWallets, getWalletSummary, deleteWallet, Wallet } from '@/services/wallet.service';
-import { useCurrency } from '@/context/currency-context';
+import {
+  getWallets, getDailyFlow, getActivity, getBalanceHistory, deleteWallet, updateWallet,
+  Wallet, DailyFlow, ActivityItem,
+} from '@/services/wallet.service';
+import { formatMoney, currencyByCode } from '@/context/currency-context';
+import { usePreferences } from '@/context/preferences-context';
+import { useI18n } from '@/context/language-context';
 import { WalletFormModal } from '@/components/wallet-form-modal';
+import { WalletHeroCard } from '@/components/wallet/wallet-hero-card';
+import { tint } from '@/components/wallet/wallet-card';
+import { FlowChart } from '@/components/wallet/flow-chart';
+import { ActivityRow } from '@/components/wallet/activity-row';
+import { CurrencyPicker } from '@/components/wallet/currency-picker';
+import { CardColorPicker } from '@/components/wallet/card-color-picker';
+import { cardTheme } from '@/constants/card-themes';
+
+const SIDE = 16;
+const GAP = 10;
 
 export default function WalletsScreen() {
   const theme = useAppTheme();
-  const { currency } = useCurrency();
-  const sym = currency.symbol;
+  const { width } = useWindowDimensions();
+  const { prefs, setPref } = usePreferences();
+  const { locale, t } = useI18n();
+  const hidden = prefs.hideBalances;
+  const CARD_W = width - SIDE * 2;
 
-  const [wallets,    setWallets]    = useState<Wallet[]>([]);
-  const [total,      setTotal]      = useState(0);
-  const [loading,    setLoading]    = useState(true);
+  const [wallets, setWallets]       = useState<Wallet[]>([]);
+  const [index, setIndex]           = useState(0);
+  const [flow, setFlow]             = useState<DailyFlow | null>(null);
+  const [activity, setActivity]     = useState<ActivityItem[]>([]);
+  const [dayChange, setDayChange]   = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [showModal,  setShowModal]  = useState(false);
-  const [removing,   setRemoving]   = useState<string | null>(null);
+  const [showForm, setShowForm]     = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [relabel, setRelabel]       = useState<Wallet | null>(null);
+  const [recolor, setRecolor]       = useState<Wallet | null>(null);
+  const [editing, setEditing]       = useState<Wallet | null>(null);
+  const listRef = useRef<FlatList>(null);
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const [list, summary] = await Promise.all([getWallets(), getWalletSummary()]);
-      setWallets(list);
-      setTotal(summary.totalBalance);
-    } catch {
-      // silent — show empty state
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  const loadWallets = useCallback(async () => {
+    try { setWallets(await getWallets()); } catch { /* keep last */ }
+    finally { setRefreshing(false); }
   }, []);
+  useFocusEffect(useCallback(() => { loadWallets(); }, [loadWallets]));
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const visible = useMemo(() => wallets.filter(w => showArchived || !w.archived), [wallets, showArchived]);
+  const onAddCard = index >= visible.length;
+  const selected: Wallet | null = onAddCard ? null : visible[index] ?? null;
 
-  const handleCreated = () => {
-    setShowModal(false);
-    load(true);
+  // Per-wallet panels follow the card in view.
+  const selectedId = selected?.id ?? null;
+  const selectedCurrency = selected?.currency;
+  const balanceKey = selected?.balance;
+  useEffect(() => {
+    if (!selectedId || !selectedCurrency) return;
+    let alive = true;
+    Promise.all([
+      getDailyFlow(selectedCurrency, 7, selectedId),
+      getActivity(6, selectedId),
+      getBalanceHistory(selectedId, 2),
+    ]).then(([fl, act, hist]) => {
+      if (!alive) return;
+      setFlow(fl);
+      setActivity(act);
+      const pts = hist.points;
+      setDayChange(pts.length >= 2 ? pts[pts.length - 1].balance - pts[pts.length - 2].balance : null);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [selectedId, selectedCurrency, balanceKey]);
+
+  // Totals per currency — never summed across currencies.
+  const totals = useMemo(() => {
+    const m = new Map<string, number>();
+    wallets.filter(w => !w.archived).forEach(w => m.set(w.currency, (m.get(w.currency) ?? 0) + w.balance));
+    return [...m.entries()];
+  }, [wallets]);
+
+  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    setIndex(Math.round(e.nativeEvent.contentOffset.x / (CARD_W + GAP)));
+  };
+  const goToIndex = (i: number) => {
+    listRef.current?.scrollToOffset({ offset: i * (CARD_W + GAP), animated: true });
+    setIndex(i);
   };
 
-  const handleDelete = (wallet: Wallet) => {
-    Alert.alert(
-      'Delete Account',
-      `Remove "${wallet.name}"? All transactions linked to this wallet will be unlinked but not deleted.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setRemoving(wallet.id);
-            try {
-              await deleteWallet(wallet.id);
-              setWallets(prev => prev.filter(w => w.id !== wallet.id));
-              setTotal(prev => prev - wallet.balance);
-            } catch (e: any) {
-              Alert.alert('Error', e?.response?.data?.message || 'Could not delete account.');
-            } finally {
-              setRemoving(null);
-            }
-          },
+  const go = (pathname: string, params?: Record<string, string>) => router.push({ pathname: pathname as any, params });
+
+  const confirmDelete = (w: Wallet) => {
+    Alert.alert(t('wallet.delete'), t('wallet.deleteMsg', { name: w.name }), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('wallet.deleteBtn'), style: 'destructive', onPress: async () => {
+          try { await deleteWallet(w.id); goToIndex(0); loadWallets(); }
+          catch (e: any) { Alert.alert(t('common.error'), e?.response?.data?.message || t('wallet.errDelete')); }
         },
-      ],
-    );
+      },
+    ]);
   };
 
-  const fmtBalance = (n: number) => {
-    const neg = n < 0;
-    return `${neg ? '-' : ''}${sym}${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  const walletMenu = (w: Wallet) => {
+    Alert.alert(w.name, `${w.bank} · ${w.currency}`, [
+      { text: t('wallet.edit'), onPress: () => setEditing(w) },
+      ...(!w.isDefault && !w.archived ? [{ text: t('wallet.makeDefault'), onPress: () => updateWallet(w.id, { isDefault: true }).then(loadWallets) }] : []),
+      { text: t('wallet.changeColor'), onPress: () => setRecolor(w) },
+      { text: t('wallet.changeCurrencyLabel'), onPress: () => setRelabel(w) },
+      { text: t(w.archived ? 'wallet.unarchive' : 'wallet.archive'), onPress: () => updateWallet(w.id, { archived: !w.archived }).then(loadWallets) },
+      { text: t('wallet.delete'), style: 'destructive', onPress: () => confirmDelete(w) },
+      { text: t('common.cancel'), style: 'cancel' },
+    ]);
   };
+
+  const applyRelabel = async (code: string) => {
+    const w = relabel;
+    setRelabel(null);
+    if (!w || code === w.currency) return;
+    try { await updateWallet(w.id, { currency: code }); loadWallets(); }
+    catch (e: any) { Alert.alert(t('common.error'), e?.response?.data?.message || t('wallet.errUpdate')); }
+  };
+
+  const accent = selected ? cardTheme(selected.color).accent : theme.primary;
+  const ACTIONS = selected ? [
+    { icon: 'add' as const,               label: t('wallet.addMoney'), onPress: () => go('/(dashboard)/add', { type: 'INCOME', walletId: selected.id }) },
+    { icon: 'remove' as const,            label: t('wallet.spend'),    onPress: () => go('/(dashboard)/add', { type: 'EXPENSE', walletId: selected.id }) },
+    { icon: 'swap-horiz' as const,        label: t('wallet.transfer'), onPress: () => go('/(dashboard)/transfer', { mode: 'transfer', from: selected.id }) },
+    { icon: 'currency-exchange' as const, label: t('wallet.exchange'), onPress: () => go('/(dashboard)/transfer', { mode: 'exchange', from: selected.id }) },
+  ] : [];
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-
-      <WalletFormModal
-        visible={showModal}
-        onClose={() => setShowModal(false)}
-        onCreated={handleCreated}
+      <WalletFormModal visible={showForm || !!editing} wallet={editing} onClose={() => { setShowForm(false); setEditing(null); }}
+                       onCreated={() => { setShowForm(false); setEditing(null); loadWallets(); }} />
+      <CurrencyPicker
+        visible={!!relabel}
+        value={relabel?.currency}
+        title={t('wallet.currencyOf', { name: relabel?.name ?? '' })}
+        note={t('wallet.relabelNote')}
+        onSelect={c => applyRelabel(c.code)}
+        onClose={() => setRelabel(null)}
+      />
+      <CardColorPicker
+        visible={!!recolor}
+        value={recolor?.color}
+        walletName={recolor?.name}
+        onSelect={id => { const w = recolor; setRecolor(null); if (w) updateWallet(w.id, { color: id }).then(loadWallets).catch(() => {}); }}
+        onClose={() => setRecolor(null)}
       />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); load(true); }}
-            tintColor={theme.primary}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadWallets(); }} tintColor={theme.primary} />}
       >
-
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Wallets</Text>
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.primary }]}
-            activeOpacity={0.8}
-            onPress={() => setShowModal(true)}
-          >
-            <MaterialIcons name="add" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Total */}
-        <View style={[styles.totalCard, { backgroundColor: theme.primary }]}>
-          <View style={styles.totalDecor} />
-          <Text style={styles.totalLabel}>TOTAL BALANCE</Text>
-          {loading ? (
-            <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
-          ) : (
-            <Text style={styles.totalAmount}>
-              {fmtBalance(total).replace(/(\.\d{2})$/, '')}
-              <Text style={{ fontSize: 22 }}>{`.${Math.abs(total).toFixed(2).split('.')[1]}`}</Text>
-            </Text>
-          )}
-          <Text style={styles.totalSub}>Across {wallets.length} account{wallets.length !== 1 ? 's' : ''}</Text>
-        </View>
-
-        {/* Wallet cards */}
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>My Accounts</Text>
-
-        {loading ? (
-          <ActivityIndicator color={theme.primary} style={{ marginTop: 20 }} />
-        ) : wallets.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.surface }]}>
-            <MaterialIcons name="account-balance-wallet" size={32} color={theme.textMuted} />
-            <Text style={[styles.emptyText, { color: theme.textMuted }]}>No accounts yet. Add one below.</Text>
+        {/* Header */}
+        <View style={s.header}>
+          <View>
+            <Text style={[s.title, { color: theme.text }]}>{t('wallet.title')}</Text>
+            <Text style={[s.subtitle, { color: theme.textMuted }]}>{t('wallet.subtitle')}</Text>
           </View>
-        ) : (
-          wallets.map(w => (
-            <TouchableOpacity
-              key={w.id}
-              style={[styles.walletCard, { backgroundColor: theme.surface }]}
-              activeOpacity={0.8}
-              onPress={() => router.push(`/(dashboard)/wallet-detail?walletId=${w.id}&walletName=${encodeURIComponent(w.name)}&walletBank=${encodeURIComponent(w.bank)}&walletBalance=${w.balance}&walletColor=${encodeURIComponent(w.color)}`)}
-              onLongPress={() => handleDelete(w)}
-              disabled={removing === w.id}
-            >
-              <View style={[styles.walletIcon, { backgroundColor: w.color }]}>
-                {removing === w.id ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <MaterialIcons name="account-balance-wallet" size={22} color="#FFFFFF" />
-                )}
-              </View>
-              <View style={styles.walletInfo}>
-                <Text style={[styles.walletName, { color: theme.text }]}>{w.name}</Text>
-                <Text style={[styles.walletBank, { color: theme.textSecondary }]}>
-                  {w.bank}{w.last4 ? ` ···${w.last4}` : ''}
-                  {w.isDefault ? '  ·  Default' : ''}
-                </Text>
-              </View>
-              <View style={styles.walletRight}>
-                <Text style={[styles.walletBalance, { color: w.balance < 0 ? theme.expense : theme.text }]}>
-                  {fmtBalance(w.balance)}
-                </Text>
-                <MaterialIcons name="chevron-right" size={18} color={theme.textMuted} />
-              </View>
+          <View style={s.headerActions}>
+            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                              onPress={() => go('/(dashboard)/transfer', { mode: 'exchange' })} activeOpacity={0.8}>
+              <MaterialIcons name="currency-exchange" size={17} color={theme.text} />
             </TouchableOpacity>
-          ))
+            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
+                              onPress={() => setShowForm(true)} activeOpacity={0.85}>
+              <MaterialIcons name="add" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Per-currency totals (never mixed into one number) */}
+        {totals.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.totals}>
+            {totals.map(([code, sum]) => (
+              <View key={code} style={[s.totalChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Text style={s.totalFlag}>{currencyByCode(code).flag}</Text>
+                <Text style={[s.totalText, { color: theme.text }]}>{formatMoney(sum, code, { hidden })}</Text>
+              </View>
+            ))}
+            {wallets.some(w => w.archived) && (
+              <TouchableOpacity onPress={() => { setShowArchived(v => !v); goToIndex(0); }}
+                                style={[s.totalChip, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <MaterialIcons name="inventory-2" size={13} color={theme.textMuted} />
+                <Text style={[s.totalText, { color: theme.textMuted }]}>{t(showArchived ? 'wallet.hideArchived' : 'wallet.archived')}</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         )}
 
-        <TouchableOpacity
-          style={[styles.addWalletRow, { borderColor: theme.border }]}
-          activeOpacity={0.7}
-          onPress={() => setShowModal(true)}
-        >
-          <MaterialIcons name="add-circle-outline" size={20} color={theme.primary} />
-          <Text style={[styles.addWalletText, { color: theme.primary }]}>Add New Account</Text>
-        </TouchableOpacity>
+        {/* Wallet carousel */}
+        <FlatList
+          ref={listRef}
+          data={[...visible, null]}
+          keyExtractor={(w, i) => w?.id ?? `add-${i}`}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_W + GAP}
+          decelerationRate="fast"
+          contentContainerStyle={{ paddingHorizontal: SIDE }}
+          ItemSeparatorComponent={() => <View style={{ width: GAP }} />}
+          onMomentumScrollEnd={onScrollEnd}
+          renderItem={({ item }) => item ? (
+            <TouchableOpacity activeOpacity={0.93} onLongPress={() => walletMenu(item)}
+                              onPress={() => go('/(dashboard)/wallet-detail', { walletId: item.id })} style={{ width: CARD_W }}>
+              <WalletHeroCard wallet={item} hidden={hidden} onToggleHidden={() => setPref('hideBalances', !hidden)}
+                              dayChange={item.id === selected?.id ? dayChange : undefined} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={() => setShowForm(true)} activeOpacity={0.85}
+                              style={[s.addCard, { width: CARD_W, borderColor: theme.border, backgroundColor: theme.surface }]}>
+              <View style={[s.addIcon, { backgroundColor: theme.primaryBg }]}>
+                <MaterialIcons name="add" size={26} color={theme.primary} />
+              </View>
+              <Text style={[s.addTitle, { color: theme.text }]}>{t('wallet.addWallet')}</Text>
+              <Text style={[s.addSub, { color: theme.textMuted }]}>{t('wallet.addWalletSub')}</Text>
+            </TouchableOpacity>
+          )}
+        />
 
-        <Text style={[styles.hint, { color: theme.textMuted }]}>
-          Long-press an account to delete it
-        </Text>
+        {/* Dots */}
+        <View style={s.dots}>
+          {[...visible, null].map((w, i) => (
+            <TouchableOpacity key={w?.id ?? 'add'} onPress={() => goToIndex(i)} hitSlop={6}>
+              <View style={[s.dot, i === index
+                ? { width: 18, backgroundColor: w ? cardTheme(w.color).accent : theme.primary }
+                : { backgroundColor: theme.border }]} />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {selected ? (
+          <View style={{ paddingHorizontal: SIDE }}>
+            {/* Actions for the wallet in view */}
+            <View style={s.actions}>
+              {ACTIONS.map(a => (
+                <TouchableOpacity key={a.label} style={s.action} onPress={a.onPress} activeOpacity={0.8}>
+                  <View style={[s.actionIcon, {
+                    backgroundColor: theme.isDark ? theme.surface : tint(accent, 0.88),
+                    borderColor: theme.isDark ? theme.border : 'transparent',
+                  }]}>
+                    <MaterialIcons name={a.icon} size={20} color={theme.isDark ? '#FFFFFF' : accent} />
+                  </View>
+                  <Text style={[s.actionLabel, { color: theme.textSecondary }]}>{a.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={s.sectionHead}>
+              <Text style={[s.sectionTitle, { color: theme.text }]} numberOfLines={1}>{t('wallet.statistics', { name: selected.name })}</Text>
+            </View>
+            <FlowChart flow={flow} hidden={hidden} locale={locale} />
+
+            <View style={s.sectionHead}>
+              <Text style={[s.sectionTitle, { color: theme.text }]}>{t('wallet.recentActivity')}</Text>
+              <TouchableOpacity onPress={() => go('/(dashboard)/wallet-detail', { walletId: selected.id })} hitSlop={6}>
+                <Text style={[s.link, { color: theme.primary }]}>{t('wallet.viewWallet')}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[s.listCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              {activity.length === 0 ? (
+                <View style={s.empty}>
+                  <MaterialIcons name="receipt-long" size={26} color={theme.textMuted} />
+                  <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('wallet.noActivityIn', { name: selected.name })}</Text>
+                </View>
+              ) : (
+                activity.map(item => <ActivityRow key={item.id} item={item} hidden={hidden} perspectiveWalletId={selected.id} />)
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={[s.emptyBlock, { paddingHorizontal: SIDE }]}>
+            <Text style={[s.emptyText, { color: theme.textMuted }]}>
+              {t(visible.length ? 'wallet.swipeBack' : 'wallet.createFirst')}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea:      { flex: 1 },
-  scrollContent: { paddingBottom: 32 },
+const s = StyleSheet.create({
+  safe: { flex: 1 },
 
-  header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 24, fontWeight: '800' },
-  addButton:   { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SIDE, paddingTop: 8, paddingBottom: 10 },
+  title:         { fontSize: 20, fontWeight: '700' },
+  subtitle:      { fontSize: 11, marginTop: 1 },
+  headerActions: { flexDirection: 'row', gap: 8 },
+  iconBtn:       { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 
-  totalCard:   { marginHorizontal: 20, borderRadius: 22, padding: 22, overflow: 'hidden', marginBottom: 24 },
-  totalDecor:  { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.06)', top: -50, right: -30 },
-  totalLabel:  { fontSize: 11, color: 'rgba(255,255,255,0.65)', letterSpacing: 1, fontWeight: '600', marginBottom: 8 },
-  totalAmount: { fontSize: 40, fontWeight: '800', color: '#FFFFFF', marginBottom: 6 },
-  totalSub:    { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
+  totals:    { gap: 6, paddingHorizontal: SIDE, paddingBottom: 12 },
+  totalChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
+  totalFlag: { fontSize: 13 },
+  totalText: { fontSize: 11, fontWeight: '700' },
 
-  sectionTitle: { fontSize: 17, fontWeight: '700', paddingHorizontal: 20, marginBottom: 12 },
+  addCard:  { height: 196, borderRadius: 26, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  addIcon:  { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  addTitle: { fontSize: 14, fontWeight: '700' },
+  addSub:   { fontSize: 11 },
 
-  walletCard:    { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 10, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  walletIcon:    { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  walletInfo:    { flex: 1 },
-  walletName:    { fontSize: 15, fontWeight: '600', marginBottom: 3 },
-  walletBank:    { fontSize: 12 },
-  walletRight:   { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  walletBalance: { fontSize: 15, fontWeight: '700' },
+  dots: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 12 },
+  dot:  { width: 6, height: 6, borderRadius: 3 },
 
-  addWalletRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginTop: 4, borderRadius: 14, paddingVertical: 14, gap: 8, borderWidth: 1.5, borderStyle: 'dashed' },
-  addWalletText: { fontSize: 14, fontWeight: '600' },
+  actions:     { flexDirection: 'row', justifyContent: 'space-between', marginTop: 18, paddingHorizontal: 4 },
+  action:      { alignItems: 'center', width: 72 },
+  actionIcon:  { width: 50, height: 50, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { fontSize: 11, fontWeight: '500', marginTop: 6 },
 
-  emptyCard: { marginHorizontal: 20, borderRadius: 16, padding: 28, alignItems: 'center', gap: 8, marginBottom: 12 },
-  emptyText: { fontSize: 14, textAlign: 'center' },
+  sectionHead:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 22, marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', flexShrink: 1 },
+  link:         { fontSize: 12, fontWeight: '600' },
 
-  hint: { fontSize: 12, textAlign: 'center', marginTop: 8, marginBottom: 4 },
+  listCard:   { borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 4 },
+  empty:      { alignItems: 'center', paddingVertical: 22, gap: 6 },
+  emptyBlock: { alignItems: 'center', paddingVertical: 30 },
+  emptyText:  { fontSize: 12, textAlign: 'center', maxWidth: 260 },
 });

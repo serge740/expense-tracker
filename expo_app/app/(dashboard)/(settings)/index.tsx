@@ -9,7 +9,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { logout, getMe, ClientProfile } from '@/services/client-auth.service';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { GoogleSignin } from '@/services/google-signin';
 import { registerDevice } from '@/services/device.service';
 import ENV from '@/env';
 import { FadeInView } from '@/components/fade-in-view';
@@ -66,8 +66,8 @@ export default function ProfileScreen() {
     { icon: 'document-scanner', label: 'Scan Receipt',      sub: 'Auto-log from photo',         color: '#7B7FD4', bg: 'rgba(123,127,212,0.12)', onPress: () => router.push('/(dashboard)/scan') },
     { icon: 'credit-card',      label: 'Payment Methods',   sub: 'Visa ··4821, Amex ··0092',    color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/devices') },
     { icon: 'notifications',    label: 'Notifications',     sub: 'Budget alerts on',             color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/notifications') },
-    { icon: 'fingerprint',      label: 'Security',          sub: 'Biometric enabled',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/profile') },
-    { icon: 'person-outline',   label: 'Account Details',   sub: 'Edit your information',        color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/profile') },
+    { icon: 'fingerprint',      label: 'Security',          sub: 'Biometric enabled',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/edit-profile') },
+    { icon: 'person-outline',   label: 'Account Details',   sub: 'Edit your information',        color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/edit-profile') },
     { icon: 'attach-money',     label: 'Currency',          sub: currencyLabel,                  color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/currency') },
     { icon: 'dark-mode',        label: 'Appearance',        sub: themeLabel,                     color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', onPress: () => router.push('/(dashboard)/(settings)/appearance') },
     { icon: 'help-outline',     label: 'Help & FAQ',        sub: 'Support & guides',             color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/help') },
@@ -78,7 +78,7 @@ export default function ProfileScreen() {
   const handleSignOut = async () => {
     try { await GoogleSignin.signOut(); } catch {}
     await logout();
-    router.replace('/(auth)');
+    router.replace('/(auth)/login');
   };
 
   return (
@@ -100,7 +100,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={[s.editBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
                 activeOpacity={0.75}
-                onPress={() => router.push('/(dashboard)/(settings)/profile')}
+                onPress={() => router.push('/(dashboard)/(settings)/edit-profile')}
               >
                 <MaterialIcons name="edit" size={16} color="#FFFFFF" />
                 <Text style={s.editText}>Edit</Text>
@@ -194,7 +194,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </FadeInView>
 
-        <Text style={[s.version, { color: theme.textMuted }]}>ABY Expense v1.0.0</Text>
+        <Text style={[s.version, { color: theme.textMuted }]}>Rabbit Tracker v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );

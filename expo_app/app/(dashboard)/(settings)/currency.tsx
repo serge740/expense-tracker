@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, FlatList, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -9,6 +9,7 @@ import { CURRENCIES, Currency, useCurrency } from '@/context/currency-context';
 import { FadeInView } from '@/components/fade-in-view';
 
 export default function CurrencyScreen() {
+  const goBack = useSettingsBack();
   const theme = useAppTheme();
   const { currency, setCurrency } = useCurrency();
   const [search, setSearch] = useState('');
@@ -20,7 +21,7 @@ export default function CurrencyScreen() {
 
   const handleSelect = (c: Currency) => {
     setCurrency(c);
-    setTimeout(() => router.back(), 200);
+    setTimeout(() => goBack(), 200);
   };
 
   return (
@@ -29,7 +30,7 @@ export default function CurrencyScreen() {
 
       <FadeInView delay={0} slideFrom="top" distance={12}>
         <View style={[s.header, { borderBottomColor: theme.border }]}>
-          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => router.back()} activeOpacity={0.7}>
+          <TouchableOpacity style={[s.backBtn, { backgroundColor: theme.surface }]} onPress={() => goBack()} activeOpacity={0.7}>
             <MaterialIcons name="arrow-back" size={20} color={theme.text} />
           </TouchableOpacity>
           <Text style={[s.title, { color: theme.text }]}>Currency</Text>

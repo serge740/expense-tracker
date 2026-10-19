@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
 export type DeviceInfo = {
   id: string;
@@ -13,21 +14,30 @@ export type DeviceInfo = {
   createdAt: string;
 };
 
-export async function registerDevice(): Promise<void> {
+/**
+ * Registers this device with the server. Asks for notification permission
+ * (once) and sends the Expo push token plus the Android channel / iOS sound
+ * the server should use, so pushes ring even when the app is closed.
+ */
+export async function registerDevice(push?: { channelId?: string; sound?: string }): Promise<void> {
   try {
     const deviceName = Device.deviceName || Device.modelName || 'Unknown Device';
     const platform   = Platform.OS;
 
     let pushToken: string | undefined;
     try {
-      const { status } = await Notifications.getPermissionsAsync();
-      if (status === 'granted') {
-        const tokenData = await Notifications.getExpoPushTokenAsync();
+      let { status, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted' && canAskAgain) {
+        ({ status } = await Notifications.requestPermissionsAsync());
+      }
+      if (status === 'granted' && Device.isDevice) {
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+        const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
         pushToken = tokenData.data;
       }
-    } catch { /* push token is optional */ }
+    } catch { /* push token is optional (e.g. Expo Go on Android) */ }
 
-    await api.post('/devices/register', { deviceName, platform, pushToken });
+    await api.post('/devices/register', { deviceName, platform, pushToken, ...push });
   } catch { /* device registration is best-effort */ }
 }
 

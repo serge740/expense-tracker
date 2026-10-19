@@ -1,280 +1,313 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-  View, TouchableOpacity, StyleSheet, StatusBar, ScrollView,
-  Image, ActivityIndicator,
+  View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle } from 'react-native-svg';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { logout, getMe, ClientProfile } from '@/services/client-auth.service';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { registerDevice } from '@/services/device.service';
+import { GoogleSignin } from '@/services/google-signin';
 import { getTransactions } from '@/services/transaction.service';
-import { getReportSummary } from '@/services/reports.service';
 import { getWalletSummary } from '@/services/wallet.service';
+import { getNotifications } from '@/services/notification.service';
 import ENV from '@/env';
 import { FadeInView } from '@/components/fade-in-view';
 import { useThemePreference } from '@/context/theme-context';
 import { useCurrency } from '@/context/currency-context';
+import { usePreferences } from '@/context/preferences-context';
+import { useI18n } from '@/context/language-context';
+import { LANGUAGES } from '@/i18n/strings';
+import { Section, Row, toneColors } from '@/components/settings/ui';
 
-type ActionItem = {
-  icon: React.ComponentProps<typeof MaterialIcons>['name'];
-  label: string;
-  sub: string;
-  color: string;
-  bg: string;
-  onPress?: () => void;
-};
+const AVATAR = 66;
+const RING = 4;
+
+const isPlaceholderPhone = (p?: string) => !p || /^(google|apple|facebook)_/.test(p);
+
 
 export default function ProfileScreen() {
   const theme = useAppTheme();
   const { preference } = useThemePreference();
   const { currency } = useCurrency();
-  const sym = currency.symbol;
+  const { prefs, formatTime } = usePreferences();
+  const { t, language, formatDate } = useI18n();
 
-  const [profile,        setProfile]        = useState<ClientProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [txCount,        setTxCount]        = useState<number | null>(null);
-  const [netSaved,       setNetSaved]       = useState<number | null>(null);
-  const [walletCount,    setWalletCount]    = useState<number | null>(null);
-
-  const now   = new Date();
-  const month = now.getMonth() + 1;
-  const year  = now.getFullYear();
+  const [profile, setProfile]       = useState<ClientProfile | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [txCount, setTxCount]       = useState<number | null>(null);
+  const [walletCount, setWalletCount] = useState<number | null>(null);
+  const [unread, setUnread]         = useState(0);
 
   const load = useCallback(async () => {
     try {
-      const [p, txResp, summary, walletSum] = await Promise.all([
+      const [p, tx, wallets] = await Promise.all([
         getMe(),
         getTransactions({ limit: 1 }),
-        getReportSummary({ month, year }),
         getWalletSummary(),
       ]);
       setProfile(p);
-      setTxCount(txResp.total);
-      setNetSaved(summary.net);
-      setWalletCount(walletSum.walletCount);
-    } catch { /* handled */ }
-    finally { setLoadingProfile(false); }
-  }, [month, year]);
+      setTxCount(tx.total);
+      setWalletCount(wallets.walletCount);
+    } catch { /* handled by api interceptor */ }
+    try { setUnread((await getNotifications(1, 1)).unreadCount); } catch { /* optional */ }
+    setLoading(false);
+    setRefreshing(false);
+  }, []);
 
-  useEffect(() => {
-    load();
-    registerDevice();
-  }, [load]);
+  // Reload whenever the tab gains focus (e.g. after verifying or editing).
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const themeLabel    = preference === 'system' ? 'System default' : preference === 'dark' ? 'Dark mode' : 'Light mode';
-  const currencyLabel = `${currency.flag} ${currency.code} (${currency.symbol})`;
-
-  const fullName = profile
-    ? `${profile.firstName}${profile.lastName ? ' ' + profile.lastName : ''}`
-    : 'Loading...';
-
-  const email = profile?.email ?? '—';
-
-  const initials = profile
-    ? `${profile.firstName[0]}${profile.lastName?.[0] ?? ''}`.toUpperCase()
-    : '?';
-
+  // ── Derived values ─────────────────────────────────────────────────────
+  const fullName = profile ? `${profile.firstName}${profile.lastName ? ' ' + profile.lastName : ''}` : '';
+  const initials = profile ? `${profile.firstName[0] ?? ''}${profile.lastName?.[0] ?? ''}`.toUpperCase() : '';
   const avatarUri = profile?.profileImage
-    ? (profile.profileImage.startsWith('http')
-        ? profile.profileImage
-        : `${ENV.UPLOADS_URL}/${profile.profileImage}`)
+    ? (profile.profileImage.startsWith('http') ? profile.profileImage : `${ENV.UPLOADS_URL}/${profile.profileImage}`)
     : null;
+  // Verified only after the user entered a code we sent (not the legacy isVerified flag).
+  const emailVerified = !!profile?.emailVerifiedAt;
+  const phoneVerified = !!profile?.phoneVerifiedAt;
+  const verified = emailVerified && phoneVerified;
+  const verifiedCount = Number(emailVerified) + Number(phoneVerified);
+  const hasPhone = !isPlaceholderPhone(profile?.phone);
 
-  // Format net savings: show + prefix if positive
-  const savedLabel = netSaved === null
-    ? '—'
-    : `${netSaved >= 0 ? '+' : '-'}${sym}${Math.abs(Math.round(netSaved)).toLocaleString()}`;
-
-  const ACTIONS: ActionItem[] = [
-    { icon: 'document-scanner', label: 'Scan Receipt',      sub: 'Auto-log from photo',         color: '#7B7FD4', bg: 'rgba(123,127,212,0.12)', onPress: () => router.push('/(dashboard)/scan') },
-    { icon: 'devices',           label: 'Device Management', sub: 'Manage linked devices',        color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/devices') },
-    { icon: 'notifications',    label: 'Notifications',     sub: 'Budget alerts on',             color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/notifications') },
-    { icon: 'fingerprint',      label: 'Security',          sub: 'Biometric enabled',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/profile') },
-    { icon: 'person-outline',   label: 'Account Details',   sub: 'Edit your information',        color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/profile') },
-    { icon: 'attach-money',     label: 'Currency',          sub: currencyLabel,                  color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/currency') },
-    { icon: 'dark-mode',        label: 'Appearance',        sub: themeLabel,                     color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', onPress: () => router.push('/(dashboard)/(settings)/appearance') },
-    { icon: 'help-outline',     label: 'Help & FAQ',        sub: 'Support & guides',             color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/help') },
-    { icon: 'privacy-tip',      label: 'Privacy Policy',    sub: 'Your data & rights',           color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/privacy') },
-    { icon: 'info-outline',     label: 'About App',         sub: 'Version 1.0.0',                color: '#94A3B8', bg: 'rgba(148,163,184,0.12)', onPress: () => router.push('/(dashboard)/(settings)/about') },
+  const checklist = [
+    { done: !!profile, label: t('step.createAccount') },
+    { done: emailVerified, label: t('step.verifyEmail'), verify: true },
+    { done: hasPhone, label: t('step.addPhone') },
+    { done: phoneVerified, label: t('step.verifyPhone'), verify: true },
+    { done: !!profile?.profileImage, label: t('step.addPhoto') },
   ];
+  const completion = Math.round((checklist.filter(c => c.done).length / checklist.length) * 100);
+  const nextStep = checklist.find(c => !c.done);
+
+  const memberSince = profile ? formatDate(profile.createdAt, { month: 'short', year: 'numeric' }) : '';
+  const themeLabel = t(preference === 'system' ? 'theme.system' : preference === 'dark' ? 'theme.dark' : 'theme.light');
+  const languageLabel = LANGUAGES.find(l => l.code === language);
+
 
   const handleSignOut = async () => {
     try { await GoogleSignin.signOut(); } catch {}
     await logout();
-    router.replace('/(auth)');
+    router.replace('/(auth)/login');
   };
 
-  const STATS = [
-    { label: 'SAVED',        value: loadingProfile ? null : savedLabel },
-    { label: 'TRANSACTIONS', value: txCount === null ? null : String(txCount) },
-    { label: 'WALLETS',      value: walletCount === null ? null : String(walletCount) },
-  ];
+  const go = (path: string) => () => router.push(path as any);
+
+  const gradient = theme.isDark ? ['#0B4A5E', '#071C24'] as const : ['#00627F', '#0A8AAB'] as const;
+
+  // ── Avatar progress ring ───────────────────────────────────────────────
+  const size = AVATAR + RING * 2 + 8;
+  const r = (size - RING) / 2;
+  const circumference = 2 * Math.PI * r;
 
   return (
-    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.headerBg }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
+    <View style={[s.root, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle="light-content" backgroundColor={gradient[0]} />
       <ScrollView
-        contentContainerStyle={[s.scroll, { backgroundColor: theme.background }]}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 110 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#fff" />}
       >
-
-        {/* ── Header (deep koamaru) ── */}
-        <View style={[s.header, { backgroundColor: theme.headerBg }]}>
+        {/* ── Header ── */}
+        <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
           <View style={s.decA} />
           <View style={s.decB} />
-
-          <FadeInView delay={0} slideFrom="top" distance={14}>
+          <SafeAreaView edges={['top']}>
             <View style={s.topBar}>
-              <Text style={s.screenTitle}>Profile</Text>
-              <TouchableOpacity
-                style={[s.editBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
-                activeOpacity={0.75}
-                onPress={() => router.push('/(dashboard)/(settings)/profile')}
-              >
-                <MaterialIcons name="edit" size={16} color="#FFFFFF" />
-                <Text style={s.editText}>Edit</Text>
+              <Text style={s.screenTitle}>{t('profile.title')}</Text>
+              <TouchableOpacity style={s.bell} onPress={go('/(dashboard)/(settings)/notifications')} activeOpacity={0.75}>
+                <MaterialIcons name="notifications-none" size={20} color="#FFFFFF" />
+                {unread > 0 && <View style={s.bellDot} />}
               </TouchableOpacity>
             </View>
-          </FadeInView>
 
-          {/* Avatar + name + email */}
-          <FadeInView delay={60} slideFrom="bottom" distance={20}>
-            <View style={s.avatarSection}>
-              <View style={[s.avatarRing, { borderColor: 'rgba(255,255,255,0.25)' }]}>
-                {loadingProfile ? (
-                  <View style={[s.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                    <ActivityIndicator color="#fff" size="small" />
-                  </View>
-                ) : avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={s.avatarImg} />
-                ) : (
-                  <View style={[s.avatarCircle, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
-                    <Text style={s.avatarInitials}>{initials}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={s.profileName}>{fullName}</Text>
-              <Text style={s.profileEmail}>{email}</Text>
-              <View style={s.badgeRow}>
-                <View style={s.planBadge}>
-                  <Text style={s.planText}>Pro Plan</Text>
-                </View>
-                <View style={s.activeBadge}>
-                  <View style={s.activeDot} />
-                  <Text style={s.activeText}>Active</Text>
-                </View>
-              </View>
-            </View>
-          </FadeInView>
-
-          {/* Stats strip — real data */}
-          <FadeInView delay={110} slideFrom="bottom" distance={16}>
-            <View style={s.statsRow}>
-              {STATS.map((stat, i) => (
-                <View key={stat.label} style={[
-                  s.statCard,
-                  { backgroundColor: 'rgba(255,255,255,0.1)' },
-                  i === 1 && s.statCardCenter,
-                ]}>
-                  {stat.value === null ? (
-                    <ActivityIndicator color="#fff" size="small" style={{ marginBottom: 4 }} />
+            <FadeInView delay={40} slideFrom="bottom" distance={16}>
+              <View style={s.identity}>
+                <TouchableOpacity
+                  onPress={go('/(dashboard)/(settings)/edit-profile')}
+                  activeOpacity={0.8}
+                  style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+                    <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.18)" strokeWidth={RING} fill="none" />
+                    <Circle
+                      cx={size / 2} cy={size / 2} r={r}
+                      stroke="#FFFFFF" strokeWidth={RING} fill="none" strokeLinecap="round"
+                      strokeDasharray={`${circumference} ${circumference}`}
+                      strokeDashoffset={circumference * (1 - completion / 100)}
+                      transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                    />
+                  </Svg>
+                  {loading && !profile ? (
+                    <View style={s.avatar}><ActivityIndicator color="#fff" /></View>
+                  ) : avatarUri ? (
+                    <Image source={{ uri: avatarUri }} style={s.avatar} />
                   ) : (
-                    <Text style={s.statVal}>{stat.value}</Text>
+                    <View style={s.avatar}><Text style={s.initials}>{initials}</Text></View>
                   )}
-                  <Text style={s.statLabel}>{stat.label}</Text>
+                  <View style={[s.pctPill, { backgroundColor: theme.isDark ? '#0E2A33' : '#FFFFFF' }]}>
+                    <Text style={[s.pctText, { color: theme.primary }]}>{completion}%</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={s.identityText}>
+                  <View style={s.nameRow}>
+                    <Text style={s.name} numberOfLines={1}>{fullName || ' '}</Text>
+                    {verified && <MaterialIcons name="verified" size={15} color="#7DD3FC" style={{ marginLeft: 4 }} />}
+                  </View>
+                  <Text style={s.email} numberOfLines={1}>{profile?.email ?? ''}</Text>
+                  {memberSince ? <Text style={s.since}>{t('profile.memberSince', { date: memberSince })}</Text> : null}
                 </View>
-              ))}
-            </View>
+              </View>
+            </FadeInView>
+          </SafeAreaView>
+        </LinearGradient>
+
+        <View style={s.body}>
+
+          {/* ── Completion ── */}
+          {profile && (
+            <FadeInView delay={90} slideFrom="bottom" distance={14}>
+              <TouchableOpacity
+                style={[s.progressCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                onPress={go(nextStep?.verify ? '/(dashboard)/(settings)/verify' : '/(dashboard)/(settings)/edit-profile')}
+                activeOpacity={0.85}
+              >
+                <View style={s.progressHead}>
+                  <Text style={[s.progressTitle, { color: theme.text }]}>
+                    {completion === 100 ? t('profile.complete') : t('profile.percent', { pct: completion })}
+                  </Text>
+                  {nextStep
+                    ? <Text style={[s.progressNext, { color: theme.primary }]}>{nextStep.label} ›</Text>
+                    : <MaterialIcons name="check-circle" size={16} color={toneColors('ok', theme).fg} />}
+                </View>
+                <View style={[s.track, { backgroundColor: theme.primaryBg }]}>
+                  <LinearGradient colors={['#00627F', '#22C3A6']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[s.fill, { width: `${completion}%` }]} />
+                </View>
+              </TouchableOpacity>
+            </FadeInView>
+          )}
+
+          {/* ── Verify banner ── */}
+          {profile && !verified && (
+            <FadeInView delay={130} slideFrom="bottom" distance={14}>
+              <TouchableOpacity
+                style={[s.banner, { backgroundColor: toneColors('warn', theme).bg, borderColor: theme.isDark ? 'rgba(251,191,36,0.3)' : '#FCD34D' }]}
+                onPress={go('/(dashboard)/(settings)/verify')}
+                activeOpacity={0.85}
+              >
+                <View style={s.bannerIcon}><Text style={s.bannerBang}>!</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.bannerTitle, { color: theme.text }]}>
+                    {!emailVerified && !phoneVerified ? t('banner.verifyBoth') : !emailVerified ? t('step.verifyEmail') : t('step.verifyPhone')}
+                  </Text>
+                  <Text style={[s.bannerSub, { color: theme.textSecondary }]}>{t('banner.sub', { done: verifiedCount })}</Text>
+                </View>
+                <MaterialIcons name="chevron-right" size={18} color={theme.textMuted} />
+              </TouchableOpacity>
+            </FadeInView>
+          )}
+
+          <FadeInView delay={200} slideFrom="bottom" distance={14}>
+            <Section title={t('section.account')}>
+              <Row icon="person-outline" title={t('row.personalInfo')} sub={t('row.personalInfoSub')} onPress={go('/(dashboard)/(settings)/edit-profile')} />
+              <Row icon="verified-user" title={t('row.verification')}
+                   sub={t('row.verificationSub', { e: emailVerified ? '✓' : '✗', p: phoneVerified ? '✓' : '✗' })}
+                   badge={verified ? { label: t('badge.verified'), tone: 'ok' } : { label: t('badge.actionNeeded', { done: verifiedCount }), tone: 'warn' }}
+                   onPress={go('/(dashboard)/(settings)/verify')} />
+              <Row icon="lock-outline" title={t('row.security')} sub={t('row.securitySub')} onPress={go('/(dashboard)/(settings)/security')} />
+            </Section>
+
+            <Section title={t('section.money')}>
+              <Row icon="account-balance-wallet" title={t('row.wallets')}
+                   sub={t('row.walletsSub', { w: walletCount ?? 0, t: txCount ?? 0 })} onPress={go('/(dashboard)/wallets')} />
+              <Row icon="handshake" title={t('debts.title')} sub={t('debts.manageSub')} onPress={go('/(dashboard)/debts')} />
+              <Row icon="payments" title={t('row.currency')} value={`${currency.flag} ${currency.code}`} onPress={go('/(dashboard)/(settings)/currency')} />
+            </Section>
+
+            <Section title={t('section.app')}>
+              <Row icon="notifications-none" title={t('row.notifications')}
+                   sub={prefs.quietHours ? t('row.quiet', { from: formatTime(prefs.quietStart), to: formatTime(prefs.quietEnd) }) : t('row.notificationsSub')}
+                   badge={unread > 0 ? { label: t('badge.new', { n: unread }), tone: 'info' } : undefined}
+                   onPress={go('/(dashboard)/(settings)/notification-settings')} />
+              <Row icon="palette" title={t('row.appearance')} value={themeLabel} onPress={go('/(dashboard)/(settings)/appearance')} />
+              <Row icon="translate" title={t('row.language')}
+                   value={languageLabel ? `${languageLabel.flag} ${languageLabel.native}` : ''}
+                   onPress={go('/(dashboard)/(settings)/appearance')} />
+              <Row icon="devices" title={t('row.devices')} sub={t('row.devicesSub')} onPress={go('/(dashboard)/(settings)/devices')} />
+            </Section>
+
+            <Section title={t('section.support')}>
+              <Row icon="help-outline" title={t('row.help')} sub={t('row.helpSub')} onPress={go('/(dashboard)/(settings)/help')} />
+              <Row icon="privacy-tip" title={t('row.privacy')} onPress={go('/(dashboard)/(settings)/privacy')} />
+              <Row icon="info-outline" title={t('row.about')} onPress={go('/(dashboard)/(settings)/about')} />
+            </Section>
+
+            <TouchableOpacity
+              style={[s.signOut, { borderColor: toneColors('danger', theme).fg + '55', backgroundColor: toneColors('danger', theme).bg }]}
+              onPress={handleSignOut}
+              activeOpacity={0.85}
+            >
+              <MaterialIcons name="logout" size={16} color={toneColors('danger', theme).fg} />
+              <Text style={[s.signOutText, { color: toneColors('danger', theme).fg }]}>{t('signOut')}</Text>
+            </TouchableOpacity>
+
+            <Text style={[s.footer, { color: theme.textMuted }]}>
+              Rabbit Tracker v1.0.0
+            </Text>
           </FadeInView>
         </View>
-
-        {/* ── Action list ── */}
-        <FadeInView delay={180} slideFrom="bottom" distance={16}>
-          <View style={[s.listCard, { backgroundColor: theme.surface }]}>
-            {ACTIONS.map((item, i) => (
-              <React.Fragment key={item.label}>
-                <TouchableOpacity style={s.actionRow} activeOpacity={0.75} onPress={item.onPress}>
-                  <View style={[s.actionIcon, { backgroundColor: item.bg }]}>
-                    <MaterialIcons name={item.icon} size={20} color={item.color} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.actionLabel, { color: theme.text }]}>{item.label}</Text>
-                    <Text style={[s.actionSub, { color: theme.textSecondary }]} numberOfLines={1}>{item.sub}</Text>
-                  </View>
-                  <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
-                </TouchableOpacity>
-                {i < ACTIONS.length - 1 && (
-                  <View style={[s.sep, { backgroundColor: theme.border }]} />
-                )}
-              </React.Fragment>
-            ))}
-          </View>
-        </FadeInView>
-
-        {/* Sign out */}
-        <FadeInView delay={260} slideFrom="bottom" distance={14}>
-          <TouchableOpacity
-            style={[s.signOutBtn, { borderColor: 'rgba(248,113,113,0.25)', backgroundColor: 'rgba(248,113,113,0.08)' }]}
-            activeOpacity={0.8}
-            onPress={handleSignOut}
-          >
-            <MaterialIcons name="logout" size={20} color="#F87171" />
-            <Text style={s.signOutText}>Sign Out</Text>
-          </TouchableOpacity>
-        </FadeInView>
-
-        <Text style={[s.version, { color: theme.textMuted }]}>ABY Expense v1.0.0</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const s = StyleSheet.create({
-  safe:   { flex: 1 },
-  scroll: { flexGrow: 1, paddingBottom: 40 },
+  root: { flex: 1 },
 
-  header: { paddingBottom: 28, overflow: 'hidden' },
-  decA:   { position: 'absolute', width: 280, height: 280, borderRadius: 140, backgroundColor: 'rgba(255,255,255,0.05)', top: -80, right: -60 },
-  decB:   { position: 'absolute', width: 180, height: 180, borderRadius: 90,  backgroundColor: 'rgba(255,255,255,0.04)', bottom: -40, left: -20 },
+  header: { paddingBottom: 38, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, overflow: 'hidden' },
+  decA:   { position: 'absolute', width: 240, height: 240, borderRadius: 120, backgroundColor: 'rgba(255,255,255,0.06)', top: -90, right: -70 },
+  decB:   { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.05)', bottom: -50, left: -40 },
 
-  topBar:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 10 },
-  screenTitle:{ fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-  editBtn:    { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  editText:   { fontSize: 13, fontWeight: '600', color: '#FFFFFF' },
+  topBar:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 8 },
+  screenTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
+  bell:        { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+  bellDot:     { position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FBBF24', borderWidth: 1.5, borderColor: '#00627F' },
 
-  avatarSection: { alignItems: 'center', paddingTop: 6, paddingBottom: 20 },
-  avatarRing:    { width: 96, height: 96, borderRadius: 48, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
-  avatarCircle:  { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
-  avatarImg:     { width: 88, height: 88, borderRadius: 44 },
-  avatarInitials:{ fontSize: 34, fontWeight: '800', color: '#FFFFFF' },
-  profileName:   { fontSize: 22, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
-  profileEmail:  { fontSize: 14, color: 'rgba(255,255,255,0.55)', marginBottom: 12 },
+  identity: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 4 },
+  identityText: { alignItems: 'center', marginTop: 10, maxWidth: '100%' },
+  avatar:   { width: AVATAR, height: AVATAR, borderRadius: AVATAR / 2, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+  initials: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
+  pctPill:  { position: 'absolute', bottom: -6, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 },
+  pctText:  { fontSize: 9, fontWeight: '800' },
 
-  badgeRow:   { flexDirection: 'row', gap: 8 },
-  planBadge:  { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.25)' },
-  planText:   { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
-  activeBadge:{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: 'rgba(74,222,128,0.15)', borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)' },
-  activeDot:  { width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ADE80' },
-  activeText: { fontSize: 12, fontWeight: '700', color: '#4ADE80' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  name:    { fontSize: 15, fontWeight: '700', color: '#FFFFFF', flexShrink: 1 },
+  email:   { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 1 },
+  since:   { fontSize: 10, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
 
-  statsRow:       { flexDirection: 'row', paddingHorizontal: 20, gap: 8 },
-  statCard:       { flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
-  statCardCenter: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(255,255,255,0.12)', borderRadius: 0 },
-  statVal:        { fontSize: 18, fontWeight: '800', color: '#FFFFFF', marginBottom: 3 },
-  statLabel:      { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.45)', letterSpacing: 0.8 },
+  body: { paddingHorizontal: 16, marginTop: -24 },
 
-  listCard:   { marginHorizontal: 20, borderRadius: 20, overflow: 'hidden', marginTop: 20 },
-  actionRow:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
-  actionIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  actionLabel:{ fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  actionSub:  { fontSize: 12 },
-  sep:        { height: 1, marginHorizontal: 16 },
+  banner:      { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, padding: 12, marginBottom: 14 },
+  bannerIcon:  { width: 30, height: 30, borderRadius: 9, backgroundColor: '#FBBF24', alignItems: 'center', justifyContent: 'center' },
+  bannerBang:  { fontSize: 15, fontWeight: '800', color: '#3B2A00' },
+  bannerTitle: { fontSize: 13, fontWeight: '700' },
+  bannerSub:   { fontSize: 11, marginTop: 1 },
 
-  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginTop: 20, borderRadius: 16, paddingVertical: 14, gap: 10, borderWidth: 1 },
-  signOutText:{ fontSize: 15, fontWeight: '600', color: '#F87171' },
-  version:    { textAlign: 'center', fontSize: 12, marginTop: 16 },
+  progressCard:  { borderRadius: 16, borderWidth: 1, padding: 12, marginBottom: 14,
+                   shadowColor: '#00627F', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 4 },
+  progressHead:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  progressTitle: { fontSize: 12, fontWeight: '700' },
+  progressNext:  { fontSize: 11, fontWeight: '600' },
+  track:         { height: 6, borderRadius: 3, overflow: 'hidden' },
+  fill:          { height: '100%', borderRadius: 3 },
+
+  signOut:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 16, borderWidth: 1, paddingVertical: 12, marginTop: 2 },
+  signOutText: { fontSize: 13, fontWeight: '600' },
+  footer:      { textAlign: 'center', fontSize: 11, marginTop: 14 },
 });

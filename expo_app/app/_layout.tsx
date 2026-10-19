@@ -1,5 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, router } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Text, TextInput } from 'react-native';
 import 'react-native-reanimated';
@@ -20,15 +19,18 @@ import * as SplashScreen from 'expo-splash-screen';
 
 import { ThemePreferenceProvider, useThemePreference } from '@/context/theme-context';
 import { CurrencyProvider } from '@/context/currency-context';
+import { PreferencesProvider } from '@/context/preferences-context';
+import { LanguageProvider } from '@/context/language-context';
+import '@/services/local-notifications'; // registers the foreground notification handler
 import { getToken } from '@/services/client-auth.service';
 import { AppSplash } from '@/components/app-splash';
 
 SplashScreen.preventAutoHideAsync();
 
 // Global font fallback
-if (!Text.defaultProps) (Text as any).defaultProps = {};
+if (!(Text as any).defaultProps) (Text as any).defaultProps = {};
 (Text as any).defaultProps.style = { fontFamily: 'Poppins_400Regular' };
-if (!TextInput.defaultProps) (TextInput as any).defaultProps = {};
+if (!(TextInput as any).defaultProps) (TextInput as any).defaultProps = {};
 (TextInput as any).defaultProps.style = { fontFamily: 'Poppins_400Regular' };
 
 export const unstable_settings = { anchor: 'index' };
@@ -93,7 +95,11 @@ export default function RootLayout() {
   return (
     <ThemePreferenceProvider>
       <CurrencyProvider>
-        <RootLayoutInner />
+        <PreferencesProvider>
+          <LanguageProvider>
+            <RootLayoutInner />
+          </LanguageProvider>
+        </PreferencesProvider>
       </CurrencyProvider>
     </ThemePreferenceProvider>
   );

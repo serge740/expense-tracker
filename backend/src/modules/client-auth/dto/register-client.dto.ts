@@ -3,4 +3,5 @@ export class RegisterClientDto {
   lastName?: string;
   email: string;
   phone: string;
+  password?: string;
 }

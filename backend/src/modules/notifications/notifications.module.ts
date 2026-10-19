@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { ClientAuthModule } from '../client-auth/client-auth.module';
 
 @Module({
-  imports: [ClientAuthModule],
+  imports: [forwardRef(() => ClientAuthModule)],
   controllers: [NotificationsController],
   providers: [NotificationsService],
   exports: [NotificationsService],

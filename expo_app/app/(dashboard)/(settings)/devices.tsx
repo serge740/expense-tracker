@@ -4,7 +4,7 @@ import {
   TouchableOpacity, Alert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -27,6 +27,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function DevicesScreen() {
+  const goBack = useSettingsBack();
   const theme = useAppTheme();
   const [devices,     setDevices]     = useState<DeviceInfo[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -73,7 +74,7 @@ export default function DevicesScreen() {
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       <View style={[s.topBar, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity style={s.backBtn} onPress={() => goBack()} activeOpacity={0.7}>
           <MaterialIcons name="arrow-back" size={22} color={theme.text} />
         </TouchableOpacity>
         <Text style={[s.topTitle, { color: theme.text }]}>Devices</Text>

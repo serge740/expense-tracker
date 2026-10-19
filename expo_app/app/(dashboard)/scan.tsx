@@ -14,7 +14,7 @@ import { CATEGORY_ICON, CATEGORY_LABEL } from '@/services/transaction.service';
 
 type ScanState = 'idle' | 'scanning' | 'result' | 'processing' | 'preview';
 
-const BRAND   = '#2D336B';
+const BRAND   = '#00627F';
 const BRACKET = '#5B6AD4';
 
 const CAT_COLOR: Record<string, string> = {

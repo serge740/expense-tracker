@@ -1,26 +1,28 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
+import { useI18n } from '@/context/language-context';
 import { ComponentProps } from 'react';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
-const TAB_CONFIG: Record<string, { icon: IconName; label: string }> = {
-  index:   { icon: 'home',      label: 'Home'     },
-  budget:  { icon: 'tune',      label: 'Budget'   },
-  reports: { icon: 'bar-chart', label: 'Reports'  },
-  profile: { icon: 'settings',  label: 'Settings' },
+const TAB_CONFIG: Record<string, { icon: IconName; label: 'tab.home' | 'tab.wallets' | 'tab.debts' | 'tab.settings' }> = {
+  index:   { icon: 'home',                   label: 'tab.home'     },
+  wallets: { icon: 'account-balance-wallet', label: 'tab.wallets'  },
+  debts:   { icon: 'handshake',              label: 'tab.debts'    },
+  profile: { icon: 'settings',               label: 'tab.settings' },
 };
 
-const VISIBLE_TABS = ['index', 'budget', 'reports', 'profile'];
+const VISIBLE_TABS = ['index', 'wallets', 'debts', 'profile'];
 
 export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const theme = useAppTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   const visibleRoutes = state.routes.filter(r => VISIBLE_TABS.includes(r.name));
@@ -41,7 +43,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         onPress={() => { if (!isFocused) navigation.navigate(route.name); }}
       >
         <MaterialIcons name={cfg.icon} size={24} color={color} />
-        <Text style={[styles.tabLabel, { color }]}>{cfg.label}</Text>
+        <Text style={[styles.tabLabel, { color }]}>{t(cfg.label)}</Text>
       </TouchableOpacity>
     );
   };

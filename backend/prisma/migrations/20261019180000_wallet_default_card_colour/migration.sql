@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE `wallet` MODIFY `color` VARCHAR(191) NOT NULL DEFAULT '#0F2F3A';
+

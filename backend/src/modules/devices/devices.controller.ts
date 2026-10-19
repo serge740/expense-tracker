@@ -13,7 +13,7 @@ export class DevicesController {
   @Post('register')
   async register(
     @Req() req: RequestWithClient,
-    @Body() body: { deviceName: string; platform: string; pushToken?: string },
+    @Body() body: { deviceName: string; platform: string; pushToken?: string; channelId?: string; sound?: string },
   ) {
     try {
       const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()

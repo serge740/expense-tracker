@@ -10,6 +10,8 @@ export class DevicesService {
     platform: string;
     pushToken?: string;
     ipAddress?: string;
+    channelId?: string;
+    sound?: string;
   }) {
     const existing = await this.prisma.device.findFirst({
       where: { clientId, deviceName: data.deviceName, platform: data.platform },
@@ -21,6 +23,8 @@ export class DevicesService {
         data: {
           pushToken: data.pushToken ?? existing.pushToken,
           ipAddress: data.ipAddress ?? existing.ipAddress,
+          channelId: data.channelId ?? existing.channelId,
+          sound: data.sound ?? existing.sound,
           lastActiveAt: new Date(),
         },
       });
@@ -33,6 +37,8 @@ export class DevicesService {
         platform: data.platform,
         pushToken: data.pushToken ?? null,
         ipAddress: data.ipAddress ?? null,
+        channelId: data.channelId ?? null,
+        sound: data.sound ?? null,
       },
     });
   }

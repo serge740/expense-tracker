@@ -1,17 +1,29 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, ComponentProps } from 'react';
 import {
   View, TouchableOpacity, Dimensions,
   ScrollView, NativeSyntheticEvent, NativeScrollEvent,
-  StatusBar, StyleSheet,
+  StatusBar, StyleSheet, ViewStyle, StyleProp, LayoutChangeEvent,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Text } from '@/components/text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { useAppTheme } from '@/hooks/use-app-theme';
 import { FadeInView } from '@/components/fade-in-view';
 
 const { width } = Dimensions.get('window');
-const BRAND = '#2D336B';
+const BRAND = '#00627F';
+const INK   = '#14172E';
+const MUTED = '#8A8FA8';
+const SOFT  = '#F4F5FA';
+const LINE  = '#ECEEF4';
+const GREEN = '#22A06B';
+const RED   = '#E5484D';
+
+const ART_W = Math.min(width, 380);
+const ART_H = 340;
+
+type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
 const SLIDES = [
   {
@@ -31,10 +43,179 @@ const SLIDES = [
   },
 ];
 
+// ── Illustration building blocks ──────────────────────────────────────────
+
+function DashedPath({ d }: { d: string }) {
+  return (
+    <Svg width={ART_W} height={340} style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Path d={d} stroke="#D6D9E6" strokeWidth={1.4} strokeDasharray="5 6" fill="none" />
+    </Svg>
+  );
+}
+
+function Dots({ style }: { style: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[s.dotGrid, style]}>
+      {Array.from({ length: 6 }).map((_, i) => <View key={i} style={s.dotGridItem} />)}
+    </View>
+  );
+}
+
+function IconTile({ name, size = 40, bg = SOFT, color = BRAND }: { name: IconName; size?: number; bg?: string; color?: string }) {
+  return (
+    <View style={[s.iconTile, { width: size, height: size, borderRadius: size * 0.3, backgroundColor: bg }]}>
+      <MaterialIcons name={name} size={size * 0.5} color={color} />
+    </View>
+  );
+}
+
+function Bubble({ name, style }: { name: IconName; style: StyleProp<ViewStyle> }) {
+  return (
+    <View style={[s.bubble, style]}>
+      <MaterialIcons name={name} size={20} color={BRAND} />
+    </View>
+  );
+}
+
+// Slide 1 — overview card + recent transactions
+function ArtTransactions() {
+  const rows: { icon: IconName; name: string; sub: string; amt: string; income?: boolean }[] = [
+    { icon: 'shopping-cart', name: 'Groceries', sub: 'Today, 9:40 AM',   amt: '-$84.20' },
+    { icon: 'directions-car', name: 'Transport', sub: 'Today, 8:15 AM',  amt: '-$12.50' },
+    { icon: 'local-cafe',    name: 'Coffee',    sub: 'Yesterday',        amt: '-$4.80'  },
+    { icon: 'work',          name: 'Salary',    sub: '1 Dec 2024',       amt: '+$2,500', income: true },
+  ];
+  return (
+    <View style={s.art}>
+      <DashedPath d="M 20 40 C 120 -10, 260 10, 330 70 S 380 230, 300 300 S 120 330, 40 280" />
+      <Dots style={{ top: 70, right: 46 }} />
+      <Dots style={{ bottom: 20, left: 40 }} />
+      <Bubble name="receipt-long" style={{ top: 22, right: 70 }} />
+      <Bubble name="savings" style={{ bottom: 60, left: 18 }} />
+
+      <View style={[s.card, { position: 'absolute', top: 40, left: 22, width: 190 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <IconTile name="account-balance-wallet" size={48} />
+          <View style={s.chip}><Text style={s.chipText}>Dec</Text></View>
+        </View>
+        <Text style={[s.cardTitle, { marginTop: 12 }]}>Monthly Overview</Text>
+        <Text style={s.cardSub}>December 2024</Text>
+        <View style={s.divider} />
+        <Text style={s.cardSub}>Spent: <Text style={s.cardStrong}>$1,240</Text></Text>
+      </View>
+
+      <View style={[s.card, { position: 'absolute', top: 110, right: 18, width: 200, paddingVertical: 10 }]}>
+        {rows.map((r, i) => (
+          <View key={r.name} style={[s.row, i > 0 && { borderTopWidth: 1, borderTopColor: LINE }]}>
+            <IconTile name={r.icon} size={30} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={s.rowTitle}>{r.name}</Text>
+              <Text style={s.rowSub}>{r.sub}</Text>
+            </View>
+            <Text style={[s.rowAmt, { color: r.income ? GREEN : INK }]}>{r.amt}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// Slide 2 — category cards + budget progress
+function ArtBudget() {
+  return (
+    <View style={s.art}>
+      <DashedPath d="M 0 200 C 80 120, 160 260, 240 180 S 360 120, 390 170" />
+      <Dots style={{ top: 30, left: 40 }} />
+      <Dots style={{ bottom: 40, right: 30 }} />
+
+      <View style={s.tilesRow}>
+        <View style={[s.tile, { transform: [{ rotate: '-8deg' }, { translateY: 12 }] }]}>
+          <IconTile name="restaurant" size={52} />
+          <Text style={s.tileLabel}>Food</Text>
+          <Text style={s.tileSub}>$320 / $400</Text>
+        </View>
+        <View style={[s.tile, s.tileActive]}>
+          <IconTile name="shopping-bag" size={60} bg={BRAND} color="#fff" />
+          <Text style={s.tileLabel}>Shopping</Text>
+          <Text style={s.tileSub}>$288 / $400</Text>
+        </View>
+        <View style={[s.tile, { transform: [{ rotate: '8deg' }, { translateY: 12 }] }]}>
+          <IconTile name="directions-bus" size={52} />
+          <Text style={s.tileLabel}>Transport</Text>
+          <Text style={s.tileSub}>$90 / $150</Text>
+        </View>
+      </View>
+
+      <View style={[s.card, { position: 'absolute', bottom: 34, alignSelf: 'center', width: 250 }]}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={s.cardTitle}>Shopping budget</Text>
+          <Text style={[s.cardStrong, { color: BRAND }]}>72%</Text>
+        </View>
+        <View style={s.track}><View style={[s.fill, { width: '72%' }]} /></View>
+        <Text style={s.cardSub}>$112 left this month</Text>
+      </View>
+
+      <View style={[s.toast, { top: 10, right: 16 }]}>
+        <MaterialIcons name="notifications-active" size={14} color={RED} />
+        <Text style={s.toastText}>Food budget at <Text style={s.cardStrong}>80%</Text></Text>
+      </View>
+    </View>
+  );
+}
+
+// Slide 3 — savings goals list
+function ArtGoals() {
+  const goals: { icon: IconName; name: string; sub: string; pct: number; active?: boolean }[] = [
+    { icon: 'laptop-mac', name: 'New Laptop',     sub: '$900 of $1,500',   pct: 60 },
+    { icon: 'flight',     name: 'Summer Vacation', sub: '$2,100 of $3,000', pct: 70, active: true },
+    { icon: 'shield',     name: 'Emergency Fund', sub: '$400 of $2,000',   pct: 20 },
+  ];
+  return (
+    <View style={s.art}>
+      <DashedPath d="M 40 20 C 200 -10, 380 40, 350 140 S 180 230, 330 330" />
+      <Dots style={{ top: 26, left: 30 }} />
+
+      <View style={[s.toast, { top: 4, right: 24 }]}>
+        <MaterialIcons name="trending-up" size={14} color={GREEN} />
+        <Text style={s.toastText}>Saved <Text style={s.cardStrong}>$3,400</Text></Text>
+      </View>
+
+      <View style={{ position: 'absolute', top: 44, left: 0, right: 0, gap: 14, alignItems: 'center' }}>
+        {goals.map(g => (
+          <View
+            key={g.name}
+            style={[s.card, s.goal, g.active ? { width: ART_W - 36, paddingVertical: 16 } : { width: ART_W - 70 }]}
+          >
+            <IconTile name={g.icon} size={g.active ? 52 : 44} />
+            <View style={{ flex: 1, marginHorizontal: 12 }}>
+              <Text style={s.rowTitle}>{g.name}</Text>
+              <Text style={s.rowSub}>{g.sub}</Text>
+              <View style={[s.track, { marginVertical: 6 }]}><View style={[s.fill, { width: `${g.pct}%` }]} /></View>
+            </View>
+            <View style={[s.goalBtn, g.active && { backgroundColor: BRAND, borderColor: BRAND }]}>
+              <MaterialIcons name="arrow-outward" size={14} color={g.active ? '#fff' : MUTED} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+const ART = [ArtTransactions, ArtBudget, ArtGoals];
+
+// ── Screen ────────────────────────────────────────────────────────────────
+
 export default function OnboardingScreen() {
-  const theme     = useAppTheme();
   const [idx, setIdx] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+  const [artScale, setArtScale] = useState(1);
+
+  // Grow the illustration to fill the space above the title (no big empty gap).
+  const fitArt = (e: LayoutChangeEvent) => {
+    const { height } = e.nativeEvent.layout;
+    setArtScale(Math.max(0.8, Math.min(height / ART_H, (width + 20) / ART_W, 1.5)));
+  };
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / width);
@@ -49,73 +230,49 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={s.root}>
-      <StatusBar barStyle="light-content" backgroundColor={BRAND} />
+    <SafeAreaView style={s.root}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* ── Illustration area (top) ── */}
-      <View style={s.top}>
-        <View style={s.circleA} />
-        <View style={s.circleB} />
-        <View style={s.circleC} />
-
-        {/* Shadow / back card */}
-        <FadeInView delay={80} slideFrom="none">
-          <View style={s.cardBack} />
-        </FadeInView>
-
-        {/* Main glass card */}
-        <FadeInView delay={180} slideFrom="bottom" distance={30}>
-          <View style={s.card}>
-            <View style={s.cardGlow} />
-            <Text style={s.cardLabel}>INCOME</Text>
-            <Text style={s.cardAmount}>+$2,500</Text>
-            <View style={s.cardFooter}>
-              <View style={s.cardChip} />
-              <Text style={s.cardNum}>•••• 4821</Text>
-            </View>
-          </View>
-        </FadeInView>
-      </View>
-
-      {/* ── Bottom sheet ── */}
-      <SafeAreaView edges={['bottom']} style={[s.sheet, { backgroundColor: theme.surface }]}>
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          scrollEnabled={false}
-          style={{ width }}
-        >
-          {SLIDES.map(sl => (
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        scrollEnabled={false}
+        style={{ flex: 1 }}
+      >
+        {SLIDES.map((sl, i) => {
+          const Art = ART[i];
+          return (
             <View key={sl.id} style={[s.slide, { width }]}>
-              <Text style={[s.slideTitle, { color: theme.text }]}>{sl.title}</Text>
-              <Text style={[s.slideDesc, { color: theme.textSecondary }]}>{sl.desc}</Text>
+              <View style={s.artWrap} onLayout={i === 0 ? fitArt : undefined}>
+                <FadeInView delay={160} slideFrom="bottom" distance={24}>
+                  <View style={{ transform: [{ scale: artScale }] }}>
+                    <Art />
+                  </View>
+                </FadeInView>
+              </View>
+              <Text style={s.slideTitle}>{sl.title}</Text>
+              <Text style={s.slideDesc}>{sl.desc}</Text>
             </View>
+          );
+        })}
+      </ScrollView>
+
+      <View style={s.footer}>
+        <View style={s.dots}>
+          {SLIDES.map((_, i) => (
+            <View key={i} style={[s.dot, i === idx && s.dotActive]} />
           ))}
-        </ScrollView>
+        </View>
 
-        <FadeInView delay={300} slideFrom="none">
-          <View style={s.dots}>
-            {SLIDES.map((_, i) => (
-              <View
-                key={i}
-                style={[s.dot, {
-                  backgroundColor: i === idx ? BRAND : theme.border,
-                  width: i === idx ? 28 : 8,
-                }]}
-              />
-            ))}
-          </View>
-        </FadeInView>
-
-        <FadeInView delay={380} slideFrom="bottom" distance={18}>
+        <FadeInView delay={380} slideFrom="bottom" distance={18} style={{ alignSelf: 'stretch' }}>
           <TouchableOpacity
-            style={[s.btn, { backgroundColor: BRAND }]}
+            style={s.btn}
             activeOpacity={0.85}
-            onPress={() => idx === SLIDES.length - 1 ? router.replace('/(auth)') : next()}
+            onPress={() => idx === SLIDES.length - 1 ? router.replace('/(auth)/login') : next()}
           >
             <Text style={s.btnText}>
               {idx === SLIDES.length - 1 ? 'Get Started' : 'Next'}
@@ -123,86 +280,89 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         </FadeInView>
 
-        <FadeInView delay={460} slideFrom="none">
-          <View style={s.signRow}>
-            <Text style={[s.signPrompt, { color: theme.textSecondary }]}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.replace('/(auth)/login')} activeOpacity={0.7}>
-              <Text style={[s.signLink, { color: BRAND }]}>Sign in</Text>
-            </TouchableOpacity>
-          </View>
-        </FadeInView>
-      </SafeAreaView>
-    </View>
+        <View style={s.signRow}>
+          <Text style={s.signPrompt}>Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.replace('/(auth)/login')} activeOpacity={0.7}>
+            <Text style={s.signLink}>Sign in</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
+const shadow = {
+  shadowColor: '#1B1F3B',
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.08,
+  shadowRadius: 18,
+  elevation: 6,
+};
+
 const s = StyleSheet.create({
-  root: { flex: 1 },
+  root: { flex: 1, backgroundColor: '#fff' },
 
-  top: {
-    flex: 1, backgroundColor: BRAND,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-  },
-  circleA: {
-    position: 'absolute', width: 320, height: 320, borderRadius: 160,
-    backgroundColor: 'rgba(255,255,255,0.07)', top: -100, right: -80,
-  },
-  circleB: {
-    position: 'absolute', width: 220, height: 220, borderRadius: 110,
-    backgroundColor: 'rgba(255,255,255,0.05)', bottom: -55, left: -55,
-  },
-  circleC: {
-    position: 'absolute', width: 150, height: 150, borderRadius: 75,
-    backgroundColor: 'rgba(255,255,255,0.04)', top: '38%', left: '6%',
-  },
 
-  cardBack: {
-    position: 'absolute',
-    width: 234, height: 140, borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-    transform: [{ rotate: '-7deg' }, { translateY: 16 }],
-  },
-  card: {
-    width: 244, borderRadius: 24, padding: 22,
-    backgroundColor: 'rgba(255,255,255,0.17)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 18 },
-    shadowOpacity: 0.30, shadowRadius: 26, elevation: 14,
-  },
-  cardGlow: {
-    position: 'absolute', width: 150, height: 150, borderRadius: 75,
-    backgroundColor: 'rgba(255,255,255,0.06)', top: -46, right: -36,
-  },
-  cardLabel:  { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.6)', letterSpacing: 2, marginBottom: 6 },
-  cardAmount: { fontSize: 34, fontWeight: '800', color: '#fff', marginBottom: 22 },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardChip:   { width: 32, height: 22, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.28)' },
-  cardNum:    { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: '500', letterSpacing: 2 },
+  slide:   { alignItems: 'center', paddingHorizontal: 28 },
+  artWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  art:     { width: ART_W, height: ART_H },
 
-  sheet: {
-    borderTopLeftRadius: 36, borderTopRightRadius: 36,
-    paddingHorizontal: 28, paddingTop: 30, paddingBottom: 8,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06, shadowRadius: 18, elevation: 14,
-  },
-  slide:      { paddingRight: 8 },
-  slideTitle: { fontSize: 30, fontWeight: '800', marginBottom: 10, lineHeight: 38 },
-  slideDesc:  { fontSize: 15, lineHeight: 24 },
+  slideTitle: { fontSize: 28, fontWeight: '700', color: INK, textAlign: 'center', lineHeight: 36, marginBottom: 10 },
+  slideDesc:  { fontSize: 14, lineHeight: 22, color: MUTED, textAlign: 'center', maxWidth: 300, marginBottom: 8 },
 
-  dots: { flexDirection: 'row', gap: 6, marginTop: 22, marginBottom: 24 },
-  dot:  { height: 8, borderRadius: 4 },
+  card: { backgroundColor: '#fff', borderRadius: 16, padding: 14, ...shadow },
+  cardTitle:  { fontSize: 13, fontWeight: '600', color: INK },
+  cardSub:    { fontSize: 11, color: MUTED },
+  cardStrong: { fontSize: 12, fontWeight: '700', color: INK },
+  divider:    { height: 1, backgroundColor: LINE, marginVertical: 10 },
+  chip:       { backgroundColor: SOFT, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  chipText:   { fontSize: 10, fontWeight: '600', color: BRAND },
+
+  iconTile: { alignItems: 'center', justifyContent: 'center' },
+  bubble: {
+    position: 'absolute', width: 42, height: 42, borderRadius: 21,
+    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', ...shadow,
+  },
+  dotGrid:     { position: 'absolute', width: 22, flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+  dotGridItem: { width: 5, height: 5, borderRadius: 3, backgroundColor: BRAND, opacity: 0.55 },
+
+  row:      { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },
+  rowTitle: { fontSize: 12, fontWeight: '600', color: INK },
+  rowSub:   { fontSize: 10, color: MUTED },
+  rowAmt:   { fontSize: 11, fontWeight: '700' },
+
+  tilesRow:   { position: 'absolute', top: 40, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 10 },
+  tile:       { width: 92, alignItems: 'center', backgroundColor: '#fff', borderRadius: 18, paddingVertical: 14, ...shadow },
+  tileActive: { width: 110, paddingVertical: 18, borderWidth: 2, borderColor: BRAND, zIndex: 1 },
+  tileLabel:  { fontSize: 12, fontWeight: '600', color: INK, marginTop: 10 },
+  tileSub:    { fontSize: 10, color: MUTED },
+
+  track: { height: 6, borderRadius: 3, backgroundColor: SOFT, marginVertical: 10, overflow: 'hidden' },
+  fill:  { height: '100%', borderRadius: 3, backgroundColor: BRAND },
+
+  toast: {
+    position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7, ...shadow,
+  },
+  toastText: { fontSize: 11, color: INK },
+
+  goal:    { flexDirection: 'row', alignItems: 'center' },
+  goalBtn: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: LINE, alignItems: 'center', justifyContent: 'center' },
+
+  footer:    { alignItems: 'center', paddingHorizontal: 28, paddingBottom: 8 },
+  dots:      { flexDirection: 'row', gap: 6, marginTop: 14, marginBottom: 22 },
+  dot:       { width: 6, height: 6, borderRadius: 3, backgroundColor: '#D9DCE6' },
+  dotActive: { backgroundColor: BRAND },
 
   btn: {
-    borderRadius: 18, paddingVertical: 17, alignItems: 'center',
-    shadowColor: BRAND, shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.30, shadowRadius: 14, elevation: 7,
+    backgroundColor: BRAND, borderRadius: 999, paddingVertical: 17, alignSelf: 'stretch',
+    alignItems: 'center',
+    shadowColor: BRAND, shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28, shadowRadius: 16, elevation: 8,
   },
-  btnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  btnText: { fontSize: 16, fontWeight: '600', color: '#fff' },
 
-  signRow:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20, marginBottom: 6 },
-  signPrompt: { fontSize: 14 },
-  signLink:   { fontSize: 14, fontWeight: '700' },
+  signRow:    { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 18 },
+  signPrompt: { fontSize: 13, color: MUTED },
+  signLink:   { fontSize: 13, fontWeight: '700', color: BRAND },
 });

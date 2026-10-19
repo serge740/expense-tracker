@@ -174,7 +174,8 @@ export default function HomeScreen() {
         <FadeInView delay={120} slideFrom="bottom" distance={18}>
           <View style={s.quickWrap}>
             {([
-              { icon: 'document-scanner' as IconName, label: 'Scan',    route: '/(dashboard)/scan'    },
+              // Receipt scanning is hidden for now; attach receipt photos from Add instead.
+              { icon: 'currency-exchange' as IconName, label: 'Exchange', route: '/(dashboard)/transfer?mode=exchange' },
               { icon: 'add'              as IconName, label: 'Add',     route: '/(dashboard)/add'     },
               { icon: 'bar-chart'        as IconName, label: 'Reports', route: '/(dashboard)/reports' },
             ] as const).map(a => (

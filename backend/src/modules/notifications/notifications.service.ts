@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationChannel, NotificationType } from '../../../generated/prisma';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
   constructor(private readonly prisma: PrismaService) {}
 
   async getPreferences(clientId: string) {
@@ -54,6 +55,10 @@ export class NotificationsService {
     return { message: 'All notifications marked as read' };
   }
 
+  /**
+   * Stores a notification (inbox) and, when push is enabled, delivers it as a
+   * high-priority push so the phone rings even if the app is closed.
+   */
   async createNotification(clientId: string, data: {
     title: string;
     body: string;
@@ -78,11 +83,21 @@ export class NotificationsService {
       },
     });
 
-    if (data.channel === 'push' && pref.pushEnabled) {
-      await this.sendPushToClient(clientId, data.title, data.body);
+    if (pref.pushEnabled) {
+      await this.sendPushToClient(clientId, data.title, data.body, {
+        ...(data.notificationData ?? {}),
+        notificationId: notification.id,
+        type: data.type,
+      });
     }
 
     return notification;
+  }
+
+  /** Fire-and-forget helper for other modules: never throws. */
+  notify(clientId: string, title: string, body: string, type: NotificationType = 'system', notificationData?: Record<string, any>) {
+    this.createNotification(clientId, { title, body, type, channel: 'push', notificationData })
+      .catch(err => this.logger.warn(`notify failed: ${err?.message ?? err}`));
   }
 
   async sendPushNotification(clientId: string, title: string, body: string, notifData?: Record<string, any>) {
@@ -100,29 +115,39 @@ export class NotificationsService {
     return { sent: true };
   }
 
-  private async sendPushToClient(clientId: string, title: string, body: string) {
+  private async sendPushToClient(clientId: string, title: string, body: string, data: Record<string, any>) {
     const devices = await this.prisma.device.findMany({
       where: { clientId, pushToken: { not: null } },
-      select: { pushToken: true },
+      select: { id: true, pushToken: true, channelId: true, sound: true },
     });
+    if (!devices.length) return;
 
-    const tokens = devices.map(d => d.pushToken!).filter(Boolean);
-    if (!tokens.length) return;
-
-    const messages = tokens.map(token => ({
-      to: token,
-      sound: 'default',
+    const messages = devices.map(d => ({
+      to: d.pushToken!,
       title,
       body,
-      data: {},
+      data,
+      priority: 'high',                       // wake the device / heads-up on Android
+      sound: d.sound === 'none' ? null : (d.sound || 'default'),   // iOS: bundled file or default
+      ...(d.channelId ? { channelId: d.channelId } : {}),            // Android: channel decides ringtone
     }));
 
     try {
-      await fetch('https://exp.host/--/api/v2/push/send', {
+      const res = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(messages),
       });
-    } catch { /* push delivery is best-effort */ }
+      const json = (await res.json()) as { data?: { status: string; details?: { error?: string } }[] };
+      // Forget tokens of uninstalled apps so we stop pushing to them.
+      const dead = (json.data ?? [])
+        .map((ticket, i) => (ticket.details?.error === 'DeviceNotRegistered' ? devices[i].id : null))
+        .filter((id): id is string => !!id);
+      if (dead.length) {
+        await this.prisma.device.updateMany({ where: { id: { in: dead } }, data: { pushToken: null } });
+      }
+    } catch (err: any) {
+      this.logger.warn(`push delivery failed: ${err?.message ?? err}`);
+    }
   }
 }

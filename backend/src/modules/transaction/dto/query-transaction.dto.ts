@@ -1,7 +1,7 @@
 import { CategorySlug } from '../../../../generated/prisma';
 
 export class QueryTransactionDto {
-  type?: 'income' | 'expense' | 'all';
+  type?: 'income' | 'expense' | 'transfer' | 'all';
   category?: CategorySlug;
   walletId?: string;
   month?: number;

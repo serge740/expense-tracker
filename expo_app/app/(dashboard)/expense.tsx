@@ -12,20 +12,14 @@ import {
   CATEGORY_ICON, CATEGORY_LABEL, CategorySlug,
 } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
+import { CATEGORIES } from '@/constants/categories';
 
 type FilterType = 'all' | 'income' | 'expense';
 
-const CATEGORY_COLOR: Record<CategorySlug, { color: string; bg: string }> = {
-  salary:        { color: '#4ADE80', bg: 'rgba(74,222,128,0.15)'   },
-  food:          { color: '#FF8C42', bg: 'rgba(255,140,66,0.15)'   },
-  transport:     { color: '#60A5FA', bg: 'rgba(96,165,250,0.15)'   },
-  shopping:      { color: '#A78BFA', bg: 'rgba(167,139,250,0.15)'  },
-  health:        { color: '#F472B6', bg: 'rgba(244,114,182,0.15)'  },
-  entertainment: { color: '#FBBF24', bg: 'rgba(251,191,36,0.15)'   },
-  travel:        { color: '#7B7FD4', bg: 'rgba(123,127,212,0.15)'  },
-  groceries:     { color: '#4ADE80', bg: 'rgba(74,222,128,0.15)'   },
-  other:         { color: '#94A3B8', bg: 'rgba(148,163,184,0.15)'  },
-};
+// Colours come from the shared category list (soft tint as background).
+const CATEGORY_COLOR = Object.fromEntries(
+  CATEGORIES.map(c => [c.id, { color: c.color, bg: `${c.color}22` }]),
+) as Record<CategorySlug, { color: string; bg: string }>;
 
 function fmtSigned(n: number, sym: string) {
   return (n > 0 ? `+${sym}` : `-${sym}`) + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
