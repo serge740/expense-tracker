@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `transaction` ADD COLUMN `debtId` VARCHAR(191) NULL,
+ALTER TABLE `Transaction` ADD COLUMN `debtId` VARCHAR(191) NULL,
     MODIFY `type` ENUM('INCOME', 'EXPENSE', 'TRANSFER', 'DEBT') NOT NULL,
     MODIFY `category` ENUM('food', 'transport', 'shopping', 'health', 'entertainment', 'travel', 'groceries', 'salary', 'other', 'bills', 'rent', 'utilities', 'education', 'family', 'gifts', 'business', 'investment', 'subscriptions', 'personal_care', 'fuel', 'insurance', 'savings', 'freelance', 'refund') NOT NULL;
 

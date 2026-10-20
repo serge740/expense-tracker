@@ -1,7 +1,5 @@
-import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
 import {
-  Body, Controller, Delete, Get, HttpException, Param, Patch, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors,
+  Body, Controller, Delete, Get, HttpException, Param, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
@@ -50,18 +48,6 @@ export class TransactionController {
       return await this.transactionService.history(req.client.id, parsed);
     } catch (e: any) {
       throw new HttpException(e.message || 'Failed to fetch history', 400);
-    }
-  }
-
-  @Post('receipt')
-  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }))
-  async uploadReceipt(@Req() req: RequestWithClient, @UploadedFile() file: Express.Multer.File) {
-    try {
-      if (!file) throw new HttpException('Image file is required', 400);
-      if (!/^image\/(jpe?g|png|webp)$/.test(file.mimetype)) throw new HttpException('Use a JPG, PNG or WebP image', 400);
-      return await this.transactionService.saveReceipt(req.client.id, file.buffer, file.mimetype);
-    } catch (e: any) {
-      throw new HttpException(e.message || 'Receipt upload failed', e.status || 400);
     }
   }
 

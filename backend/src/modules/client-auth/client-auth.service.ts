@@ -457,8 +457,8 @@ export class ClientAuthService implements OnModuleInit {
     return { profileImage: relativePath };
   }
 
-  // ── Private helpers ───────────────────────────────────────────────────────
-  private async issueTokenPair(client: any): Promise<AuthResult> {
+  // ── Shared helpers (also used by PasskeyService) ──────────────────────────
+  async issueTokenPair(client: any): Promise<AuthResult> {
     const accessToken = this.signAccessToken(client);
     const { rawToken, selector, verifier } = this.makeRefreshToken();
     await this.storeRefreshToken(client.id, selector, verifier);

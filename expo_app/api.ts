@@ -34,7 +34,7 @@ api.interceptors.response.use(
 
     const is401 = error.response?.status === 401;
     const isRefreshUrl = original.url?.includes('/refresh');
-    const isLoginUrl   = original.url?.includes('/face-identify') || original.url?.includes('/google-auth') || original.url?.includes('/verify-email');
+    const isLoginUrl   = original.url?.includes('/face-identify') || original.url?.includes('/google-auth') || original.url?.includes('/verify-email') || original.url?.includes('/passkey/login');
 
     if (is401 && !original._retry && !isRefreshUrl && !isLoginUrl) {
       if (isRefreshing) {

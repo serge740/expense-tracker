@@ -6,12 +6,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { useI18n } from '@/context/language-context';
 import { useCurrency, currencyByCode } from '@/context/currency-context';
-import { createTransaction, uploadReceipt } from '@/services/transaction.service';
+import { createTransaction } from '@/services/transaction.service';
+import { processReceipt } from '@/services/receipts.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
 import { CATEGORIES, CategorySlug, categoryOf } from '@/constants/categories';
 import { DatePickerModal } from '@/components/date-picker-modal';
@@ -31,7 +33,7 @@ export default function AddTransactionScreen() {
   const { currency: mainCurrency } = useCurrency();
   const params = useLocalSearchParams<{
     type?: string; walletId?: string; amount?: string; category?: string;
-    description?: string; merchant?: string; date?: string; receiptUrl?: string;
+    description?: string; merchant?: string; date?: string; receiptUrl?: string; receiptReportUrl?: string;
   }>();
 
   const [kind, setKind]           = useState<Kind>('EXPENSE');
@@ -43,7 +45,11 @@ export default function AddTransactionScreen() {
   const [walletId, setWalletId]   = useState<string | null>(null);
   const [date, setDate]           = useState(new Date());
   const [pickDate, setPickDate]   = useState(false);
-  const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [receiptUrl, setReceiptUrl]             = useState<string | null>(null);
+  const [receiptReportUrl, setReceiptReportUrl] = useState<string | null>(null);
+  const [receiptMime, setReceiptMime]           = useState<string | null>(null);
+  const [receiptName, setReceiptName]           = useState<string | null>(null);
+  const [analyzingReceipt, setAnalyzingReceipt] = useState(false);
   const [saving, setSaving]       = useState(false);
 
   // The screen stays mounted as a hidden tab: reset from params on every visit.
@@ -60,11 +66,14 @@ export default function AddTransactionScreen() {
       setDescription(params.description || params.merchant || '');
       const d = params.date ? new Date(params.date) : new Date();
       setDate(isNaN(d.getTime()) ? new Date() : d);
-      setReceiptUri(params.receiptUrl || null);
+      setReceiptUrl(params.receiptUrl || null);
+      setReceiptReportUrl(params.receiptReportUrl || null);
+      setReceiptMime(null);
+      setReceiptName(null);
       const pre = usable.find(w => w.id === params.walletId) ?? usable.find(w => w.isDefault) ?? usable[0];
       setWalletId(pre?.id ?? null);
     }).catch(() => {});
-  }, [params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl]));
+  }, [params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl]));
 
   const wallet = wallets.find(w => w.id === walletId) ?? null;
   const currency = wallet?.currency ?? mainCurrency.code;
@@ -87,17 +96,59 @@ export default function AddTransactionScreen() {
     else router.navigate('/(dashboard)');
   };
 
-  const pickReceipt = async (source: 'camera' | 'library') => {
-    const perm = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(t('add.receipt'), t(source === 'camera' ? 'add.cameraPermission' : 'add.photoPermission'));
+  /** Keeps the file on Cloudinary, runs AI extraction, and fills in whatever fields are still empty. */
+  const runReceiptPipeline = async (uri: string, filename: string, mimeType: string) => {
+    setAnalyzingReceipt(true);
+    try {
+      const result = await processReceipt(uri, filename, mimeType);
+      setReceiptUrl(result.receiptUrl);
+      setReceiptReportUrl(result.receiptReportUrl);
+      setReceiptMime(mimeType);
+      setReceiptName(filename);
+      if (result.amount !== null) setAmount(prev => prev || String(result.amount));
+      if (result.merchant) setDescription(prev => prev || result.merchant!);
+      if (result.date) {
+        const d = new Date(result.date);
+        if (!isNaN(d.getTime())) setDate(d);
+      }
+      if (result.category) {
+        const preset = CATEGORIES.find(c => c.id === result.category && !c.system);
+        if (preset) setCategory(preset.id);
+      }
+    } catch (e: any) {
+      Alert.alert(t('add.receipt'), e?.response?.data?.message || e?.message || t('add.uploadFailed'));
+    } finally {
+      setAnalyzingReceipt(false);
+    }
+  };
+
+  const pickReceipt = async (source: 'camera' | 'file') => {
+    if (source === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) { Alert.alert(t('add.receipt'), t('add.cameraPermission')); return; }
+      const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true });
+      if (res.canceled || !res.assets[0]) return;
+      const asset = res.assets[0];
+      const mime = asset.mimeType ?? 'image/jpeg';
+      const name = asset.fileName ?? `receipt.${mime === 'image/png' ? 'png' : 'jpg'}`;
+      await runReceiptPipeline(asset.uri, name, mime);
       return;
     }
-    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7, allowsEditing: true };
-    const res = source === 'camera' ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
-    if (!res.canceled && res.assets[0]) setReceiptUri(res.assets[0].uri);
+
+    const res = await DocumentPicker.getDocumentAsync({
+      type: ['image/*', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      copyToCacheDirectory: true,
+    });
+    if (res.canceled || !res.assets?.[0]) return;
+    const asset = res.assets[0];
+    await runReceiptPipeline(asset.uri, asset.name, asset.mimeType ?? 'application/octet-stream');
+  };
+
+  const removeReceipt = () => {
+    setReceiptUrl(null);
+    setReceiptReportUrl(null);
+    setReceiptMime(null);
+    setReceiptName(null);
   };
 
   const save = async () => {
@@ -106,16 +157,6 @@ export default function AddTransactionScreen() {
 
     setSaving(true);
     try {
-      // Only local files need uploading; an existing server path is reused as-is.
-      let receiptUrl: string | undefined;
-      if (receiptUri) {
-        if (/^(file|content|ph|assets-library):/.test(receiptUri)) {
-          try { receiptUrl = await uploadReceipt(receiptUri); }
-          catch { Alert.alert(t('add.receipt'), t('add.uploadFailed')); return; }
-        } else {
-          receiptUrl = receiptUri;
-        }
-      }
       await createTransaction({
         type: kind,
         category,
@@ -124,7 +165,8 @@ export default function AddTransactionScreen() {
         amount: value,
         date: date.toISOString(),
         walletId: walletId ?? undefined,
-        receiptUrl,
+        receiptUrl: receiptUrl ?? undefined,
+        receiptReportUrl: receiptReportUrl ?? undefined,
       });
       leave();
     } catch (e: any) {
@@ -134,8 +176,9 @@ export default function AddTransactionScreen() {
     }
   };
 
-  const receiptPreview = receiptUri
-    ? (/^(file|content|ph|assets-library|https?):/.test(receiptUri) ? receiptUri : `${ENV.UPLOADS_URL}/${receiptUri}`)
+  const receiptIsImage = !receiptMime || receiptMime.startsWith('image/');
+  const receiptPreview = receiptUrl
+    ? (/^https?:/.test(receiptUrl) ? receiptUrl : `${ENV.UPLOADS_URL}/${receiptUrl}`)
     : null;
 
   return (
@@ -237,36 +280,62 @@ export default function AddTransactionScreen() {
 
           {/* Receipt */}
           <Label text={`${t('add.receipt')} (${t('add.optional')})`} />
-          {receiptPreview ? (
+          {analyzingReceipt && (
+            <View style={[s.analyzingRow, { backgroundColor: theme.inputBg }]}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={[s.analyzingText, { color: theme.textSecondary }]}>{t('add.analyzing')}</Text>
+            </View>
+          )}
+          {receiptUrl ? (
             <View style={[s.receipt, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-              <Image source={{ uri: receiptPreview }} style={s.receiptImg} />
+              {receiptIsImage ? (
+                <Image source={{ uri: receiptPreview! }} style={s.receiptImg} />
+              ) : (
+                <View style={[s.receiptFileIcon, { backgroundColor: theme.inputBg }]}>
+                  <MaterialIcons name="description" size={26} color={theme.primary} />
+                </View>
+              )}
               <View style={{ flex: 1, gap: 6 }}>
-                <TouchableOpacity onPress={() => pickReceipt('camera')} style={s.receiptAction}>
+                {!receiptIsImage && receiptName && (
+                  <Text style={[s.receiptFileName, { color: theme.text }]} numberOfLines={1}>{receiptName}</Text>
+                )}
+                <TouchableOpacity onPress={() => pickReceipt('camera')} style={s.receiptAction} disabled={analyzingReceipt}>
                   <MaterialIcons name="photo-camera" size={15} color={theme.primary} />
                   <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.takePhoto')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => pickReceipt('library')} style={s.receiptAction}>
-                  <MaterialIcons name="photo-library" size={15} color={theme.primary} />
-                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.chooseImage')}</Text>
+                <TouchableOpacity onPress={() => pickReceipt('file')} style={s.receiptAction} disabled={analyzingReceipt}>
+                  <MaterialIcons name="insert-drive-file" size={15} color={theme.primary} />
+                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.chooseFile')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/(dashboard)/scan')} style={s.receiptAction} disabled={analyzingReceipt}>
+                  <MaterialIcons name="document-scanner" size={15} color={theme.primary} />
+                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.scanReceipt')}</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => setReceiptUri(null)} hitSlop={8} style={[s.removeBtn, { backgroundColor: theme.inputBg }]}>
+              <TouchableOpacity onPress={removeReceipt} hitSlop={8} style={[s.removeBtn, { backgroundColor: theme.inputBg }]} disabled={analyzingReceipt}>
                 <MaterialIcons name="delete-outline" size={17} color="#DC2626" />
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity onPress={() => pickReceipt('camera')} activeOpacity={0.8}
-                                style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                <MaterialIcons name="photo-camera" size={18} color={theme.primary} />
-                <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.takePhoto')}</Text>
+            <>
+              <TouchableOpacity onPress={() => router.push('/(dashboard)/scan')} activeOpacity={0.85} disabled={analyzingReceipt}
+                                style={[s.scanBtn, { backgroundColor: theme.primary, opacity: analyzingReceipt ? 0.6 : 1 }]}>
+                <MaterialIcons name="document-scanner" size={18} color="#fff" />
+                <Text style={s.scanBtnText}>{t('add.scanReceipt')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => pickReceipt('library')} activeOpacity={0.8}
-                                style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                <MaterialIcons name="photo-library" size={18} color={theme.primary} />
-                <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.chooseImage')}</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={() => pickReceipt('camera')} activeOpacity={0.8} disabled={analyzingReceipt}
+                                  style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: analyzingReceipt ? 0.6 : 1 }]}>
+                  <MaterialIcons name="photo-camera" size={18} color={theme.primary} />
+                  <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.takePhoto')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => pickReceipt('file')} activeOpacity={0.8} disabled={analyzingReceipt}
+                                  style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: analyzingReceipt ? 0.6 : 1 }]}>
+                  <MaterialIcons name="insert-drive-file" size={18} color={theme.primary} />
+                  <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.chooseFile')}</Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
         </ScrollView>
 
@@ -310,8 +379,16 @@ const s = StyleSheet.create({
   input:     { flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
   inputText: { fontSize: 13, fontFamily: 'Poppins_400Regular', paddingVertical: 0 },
 
+  scanBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 12, marginBottom: 8 },
+  scanBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+
+  analyzingRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8 },
+  analyzingText: { fontSize: 12, fontWeight: '600' },
+
   receipt:    { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 8 },
   receiptImg: { width: 64, height: 64, borderRadius: 10 },
+  receiptFileIcon: { width: 64, height: 64, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  receiptFileName: { fontSize: 12, fontWeight: '700' },
   receiptAction:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
   receiptActionText: { fontSize: 12, fontWeight: '600' },
   removeBtn:  { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },

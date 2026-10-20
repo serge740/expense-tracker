@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scan Receipt — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#00627F;
+    --bracket:#5B6AD4;
+    --gold:#FBBF24;
+    --success:#4ADE80;
+    --bg:#0A0A12;
+    --page-bg:#0D1117;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; min-height:100vh;
+    background: radial-gradient(circle at 50% 0%, #15202b 0%, var(--page-bg) 60%);
+    font-family:'Poppins', sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:22px; padding:40px 16px;
+  }
+
+  /* ───────── Page chrome ───────── */
+  .page-title{ color:#fff; font-size:15px; font-weight:600; opacity:.85; letter-spacing:.2px; }
+  .page-sub{ color:rgba(255,255,255,.4); font-size:12px; margin-top:-16px; text-align:center; max-width:320px; line-height:1.5; }
+
+  /* ───────── Phone shell ───────── */
+  .phone{
+    position:relative;
+    width:390px; height:844px;
+    background:#05050a;
+    border-radius:52px;
+    padding:12px;
+    box-shadow:
+      0 0 0 2px rgba(255,255,255,.06),
+      0 30px 60px -20px rgba(0,0,0,.7),
+      0 0 120px -40px rgba(91,106,212,.35);
+  }
+  .notch{
+    position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    width:120px; height:26px; background:#05050a; border-radius:0 0 18px 18px; z-index:50;
+  }
+  .screen{
+    position:relative; width:100%; height:100%;
+    background:var(--bg);
+    border-radius:42px;
+    overflow:hidden;
+    isolation:isolate;
+  }
+
+  /* ───────── Status bar ───────── */
+  .statusbar{
+    position:absolute; top:0; left:0; right:0; z-index:40;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 30px 0; color:#fff; font-size:14px; font-weight:600;
+  }
+  .status-icons{ display:flex; align-items:center; gap:5px; }
+
+  /* ───────── Camera / mock scene layer ───────── */
+  .camera-layer{ position:absolute; inset:0; overflow:hidden; background:#111; }
+  .camera-layer video{
+    width:100%; height:100%; object-fit:cover; display:none;
+    filter:saturate(1.05) contrast(1.02);
+  }
+  .camera-layer.frozen video{ filter:saturate(1.1) contrast(1.05) brightness(.95); }
+
+  .mock-scene{
+    position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse 140% 90% at 50% -10%, #2a2f3a 0%, #14161c 55%, #0b0c10 100%);
+  }
+  .mock-scene .desk{
+    position:absolute; inset:0;
+    background:repeating-linear-gradient(100deg, rgba(255,255,255,.015) 0px, rgba(255,255,255,.015) 2px, transparent 2px, transparent 42px);
+  }
+  .receipt{
+    position:absolute; left:50%; top:50%;
+    width:230px; min-height:380px;
+    transform:translate(-50%,-52%) rotate(-2deg);
+    background:linear-gradient(180deg,#fafaf7,#eceae3);
+    border-radius:4px;
+    padding:22px 18px;
+    box-shadow:0 30px 60px -10px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.05);
+  }
+  .receipt::before, .receipt::after{
+    content:''; position:absolute; left:0; right:0; height:10px; background:inherit;
+  }
+  .r-logo{ width:40px; height:40px; margin:0 auto 10px; border-radius:50%; background:linear-gradient(135deg,var(--brand),#0a8fb8); }
+  .r-line{ height:5px; border-radius:2px; background:#c7c4ba; margin:0 auto 9px; }
+  .r-line.dim{ background:#dad7cd; }
+  .r-line.total{ background:#8a8676; height:7px; margin-top:16px; }
+  .r-dots{ display:flex; justify-content:space-between; margin:14px 0; }
+  .r-dots span{ width:3px; height:3px; border-radius:50%; background:#c7c4ba; display:inline-block; }
+  .r-barcode{ height:30px; margin-top:18px; background:repeating-linear-gradient(90deg,#444 0 2px, transparent 2px 5px); opacity:.55; }
+
+  .vignette{ position:absolute; left:0; right:0; pointer-events:none; z-index:5; }
+  .vignette.top{ top:0; height:26%; background:linear-gradient(180deg, rgba(0,0,0,.65), transparent); }
+  .vignette.bottom{ bottom:0; height:30%; background:linear-gradient(0deg, rgba(0,0,0,.7), transparent); }
+
+  .flash-overlay{
+    position:absolute; inset:0; background:#fff; opacity:0; z-index:60; pointer-events:none;
+  }
+  .flash-overlay.fire{ animation:flashFire .35s ease-out; }
+  @keyframes flashFire{ 0%{opacity:0;} 15%{opacity:1;} 100%{opacity:0;} }
+
+  /* ───────── Header ───────── */
+  .header{
+    position:absolute; top:52px; left:0; right:0; z-index:30;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 20px;
+  }
+  .icon-btn{
+    width:38px; height:38px; border-radius:12px; border:none;
+    background:rgba(0,0,0,.4); color:rgba(255,255,255,.85);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:background .2s, color .2s;
+  }
+  .icon-btn:hover{ background:rgba(0,0,0,.55); }
+  .icon-btn.active{ color:var(--gold); }
+  .header-title{ color:#fff; font-size:17px; font-weight:700; transition:opacity .25s; }
+
+  /* ───────── Viewfinder / scan overlay ───────── */
+  .scan-overlay{
+    position:absolute; left:0; right:0; top:0; bottom:0; z-index:20;
+    display:flex; align-items:center; justify-content:center;
+    padding:0 36px; transition:opacity .35s; pointer-events:none;
+  }
+  .viewfinder{
+    position:relative; width:100%; height:270px; margin-top:-30px;
+  }
+  .corner{ position:absolute; width:30px; height:30px; border-color:var(--bracket); transition:border-color .4s, filter .4s; filter:drop-shadow(0 0 6px rgba(91,106,212,.5)); }
+  .screen.analyzing .corner{ border-color:var(--gold); filter:drop-shadow(0 0 8px rgba(251,191,36,.55)); }
+  .corner.tl{ top:0; left:0; border-top:2.5px solid; border-left:2.5px solid; border-radius:10px 0 0 0; animation:pulseCorner 2.4s ease-in-out infinite; }
+  .corner.tr{ top:0; right:0; border-top:2.5px solid; border-right:2.5px solid; border-radius:0 10px 0 0; animation:pulseCorner 2.4s ease-in-out infinite .2s; }
+  .corner.bl{ bottom:0; left:0; border-bottom:2.5px solid; border-left:2.5px solid; border-radius:0 0 0 10px; animation:pulseCorner 2.4s ease-in-out infinite .4s; }
+  .corner.br{ bottom:0; right:0; border-bottom:2.5px solid; border-right:2.5px solid; border-radius:0 0 10px 0; animation:pulseCorner 2.4s ease-in-out infinite .6s; }
+  @keyframes pulseCorner{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+
+  .scanline, .scanline-trail{
+    position:absolute; left:4%; right:4%; height:2.5px; border-radius:2px;
+    background:linear-gradient(90deg, transparent, var(--bracket) 20%, #fff 50%, var(--bracket) 80%, transparent);
+    box-shadow:0 0 16px 2px rgba(91,106,212,.8);
+    top:0; opacity:0;
+  }
+  .scanline-trail{ opacity:0; filter:blur(2px); }
+  .screen.scanning .scanline{ animation:sweep 2.1s cubic-bezier(.4,0,.2,1) infinite; }
+  .screen.scanning .scanline-trail{ animation:sweep 2.1s cubic-bezier(.4,0,.2,1) infinite; animation-delay:-.12s; opacity:.5; }
+  .screen.analyzing .scanline{ background:linear-gradient(90deg, transparent, var(--gold) 20%, #fff 50%, var(--gold) 80%, transparent); box-shadow:0 0 16px 2px rgba(251,191,36,.8); animation:sweep 1.3s cubic-bezier(.4,0,.2,1) infinite; }
+  .screen.analyzing .scanline-trail{ animation:sweep 1.3s cubic-bezier(.4,0,.2,1) infinite; animation-delay:-.1s; }
+  @keyframes sweep{ 0%{ top:0; opacity:0; } 8%{ opacity:1; } 92%{ opacity:1; } 100%{ top:100%; opacity:0; } }
+
+  .field-marker{
+    position:absolute; border:1.5px solid var(--gold); border-radius:6px;
+    background:rgba(251,191,36,.08);
+    opacity:0; transform:scale(.9);
+    transition:opacity .35s, transform .35s;
+  }
+  .field-marker.visible{ opacity:1; transform:scale(1); }
+  .field-marker::before{
+    content:attr(data-label);
+    position:absolute; top:-21px; left:-1.5px;
+    background:var(--gold); color:#1a1300; font-size:9.5px; font-weight:700;
+    padding:2px 7px; border-radius:6px; white-space:nowrap;
+    letter-spacing:.2px;
+  }
+  #markerMerchant{ top:14%; left:18%; width:46%; height:9%; }
+  #markerDate{ top:30%; left:18%; width:30%; height:7%; }
+  #markerTotal{ top:68%; left:22%; width:40%; height:10%; }
+
+  /* ───────── Instructions (align state) ───────── */
+  .instructions{
+    position:absolute; left:0; right:0; bottom:200px; z-index:25;
+    text-align:center; padding:0 40px; transition:opacity .3s, transform .3s;
+  }
+  .instr-main{ color:#fff; font-size:16px; font-weight:600; margin:0 0 4px; }
+  .instr-sub{ color:rgba(255,255,255,.45); font-size:12.5px; margin:0; }
+
+  /* ───────── Analyzing panel ───────── */
+  .analyzing-panel{
+    position:absolute; left:0; right:0; bottom:140px; z-index:25;
+    display:flex; flex-direction:column; align-items:center; gap:14px;
+    opacity:0; pointer-events:none; transition:opacity .4s;
+  }
+  .screen.analyzing .analyzing-panel{ opacity:1; }
+  .progress-ring{ position:relative; width:64px; height:64px; }
+  .progress-ring svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .progress-ring circle{ fill:none; stroke-width:4; }
+  .progress-ring .track{ stroke:rgba(255,255,255,.12); }
+  .progress-ring .bar{ stroke:var(--gold); stroke-linecap:round; stroke-dasharray:163; stroke-dashoffset:163; transition:stroke-dashoffset .15s linear; filter:drop-shadow(0 0 6px rgba(251,191,36,.6)); }
+  .progress-pct{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:13px; font-weight:700; }
+  .analyzing-text{ color:#fff; font-size:13.5px; font-weight:600; min-height:18px; }
+  .analyzing-text span{ display:inline-block; background:linear-gradient(90deg, rgba(255,255,255,.5) 0%, #fff 50%, rgba(255,255,255,.5) 100%); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:shimmer 1.6s linear infinite; }
+  @keyframes shimmer{ 0%{ background-position:200% 0; } 100%{ background-position:-200% 0; } }
+
+  .chip-row{ display:flex; gap:8px; }
+  .chip{
+    display:flex; align-items:center; gap:5px;
+    font-size:11px; font-weight:600; color:rgba(255,255,255,.35);
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+    border-radius:20px; padding:6px 11px;
+    transition:all .3s;
+  }
+  .chip svg{ width:12px; height:12px; opacity:.3; transition:opacity .3s; }
+  .chip.done{ color:var(--success); background:rgba(74,222,128,.1); border-color:rgba(74,222,128,.3); }
+  .chip.done svg{ opacity:1; }
+
+  /* ───────── Bottom controls (align state) ───────── */
+  .controls{
+    position:absolute; left:0; right:0; bottom:46px; z-index:25;
+    display:flex; align-items:center; justify-content:space-around;
+    padding:0 46px; transition:opacity .3s, transform .3s;
+  }
+  .ctrl-btn{
+    width:52px; height:52px; border-radius:26px; border:none;
+    background:rgba(255,255,255,.1); color:rgba(255,255,255,.85);
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition:background .2s;
+  }
+  .ctrl-btn:hover{ background:rgba(255,255,255,.18); }
+  .shutter{
+    width:78px; height:78px; border-radius:39px; border:3px solid #fff;
+    background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:transform .15s, opacity .3s;
+  }
+  .shutter:active{ transform:scale(.92); }
+  .shutter-inner{ width:60px; height:60px; border-radius:30px; background:#fff; transition:transform .15s; }
+
+  .instructions.hide, .controls.hide{ opacity:0; transform:translateY(8px); pointer-events:none; }
+
+  /* ───────── Result sheet ───────── */
+  .result-sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:35;
+    height:72%;
+    background:#10121a;
+    border-radius:26px 26px 0 0;
+    box-shadow:0 -20px 50px -10px rgba(0,0,0,.6);
+    transform:translateY(103%);
+    transition:transform .55s cubic-bezier(.22,1,.36,1);
+    padding:14px 22px 24px;
+    display:flex; flex-direction:column;
+  }
+  .screen.result .result-sheet{ transform:translateY(0); }
+  .sheet-handle{ width:40px; height:4px; border-radius:3px; background:rgba(255,255,255,.18); margin:0 auto 14px; }
+
+  .success-badge{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    color:var(--success); font-size:12.5px; font-weight:700; margin-bottom:10px;
+    opacity:0; transform:translateY(6px); transition:opacity .4s, transform .4s;
+  }
+  .screen.result .success-badge{ opacity:1; transform:translateY(0); transition-delay:.15s; }
+  .success-badge svg{ width:16px; height:16px; }
+
+  .ai-badge{
+    align-self:center; display:flex; align-items:center; gap:6px;
+    background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.28);
+    border-radius:20px; padding:6px 13px; margin-bottom:16px;
+    color:var(--gold); font-size:12px; font-weight:600;
+    opacity:0; transition:opacity .4s; transition-delay:.25s;
+  }
+  .screen.result .ai-badge{ opacity:1; }
+  .ai-badge svg{ width:13px; height:13px; }
+
+  .result-card{
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.09);
+    border-radius:20px; padding:20px; flex:1; overflow:auto;
+    opacity:0; transform:translateY(10px); transition:opacity .4s, transform .4s; transition-delay:.3s;
+  }
+  .screen.result .result-card{ opacity:1; transform:translateY(0); }
+
+  .cat-pill{
+    display:inline-flex; align-items:center; gap:9px; background:rgba(255,140,66,.14);
+    border-radius:14px; padding:4px 14px 4px 4px; margin-bottom:16px;
+  }
+  .cat-icon{ width:32px; height:32px; border-radius:9px; background:#FF8C42; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .cat-pill b{ color:#FF8C42; font-size:13px; font-weight:700; }
+
+  .merchant{ color:#fff; font-size:21px; font-weight:800; margin:0 0 4px; }
+  .amount{ color:var(--success); font-size:34px; font-weight:800; margin:0 0 16px; }
+  .divider{ height:1px; background:rgba(255,255,255,.1); margin-bottom:14px; }
+  .detail-row{ display:flex; align-items:center; gap:9px; margin-bottom:11px; color:rgba(255,255,255,.85); font-size:12.5px; }
+  .detail-row svg{ width:15px; height:15px; color:rgba(255,255,255,.4); flex-shrink:0; }
+  .detail-row span{ color:rgba(255,255,255,.4); width:42px; flex-shrink:0; }
+  .detail-row b{ font-weight:600; }
+
+  .result-actions{ display:flex; gap:10px; margin-top:16px; }
+  .retake-btn, .confirm-btn{
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    border:none; border-radius:14px; padding:14px; font-size:14px; font-weight:700;
+    cursor:pointer; transition:opacity .2s, transform .1s;
+  }
+  .retake-btn{ background:rgba(255,255,255,.1); color:rgba(255,255,255,.8); }
+  .confirm-btn{ background:var(--brand); color:#fff; flex:1; }
+  .retake-btn:active, .confirm-btn:active{ transform:scale(.97); }
+  .retake-btn svg, .confirm-btn svg{ width:17px; height:17px; }
+
+  .toast{
+    position:absolute; bottom:120px; left:50%; transform:translate(-50%,10px);
+    background:#1b2027; color:#fff; font-size:12.5px; font-weight:600;
+    padding:11px 18px; border-radius:24px; display:flex; align-items:center; gap:7px;
+    opacity:0; z-index:80; box-shadow:0 10px 30px -5px rgba(0,0,0,.5);
+    transition:opacity .3s, transform .3s; pointer-events:none;
+    border:1px solid rgba(74,222,128,.3);
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
+  .toast svg{ width:15px; height:15px; color:var(--success); }
+
+  /* ───────── Replay control (page chrome) ───────── */
+  .replay-btn{
+    display:flex; align-items:center; gap:7px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14);
+    color:#fff; font-family:inherit; font-size:13px; font-weight:600;
+    padding:10px 20px; border-radius:24px; cursor:pointer; transition:background .2s;
+  }
+  .replay-btn:hover{ background:rgba(255,255,255,.14); }
+  .replay-btn svg{ width:15px; height:15px; }
+</style>
+</head>
+<body>
+
+  <p class="page-title">Rabbit Tracker — Scan Receipt</p>
+  <p class="page-sub">Live camera with a continuous scan animation while framing, auto-capture, then the same scan overlay runs over the frozen shot while it analyses the receipt.</p>
+
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen scanning" id="screen">
+
+      <div class="statusbar">
+        <span class="time">9:41</span>
+        <div class="status-icons">
+          <svg width="18" height="11" viewBox="0 0 18 11" fill="none"><rect x="0" y="6" width="3" height="5" rx="0.5" fill="#fff"/><rect x="5" y="4" width="3" height="7" rx="0.5" fill="#fff"/><rect x="10" y="2" width="3" height="9" rx="0.5" fill="#fff"/><rect x="15" y="0" width="3" height="11" rx="0.5" fill="#fff" opacity=".4"/></svg>
+          <svg width="20" height="11" viewBox="0 0 20 11" fill="none"><rect x="0.5" y="0.5" width="17" height="10" rx="2.5" stroke="#fff" opacity=".6"/><rect x="2" y="2" width="12" height="7" rx="1.3" fill="#fff"/><rect x="18.5" y="3.5" width="1.3" height="4" rx="0.6" fill="#fff" opacity=".6"/></svg>
+        </div>
+      </div>
+
+      <!-- camera / mock scene -->
+      <div class="camera-layer" id="cameraLayer">
+        <video id="video" autoplay muted playsinline></video>
+        <div class="mock-scene" id="mockScene">
+          <div class="desk"></div>
+          <div class="receipt">
+            <div class="r-logo"></div>
+            <div class="r-line" style="width:70%"></div>
+            <div class="r-line dim" style="width:50%"></div>
+            <div class="r-dots">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="r-line dim" style="width:85%"></div>
+            <div class="r-line dim" style="width:60%"></div>
+            <div class="r-line dim" style="width:78%"></div>
+            <div class="r-line dim" style="width:40%"></div>
+            <div class="r-line dim" style="width:72%"></div>
+            <div class="r-line total" style="width:65%"></div>
+            <div class="r-barcode"></div>
+          </div>
+        </div>
+      </div>
+      <div class="vignette top"></div>
+      <div class="vignette bottom"></div>
+      <div class="flash-overlay" id="flashOverlay"></div>
+
+      <!-- header -->
+      <div class="header">
+        <button class="icon-btn" id="backBtn" aria-label="Back">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="header-title" id="headerTitle">Scan Receipt</span>
+        <button class="icon-btn" id="flashBtn" aria-label="Flash">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+        </button>
+      </div>
+
+      <!-- scan overlay -->
+      <div class="scan-overlay" id="scanOverlay">
+        <div class="viewfinder" id="viewfinder">
+          <span class="corner tl"></span>
+          <span class="corner tr"></span>
+          <span class="corner bl"></span>
+          <span class="corner br"></span>
+          <div class="scanline-trail"></div>
+          <div class="scanline"></div>
+          <div class="field-marker" id="markerMerchant" data-label="Merchant"></div>
+          <div class="field-marker" id="markerDate" data-label="Date"></div>
+          <div class="field-marker" id="markerTotal" data-label="Total"></div>
+        </div>
+      </div>
+
+      <!-- instructions -->
+      <div class="instructions" id="instructions">
+        <p class="instr-main" id="instrMain">Point camera at receipt</p>
+        <p class="instr-sub" id="instrSub">Scanning automatically…</p>
+      </div>
+
+      <!-- analyzing panel -->
+      <div class="analyzing-panel" id="analyzingPanel">
+        <div class="progress-ring">
+          <svg viewBox="0 0 58 58">
+            <circle class="track" cx="29" cy="29" r="26"/>
+            <circle class="bar" id="progressBar" cx="29" cy="29" r="26"/>
+          </svg>
+          <span class="progress-pct" id="progressPct">0%</span>
+        </div>
+        <p class="analyzing-text"><span id="analyzingText">Detecting edges…</span></p>
+        <div class="chip-row">
+          <span class="chip" id="chipMerchant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Merchant</span>
+          <span class="chip" id="chipDate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Date</span>
+          <span class="chip" id="chipTotal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>Total</span>
+        </div>
+      </div>
+
+      <!-- bottom controls -->
+      <div class="controls" id="controls">
+        <button class="ctrl-btn" id="galleryBtn" aria-label="Gallery">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </button>
+        <button class="shutter" id="shutterBtn" aria-label="Capture">
+          <span class="shutter-inner"></span>
+        </button>
+        <button class="ctrl-btn" id="gridBtn" aria-label="Grid">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+        </button>
+      </div>
+
+      <!-- result sheet -->
+      <div class="result-sheet" id="resultSheet">
+        <div class="sheet-handle"></div>
+        <div class="success-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.3 2.3L16 10"/></svg>
+          Scan complete
+        </div>
+        <div class="ai-badge">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8z"/></svg>
+          96% match
+        </div>
+        <div class="result-card">
+          <div class="cat-pill">
+            <span class="cat-icon">🛒</span>
+            <b>Groceries</b>
+          </div>
+          <h2 class="merchant">Trader Joe's</h2>
+          <p class="amount">$47.82</p>
+          <div class="divider"></div>
+          <div class="detail-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+            <span>Date</span><b>Oct 20, 2026</b>
+          </div>
+          <div class="detail-row">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+            <span>Note</span><b>Weekly groceries</b>
+          </div>
+        </div>
+        <div class="result-actions">
+          <button class="retake-btn" id="retakeBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+            Retake
+          </button>
+          <button class="confirm-btn" id="confirmBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
+            Confirm &amp; Add
+          </button>
+        </div>
+      </div>
+
+      <div class="toast" id="toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.3 2.3L16 10"/></svg>
+        Added to transactions
+      </div>
+
+    </div>
+  </div>
+
+  <button class="replay-btn" id="replayBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/></svg>
+    Replay demo
+  </button>
+
+<script>
+(() => {
+  const screen         = document.getElementById('screen');
+  const video          = document.getElementById('video');
+  const mockScene      = document.getElementById('mockScene');
+  const cameraLayer    = document.getElementById('cameraLayer');
+  const flashOverlay   = document.getElementById('flashOverlay');
+  const headerTitle    = document.getElementById('headerTitle');
+  const instructions   = document.getElementById('instructions');
+  const instrMain      = document.getElementById('instrMain');
+  const instrSub       = document.getElementById('instrSub');
+  const controls       = document.getElementById('controls');
+  const shutterBtn     = document.getElementById('shutterBtn');
+  const backBtn        = document.getElementById('backBtn');
+  const flashBtn       = document.getElementById('flashBtn');
+  const progressBar    = document.getElementById('progressBar');
+  const progressPct    = document.getElementById('progressPct');
+  const analyzingText  = document.getElementById('analyzingText');
+  const chipMerchant   = document.getElementById('chipMerchant');
+  const chipDate       = document.getElementById('chipDate');
+  const chipTotal      = document.getElementById('chipTotal');
+  const markerMerchant = document.getElementById('markerMerchant');
+  const markerDate     = document.getElementById('markerDate');
+  const markerTotal    = document.getElementById('markerTotal');
+  const retakeBtn      = document.getElementById('retakeBtn');
+  const confirmBtn     = document.getElementById('confirmBtn');
+  const replayBtn      = document.getElementById('replayBtn');
+  const toast          = document.getElementById('toast');
+
+  const RING_CIRCUMFERENCE = 2 * Math.PI * 26; // r=26
+
+  let timers = [];
+  let flashOn = false;
+  let cameraReady = false;
+
+  function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+  function after(ms, fn){ const id = setTimeout(fn, ms); timers.push(id); return id; }
+
+  // ── Try to get a live camera feed; fall back to the mock receipt scene ──
+  function startCamera(){
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(stream => {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play();
+          video.style.display = 'block';
+          mockScene.style.display = 'none';
+          cameraReady = true;
+        };
+      })
+      .catch(() => { /* permission denied or no camera — mock scene stays visible */ });
+  }
+
+  function stopCamera(){
+    const stream = video.srcObject;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+  }
+
+  // ── State: align (live scanning, looking for a receipt) ──
+  function toAlignState(){
+    clearTimers();
+    screen.className = 'screen scanning';
+    cameraLayer.classList.remove('frozen');
+    headerTitle.textContent = 'Scan Receipt';
+    instrMain.textContent = 'Point camera at receipt';
+    instrSub.textContent = 'Scanning automatically…';
+    instructions.classList.remove('hide');
+    controls.classList.remove('hide');
+    [markerMerchant, markerDate, markerTotal].forEach(m => m.classList.remove('visible'));
+    [chipMerchant, chipDate, chipTotal].forEach(c => c.classList.remove('done'));
+    progressBar.style.strokeDasharray = RING_CIRCUMFERENCE;
+    progressBar.style.strokeDashoffset = RING_CIRCUMFERENCE;
+    progressPct.textContent = '0%';
+    if (cameraReady) { video.play(); }
+
+    // auto-capture after the live scan has been "looking" for a bit
+    after(3400, triggerCapture);
+  }
+
+  // ── Capture: flash + freeze frame, then move into analyzing ──
+  function triggerCapture(){
+    clearTimers();
+    instructions.classList.add('hide');
+    controls.classList.add('hide');
+
+    flashOverlay.classList.remove('fire');
+    void flashOverlay.offsetWidth; // restart animation
+    flashOverlay.classList.add('fire');
+
+    if (cameraReady) video.pause(); // keeps last frame visible, acts as the "captured photo"
+    cameraLayer.classList.add('frozen');
+
+    after(260, toAnalyzingState);
+  }
+
+  // ── Analyzing: same scan overlay now runs over the frozen shot ──
+  function toAnalyzingState(){
+    screen.className = 'screen analyzing';
+    headerTitle.textContent = 'Analyzing…';
+
+    const stages = [
+      { pct: 28, text: 'Detecting edges…' },
+      { pct: 55, text: 'Reading merchant…', chip: chipMerchant, marker: markerMerchant },
+      { pct: 78, text: 'Finding the date…', chip: chipDate, marker: markerDate },
+      { pct: 100, text: 'Extracting total…', chip: chipTotal, marker: markerTotal },
+    ];
+
+    let elapsed = 0;
+    stages.forEach((stage, i) => {
+      const delay = i === 0 ? 500 : elapsed + 650;
+      elapsed = delay;
+      after(delay, () => {
+        analyzingText.textContent = stage.text;
+        const offset = RING_CIRCUMFERENCE - (stage.pct / 100) * RING_CIRCUMFERENCE;
+        progressBar.style.strokeDashoffset = offset;
+        progressPct.textContent = stage.pct + '%';
+        if (stage.chip)   stage.chip.classList.add('done');
+        if (stage.marker) stage.marker.classList.add('visible');
+      });
+    });
+
+    after(elapsed + 900, toResultState);
+  }
+
+  // ── Result: reveal the extracted receipt data ──
+  function toResultState(){
+    screen.className = 'screen result';
+    headerTitle.textContent = 'Receipt Found';
+  }
+
+  function showToast(msg){
+    toast.querySelector('svg').nextSibling.textContent = ' ' + msg;
+    toast.classList.add('show');
+    after(1800, () => toast.classList.remove('show'));
+  }
+
+  backBtn.addEventListener('click', toAlignState);
+  shutterBtn.addEventListener('click', () => { if (screen.classList.contains('scanning')) triggerCapture(); });
+  flashBtn.addEventListener('click', () => {
+    flashOn = !flashOn;
+    flashBtn.classList.toggle('active', flashOn);
+  });
+  retakeBtn.addEventListener('click', toAlignState);
+  confirmBtn.addEventListener('click', () => {
+    showToast('Added to transactions');
+    after(1200, toAlignState);
+  });
+  replayBtn.addEventListener('click', toAlignState);
+
+  startCamera();
+  toAlignState();
+})();
+</script>
+</body>
+</html>

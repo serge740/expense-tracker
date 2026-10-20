@@ -11,6 +11,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
   imports: [JwtModule.register({}), EmailModule, forwardRef(() => NotificationsModule)],
   controllers: [ClientAuthController],
   providers: [ClientAuthService, FaceService, ClientJwtAuthGuard],
-  exports: [ClientJwtAuthGuard, JwtModule],
+  exports: [ClientJwtAuthGuard, JwtModule, ClientAuthService],
 })
 export class ClientAuthModule {}

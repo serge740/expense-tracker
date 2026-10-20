@@ -44,6 +44,7 @@ model Client {
   phoneOtpExpiry         DateTime?
   refreshTokens          RefreshToken[]
   devices                Device[]
+  passkeys               Passkey[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
   wallets                Wallet[]
@@ -78,6 +79,27 @@ model Device {
   createdAt    DateTime @default(now())
 
   @@index([clientId])
+}
+
+model Passkey {
+  id         String   @id // credential ID (base64url), from the authenticator
+  publicKey  Bytes
+  counter    Int
+  transports Json // string[] of AuthenticatorTransportFuture
+  deviceType String
+  backedUp   Boolean
+  deviceName String
+  clientId   String
+  client     Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model PasskeyChallenge {
+  key       String   @id // clientId for registration, random uuid for login
+  challenge String
+  expiresAt DateTime
 }
 
 model Notification {
@@ -185,6 +207,7 @@ model Transaction {
   amount      Decimal         @db.Decimal(12, 2)
   date        DateTime        @default(now())
   receiptUrl  String?
+  receiptReportUrl String?
   // TRANSFER only: money moves from walletId to toWalletId
   toWalletId   String?
   toAmount     Decimal?        @db.Decimal(12, 2)

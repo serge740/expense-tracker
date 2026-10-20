@@ -52,18 +52,6 @@ export class TransactionService {
     return { data: data.map(t => this.mapTx(t)), total, page, limit };
   }
 
-  /** Store a receipt image on disk and return its path under /uploads. */
-  async saveReceipt(clientId: string, buffer: Buffer, mimeType: string): Promise<{ receiptUrl: string }> {
-    const { join } = await import('path');
-    const { mkdirSync, writeFileSync } = await import('fs');
-    const ext = mimeType === 'image/png' ? '.png' : mimeType === 'image/webp' ? '.webp' : '.jpg';
-    const filename = `receipt_${clientId.slice(0, 8)}_${Date.now()}${ext}`;
-    const dir = join(process.cwd(), 'uploads', 'receipts');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, filename), buffer);
-    return { receiptUrl: `receipts/${filename}` };
-  }
-
   async findRecent(clientId: string, limit = 3) {
     const txns = await this.prisma.transaction.findMany({
       where: { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } },
@@ -141,6 +129,7 @@ export class TransactionService {
           date,
           walletId: dto.walletId,
           receiptUrl: dto.receiptUrl,
+          receiptReportUrl: dto.receiptReportUrl,
         },
       });
 
@@ -281,7 +270,7 @@ export class TransactionService {
     return { success: true };
   }
 
-  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null }) {
+  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null }) {
     const raw = Number(t.amount);
     return {
       id: t.id,
@@ -294,6 +283,7 @@ export class TransactionService {
       date: t.date,
       walletId: t.walletId,
       receiptUrl: t.receiptUrl,
+      receiptReportUrl: t.receiptReportUrl ?? null,
     };
   }
 

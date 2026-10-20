@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `client` ADD COLUMN `appleId` VARCHAR(191) NULL,
+ALTER TABLE `Client` ADD COLUMN `appleId` VARCHAR(191) NULL,
     ADD COLUMN `passwordHash` VARCHAR(191) NULL;
 
 -- CreateIndex

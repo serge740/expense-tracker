@@ -10,4 +10,5 @@ export class CreateTransactionDto {
   date?: string;
   walletId?: string;
   receiptUrl?: string;
+  receiptReportUrl?: string;
 }

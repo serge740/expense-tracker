@@ -8,9 +8,11 @@
     "scheme": "expensetracker",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.abyride.expensetracker",
       "supportsTablet": true,
       "icon": "./assets/images/logo/rabbit-icon.png",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "associatedDomains": ["webcredentials:trivial-marshy-false.ngrok-free.dev"]
     },
     "android": {
       "adaptiveIcon": {
@@ -59,6 +61,13 @@
             "./assets/sounds/pop.wav",
             "./assets/sounds/ding.wav"
           ]
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": { "deploymentTarget": "16.4" },
+          "android": { "compileSdkVersion": 36 }
         }
       ]
     ],

@@ -182,6 +182,7 @@ export default function HistoryScreen() {
         description: t.description ?? '',
         amount: String(t.amount), date: String(t.date),
         walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
+        receiptReportUrl: t.receiptReportUrl ?? '',
       },
     });
   };

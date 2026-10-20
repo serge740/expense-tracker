@@ -1,0 +1,36 @@
+# EAS Build resolves .easignore relative to the GIT REPO ROOT, not the Expo
+# project directory — this file must live here, not in expo_app/, for it to
+# have any effect. (node_modules and .git are always ignored automatically
+# by eas-cli, so they don't need to be listed here.)
+
+# Generated native projects for expo_app — this is a managed/remote build,
+# EAS regenerates these via prebuild; a stale local copy from
+# `expo run:android` / `expo prebuild` shouldn't ship.
+expo_app/android/
+expo_app/ios/
+
+# Expo/Metro caches
+expo_app/.expo/
+expo_app/.metro-health-check*
+
+# Build outputs not needed for the build upload
+expo_app/dist/
+expo_app/web-build/
+backend/dist/
+backend/generated/
+
+# Unrelated top-level projects not needed for the Expo build
+backend/
+uploads/
+plan/
+
+# OS/editor cruft
+.DS_Store
+*.orig.*
+
+# Env files that shouldn't ship
+.env*.local
+
+# Misc
+*.log
+*.tsbuildinfo

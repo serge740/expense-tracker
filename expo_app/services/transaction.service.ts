@@ -26,6 +26,7 @@ export interface Transaction {
   date: string;
   walletId: string | null;
   receiptUrl: string | null;
+  receiptReportUrl: string | null;
 }
 
 export interface TransactionGroup {
@@ -50,6 +51,7 @@ export interface CreateTransactionDto {
   date?: string;
   walletId?: string;
   receiptUrl?: string;
+  receiptReportUrl?: string;
 }
 
 export const getTransactions = (params?: Record<string, any>): Promise<PaginatedTransactions> =>
@@ -82,14 +84,4 @@ export function formatSubtitle(tx: Transaction): string {
   else dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   return `${cat} · ${dateStr}`;
-}
-
-/** Upload a receipt photo; returns the path to store on the transaction. */
-export async function uploadReceipt(uri: string): Promise<string> {
-  const form = new FormData();
-  const ext = uri.split('.').pop()?.toLowerCase();
-  const type = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
-  form.append('image', { uri, type, name: `receipt.${ext === 'png' || ext === 'webp' ? ext : 'jpg'}` } as any);
-  const res = await api.post<{ receiptUrl: string }>('/transactions/receipt', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-  return res.data.receiptUrl;
 }

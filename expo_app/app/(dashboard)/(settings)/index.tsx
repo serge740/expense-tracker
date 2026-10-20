@@ -66,7 +66,7 @@ export default function ProfileScreen() {
     { icon: 'document-scanner', label: 'Scan Receipt',      sub: 'Auto-log from photo',         color: '#7B7FD4', bg: 'rgba(123,127,212,0.12)', onPress: () => router.push('/(dashboard)/scan') },
     { icon: 'credit-card',      label: 'Payment Methods',   sub: 'Visa ··4821, Amex ··0092',    color: '#60A5FA', bg: 'rgba(96,165,250,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/devices') },
     { icon: 'notifications',    label: 'Notifications',     sub: 'Budget alerts on',             color: '#FBBF24', bg: 'rgba(251,191,36,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/notifications') },
-    { icon: 'fingerprint',      label: 'Security',          sub: 'Biometric enabled',            color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/edit-profile') },
+    { icon: 'fingerprint',      label: 'Security',          sub: 'Manage sign-in security',      color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/passkeys') },
     { icon: 'person-outline',   label: 'Account Details',   sub: 'Edit your information',        color: '#F472B6', bg: 'rgba(244,114,182,0.12)', onPress: () => router.push('/(dashboard)/(settings)/edit-profile') },
     { icon: 'attach-money',     label: 'Currency',          sub: currencyLabel,                  color: '#4ADE80', bg: 'rgba(74,222,128,0.12)',  onPress: () => router.push('/(dashboard)/(settings)/currency') },
     { icon: 'dark-mode',        label: 'Appearance',        sub: themeLabel,                     color: '#A78BFA', bg: 'rgba(167,139,250,0.12)', onPress: () => router.push('/(dashboard)/(settings)/appearance') },

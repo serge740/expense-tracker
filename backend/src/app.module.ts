@@ -11,7 +11,9 @@ import { TransactionModule } from './modules/transaction/transaction.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { DebtsModule } from './modules/debts/debts.module';
-import { OcrModule } from './modules/ocr/ocr.module';
+import { ReceiptsModule } from './modules/receipts/receipts.module';
+import { PasskeyModule } from './modules/passkey/passkey.module';
+import { WellKnownModule } from './modules/well-known/well-known.module';
 
 @Module({
   imports: [
@@ -25,7 +27,9 @@ import { OcrModule } from './modules/ocr/ocr.module';
     ReportsModule,
     BudgetModule,
     DebtsModule,
-    OcrModule,
+    ReceiptsModule,
+    PasskeyModule,
+    WellKnownModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

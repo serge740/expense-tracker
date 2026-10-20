@@ -1,5 +1,5 @@
 -- AlterTable
-ALTER TABLE `wallet` ADD COLUMN `accountHolder` VARCHAR(191) NULL,
+ALTER TABLE `Wallet` ADD COLUMN `accountHolder` VARCHAR(191) NULL,
     ADD COLUMN `accountNumber` VARCHAR(191) NULL,
     MODIFY `walletType` ENUM('CHECKING', 'SAVINGS', 'CREDIT', 'CASH', 'MOBILE_MONEY') NOT NULL DEFAULT 'CHECKING';
 

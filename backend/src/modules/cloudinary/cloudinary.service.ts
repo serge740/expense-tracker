@@ -3,11 +3,18 @@ import { cloudinary } from './cloudinary.config';
 
 @Injectable()
 export class CloudinaryService {
-  uploadReceiptBuffer(buffer: Buffer, mimeType: string): Promise<string> {
-    const resourceType = mimeType.includes('png') ? 'image' : 'image';
+  uploadReceiptBuffer(
+    buffer: Buffer,
+    mimeType: string,
+    options?: { folder?: string; resourceType?: 'image' | 'auto' | 'raw'; filename?: string },
+  ): Promise<string> {
+    const folder = options?.folder ?? 'expense-tracker/receipts';
+    const resourceType = options?.resourceType ?? 'image';
     return new Promise((resolve, reject) => {
+      const uploadOpts: Record<string, unknown> = { folder, resource_type: resourceType };
+      if (options?.filename) uploadOpts.public_id = options.filename;
       const stream = cloudinary.uploader.upload_stream(
-        { folder: 'expense-tracker/receipts', resource_type: resourceType },
+        uploadOpts,
         (error, result) => {
           if (error || !result) {
             reject(new InternalServerErrorException(error?.message ?? 'Cloudinary upload failed'));

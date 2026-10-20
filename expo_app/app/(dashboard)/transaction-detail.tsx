@@ -13,6 +13,7 @@ import { useCurrency } from '@/context/currency-context';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 
 const CATEGORY_COLOR: Record<string, { color: string; bg: string }> = {
   salary:        { color: '#4ADE80', bg: 'rgba(74,222,128,0.15)'   },
@@ -33,14 +34,15 @@ export default function TransactionDetailScreen() {
   const [deleting,    setDeleting]    = useState(false);
   const [viewerOpen,  setViewerOpen]  = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const params = useLocalSearchParams<{
     id: string; type: string; category: string; title: string;
     subCategory: string; description: string; amount: string; date: string;
-    walletId: string; receiptUrl: string;
+    walletId: string; receiptUrl: string; receiptReportUrl: string;
   }>();
 
-  const { id, type, category, title, subCategory, description, walletId, receiptUrl } = params;
+  const { id, type, category, title, subCategory, description, walletId, receiptUrl, receiptReportUrl } = params;
   const amount   = parseFloat(params.amount ?? '0');
   const date     = new Date(params.date ?? Date.now());
   const isIncome = type === 'INCOME';
@@ -73,6 +75,24 @@ export default function TransactionDetailScreen() {
       Alert.alert('Error', 'Could not save the receipt image.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (!receiptReportUrl) return;
+    setDownloadingReport(true);
+    try {
+      const localUri = FileSystem.cacheDirectory + `receipt-report-${Date.now()}.pdf`;
+      await FileSystem.downloadAsync(receiptReportUrl, localUri);
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(localUri, { mimeType: 'application/pdf', dialogTitle: 'Receipt report' });
+      } else {
+        Alert.alert('Downloaded', 'Report saved to app storage.');
+      }
+    } catch {
+      Alert.alert('Error', 'Could not download the report.');
+    } finally {
+      setDownloadingReport(false);
     }
   };
 
@@ -169,6 +189,28 @@ export default function TransactionDetailScreen() {
           </>
         )}
 
+        {/* Receipt report (PDF) */}
+        {!!receiptReportUrl && (
+          <TouchableOpacity
+            style={[s.reportBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={handleDownloadReport}
+            disabled={downloadingReport}
+            activeOpacity={0.8}
+          >
+            <View style={[s.reportIcon, { backgroundColor: theme.primaryBg }]}>
+              {downloadingReport
+                ? <ActivityIndicator size="small" color={theme.primary} />
+                : <MaterialIcons name="picture-as-pdf" size={20} color={theme.primary} />
+              }
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.reportTitle, { color: theme.text }]}>Receipt report (PDF)</Text>
+              <Text style={[s.reportSub, { color: theme.textMuted }]}>Extracted details + original file</Text>
+            </View>
+            <MaterialIcons name="download" size={18} color={theme.primary} />
+          </TouchableOpacity>
+        )}
+
         {/* Details card */}
         <View style={[s.detailCard, { backgroundColor: theme.surface }]}>
           <DetailRow icon="category" label="Category" value={catName} color={cfg.color} theme={theme} />
@@ -254,6 +296,11 @@ const s = StyleSheet.create({
   receiptImg:      { width: '100%', height: 220, borderRadius: 12 },
   zoomHint:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 8 },
   zoomHintText:    { fontSize: 11, color: 'rgba(150,150,150,0.9)' },
+
+  reportBtn:   { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 14 },
+  reportIcon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  reportTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  reportSub:   { fontSize: 11 },
 
   detailCard: { borderRadius: 18, paddingVertical: 4, paddingHorizontal: 16, marginBottom: 20 },
   detailRow:  { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, gap: 12 },

@@ -44,6 +44,11 @@ export default function SecurityScreen() {
       </Section>
       <Hint>{t('security.linkHint')}</Hint>
 
+      <Section title={t('section.passkeys')}>
+        <Row icon="fingerprint" title={t('security.passkeys')} sub={t('security.passkeysSub')}
+             onPress={() => router.push('/(dashboard)/(settings)/passkeys')} />
+      </Section>
+
       <Section title={t('section.devices')}>
         <Row icon="devices" title={t('security.devices')} sub={t('security.devicesSub')} onPress={() => router.push('/(dashboard)/(settings)/devices')} />
         <Row icon="logout" title={t('security.signOutDevice')} onPress={signOut} danger />
