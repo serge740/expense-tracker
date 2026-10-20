@@ -4,6 +4,8 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionDto } from './dto/query-transaction.dto';
 import { CategorySlug, Prisma, TransactionType } from '../../../generated/prisma';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NO_DEBT_FLOWS, parseIncludeLoans } from '../../common/utils/loan-filter';
+import { parseView, viewFilter } from '../../common/utils/feed-view';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -15,13 +17,16 @@ export class TransactionService {
   ) {}
 
   async findAll(clientId: string, query: QueryTransactionDto) {
-    const { type, category, walletId, month, year, startDate, endDate, page = 1, limit = 20, search } = query;
+    const { type, category, walletId, month, year, startDate, endDate, page = 1, limit = 20, search, view, includeLoans } = query;
 
     // Transfers only appear when asked for: older screens treat non-income as spending.
     const where: Prisma.TransactionWhereInput = { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } };
     if (type === 'income')   where.type = 'INCOME';
     if (type === 'expense')  where.type = 'EXPENSE';
     if (type === 'transfer') where.type = 'TRANSFER';
+    // The chip is combined with AND so it can never clash with the other filters (or the search's OR).
+    const chip = parseView(view);
+    if (chip !== 'all' || includeLoans !== undefined) where.AND = [viewFilter(chip, parseIncludeLoans(includeLoans))];
     if (category)  where.category = category as CategorySlug;
     if (walletId)  where.walletId = walletId;
     if (startDate || endDate) {
@@ -52,9 +57,13 @@ export class TransactionService {
     return { data: data.map(t => this.mapTx(t)), total, page, limit };
   }
 
-  async findRecent(clientId: string, limit = 3) {
+  async findRecent(clientId: string, limit = 3, view?: string, includeLoans?: string) {
+    const chip = parseView(view);
     const txns = await this.prisma.transaction.findMany({
-      where: { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } },
+      where: {
+        clientId, type: { notIn: ['TRANSFER', 'DEBT'] },
+        ...(chip !== 'all' || includeLoans !== undefined ? { AND: [viewFilter(chip, parseIncludeLoans(includeLoans))] } : {}),
+      },
       orderBy: { date: 'desc' },
       take: limit,
     });
@@ -62,8 +71,10 @@ export class TransactionService {
   }
 
   async history(clientId: string, query: QueryTransactionDto) {
-    const { category, month, year, startDate, endDate, search } = query;
+    const { category, month, year, startDate, endDate, search, view, includeLoans } = query;
     const where: Prisma.TransactionWhereInput = { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } };
+    const chip = parseView(view);
+    if (chip !== 'all' || includeLoans !== undefined) where.AND = [viewFilter(chip, parseIncludeLoans(includeLoans))];
 
     if (category) where.category = category as CategorySlug;
     if (startDate || endDate) {
@@ -112,43 +123,68 @@ export class TransactionService {
     return Array.from(groupMap.entries()).map(([date, items]) => ({ date, items }));
   }
 
-  async create(clientId: string, dto: CreateTransactionDto) {
+  /**
+   * Creates the transaction and moves the wallet, inside a database transaction the caller owns.
+   * Scheduled posting uses this so the transaction and its occurrence change together or not at all.
+   */
+  async createInTx(
+    prx: Prisma.TransactionClient,
+    clientId: string,
+    dto: CreateTransactionDto,
+    extra: { scheduledOccurrenceId?: string } = {},
+  ) {
     const amount = Math.abs(dto.amount);
     const date = dto.date ? new Date(dto.date) : new Date();
-
-    const tx = await this.prisma.$transaction(async (prx) => {
-      const created = await prx.transaction.create({
-        data: {
-          clientId,
-          type: dto.type,
-          category: dto.category,
-          title: dto.title,
-          subCategory: dto.subCategory,
-          description: dto.description,
-          amount,
-          date,
-          walletId: dto.walletId,
-          receiptUrl: dto.receiptUrl,
-          receiptReportUrl: dto.receiptReportUrl,
-        },
-      });
-
-      if (dto.walletId) {
-        const delta = new Prisma.Decimal(amount);
-        await prx.wallet.update({
-          where: { id: dto.walletId },
-          data: {
-            balance: dto.type === 'INCOME'
-              ? { increment: delta }
-              : { decrement: delta },
-          },
-        });
-      }
-
-      return created;
+    if (dto.fundedByDebtId) {
+      if (dto.type !== 'EXPENSE') throw new BadRequestException('Only an expense can be paid from borrowed money');
+      const debt = await prx.debt.findFirst({ where: { id: dto.fundedByDebtId, clientId } });
+      if (!debt || debt.kind !== 'BORROWED') throw new BadRequestException('Choose a debt you borrowed');
+      if (debt.status !== 'OPEN' || debt.archivedAt) throw new BadRequestException('That debt is closed');
+      const unspent = Number(debt.amount) - Number(debt.spent);
+      if (amount > unspent + 0.001) throw new BadRequestException(`Only ${unspent} ${debt.currency} of this debt is unspent`);
+      dto = { ...dto, walletId: undefined };
+      await prx.debt.update({ where: { id: debt.id }, data: { spent: { increment: amount } } });
+    }
+    const created = await prx.transaction.create({
+      data: {
+        clientId,
+        type: dto.type,
+        category: dto.category,
+        title: dto.title,
+        subCategory: dto.subCategory,
+        description: dto.description,
+        amount,
+        date,
+        walletId: dto.walletId,
+        receiptUrl: dto.receiptUrl,
+        receiptReportUrl: dto.receiptReportUrl,
+        fundedByDebtId: dto.fundedByDebtId,
+        ...extra,
+      },
     });
 
-    this.notifyNewTransaction(clientId, tx.type, amount, dto.title, date).catch(() => {});
+    if (dto.walletId) {
+      const delta = new Prisma.Decimal(amount);
+      await prx.wallet.update({
+        where: { id: dto.walletId },
+        data: {
+          balance: dto.type === 'INCOME'
+            ? { increment: delta }
+            : { decrement: delta },
+        },
+      });
+    }
+    return created;
+  }
+
+  /** The push (and budget alert) a new transaction causes. Never throws. */
+  notifyCreated(clientId: string, tx: { type: TransactionType; amount: unknown; title: string; date: Date }) {
+    this.notifyNewTransaction(clientId, tx.type, Number(tx.amount), tx.title, tx.date).catch(() => {});
+  }
+
+  async create(clientId: string, dto: CreateTransactionDto) {
+    const tx = await this.prisma.$transaction(prx => this.createInTx(prx, clientId, dto));
+    this.notifyCreated(clientId, tx);
     return this.mapTx(tx);
   }
 
@@ -170,7 +206,7 @@ export class TransactionService {
     if (limit <= 0) return;
 
     const agg = await this.prisma.transaction.aggregate({
-      where: { clientId, type: 'EXPENSE', date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) } },
+      where: { clientId, type: 'EXPENSE', date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) }, ...NO_DEBT_FLOWS },
       _sum: { amount: true },
     });
     const after = Number(agg._sum.amount ?? 0);
@@ -187,6 +223,7 @@ export class TransactionService {
   async update(clientId: string, id: string, dto: Partial<CreateTransactionDto>) {
     const existing = await this.assertOwner(clientId, id);
     if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
+    if (existing.fundedByDebtId || dto.fundedByDebtId) throw new BadRequestException('This was paid from borrowed money — delete it and add it again to change it.');
     if (existing.type === 'TRANSFER' || (dto.type as string) === 'TRANSFER') {
       throw new BadRequestException('Transfers cannot be edited. Delete it and make a new transfer.');
     }
@@ -253,6 +290,9 @@ export class TransactionService {
 
     await this.prisma.$transaction(async (prx) => {
       await prx.transaction.delete({ where: { id } });
+      if (existing.fundedByDebtId) {
+        await prx.debt.updateMany({ where: { id: existing.fundedByDebtId }, data: { spent: { decrement: existing.amount } } });
+      }
 
       if (existing.walletId) {
         const delta = new Prisma.Decimal(Number(existing.amount));
@@ -270,7 +310,7 @@ export class TransactionService {
     return { success: true };
   }
 
-  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null }) {
+  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null; debtId?: string | null; debtRole?: string | null }) {
     const raw = Number(t.amount);
     return {
       id: t.id,
@@ -284,6 +324,8 @@ export class TransactionService {
       walletId: t.walletId,
       receiptUrl: t.receiptUrl,
       receiptReportUrl: t.receiptReportUrl ?? null,
+      debtId: t.debtId ?? null,
+      debtRole: t.debtRole ?? null,
     };
   }
 

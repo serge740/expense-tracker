@@ -39,12 +39,12 @@ export class NotificationsController {
   @Patch('preferences')
   async updatePreferences(
     @Req() req: RequestWithClient,
-    @Body() body: { pushEnabled?: boolean; emailEnabled?: boolean; inAppEnabled?: boolean },
+    @Body() body: Parameters<NotificationsService['updatePreferences']>[1],
   ) {
     try {
       return await this.notificationsService.updatePreferences(req.client.id, body);
     } catch (error: any) {
-      throw new HttpException(error.message || 'Failed to update preferences', 400);
+      throw new HttpException(error.message || 'Failed to update preferences', error.status || 400);
     }
   }
 

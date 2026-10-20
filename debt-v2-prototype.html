@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Debt &amp; Credit v2 prototype</title>
+<style>
+:root{--bg:#EEF7FA;--surface:#fff;--primary:#00627F;--pbg:rgba(0,98,127,.08);--text:#0E2A33;--text2:#5A7682;--muted:#9AB0B9;--border:rgba(0,98,127,.12);--input:#F3F8FA;--owe:#DC2626;--owed:#16A34A;--warn:#D97706;--shadow:0 20px 50px rgba(0,40,60,.18)}
+:root.dark{--bg:#0B1A20;--surface:#13262E;--primary:#4FB3D1;--pbg:rgba(79,179,209,.12);--text:#E6F2F6;--text2:#9DB6C0;--muted:#6C8791;--border:rgba(255,255,255,.08);--input:#0F2128;--shadow:0 20px 50px rgba(0,0,0,.5)}
+*{box-sizing:border-box;margin:0}
+body{font-family:Poppins,system-ui,Segoe UI,sans-serif;background:#cfdde3;color:var(--text);display:flex;gap:28px;padding:24px;min-height:100vh;flex-wrap:wrap;justify-content:center}
+.panel{width:330px;font-size:13px;line-height:1.5}
+.panel h1{font-size:18px;margin-bottom:6px}
+.panel p{color:#35505a;margin-bottom:10px}
+.panel button.nav{display:block;width:100%;text-align:left;border:1px solid #9fb6bf;background:#fff;border-radius:12px;padding:9px 12px;margin-bottom:7px;cursor:pointer;font:inherit;font-size:12.5px}
+.panel button.nav.on{background:#00627F;color:#fff;border-color:#00627F}
+.panel .note{background:#fff;border-radius:12px;padding:10px 12px;font-size:12px;margin-top:10px}
+.panel code{background:#e3eef2;padding:1px 5px;border-radius:5px}
+.phone{width:390px;height:780px;background:var(--bg);border-radius:38px;box-shadow:var(--shadow);position:relative;overflow:hidden;border:8px solid #11242b;display:flex;flex-direction:column}
+.screen{flex:1;overflow-y:auto;padding:14px 16px 90px;display:none}
+.screen.on{display:block}
+.screen::-webkit-scrollbar{display:none}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.hd h2{font-size:17px;flex:1}
+.hd small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.round{width:36px;height:36px;border-radius:50%;background:var(--primary);color:#fff;display:grid;place-items:center;border:0;font-size:18px;cursor:pointer}
+.back{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px;margin-bottom:10px}
+.sys{position:relative;overflow:hidden;color:#fff;border:0;padding:14px}
+.sys.debt{background:linear-gradient(135deg,#B42318,#E5484D)}
+.sys.credit{background:linear-gradient(135deg,#0F7A3E,#2FB36B)}
+.sys .lock{position:absolute;right:12px;top:12px;font-size:11px;background:rgba(255,255,255,.2);padding:2px 8px;border-radius:99px}
+.sys .lbl{font-size:11px;opacity:.85}
+.sys .big{font-size:24px;font-weight:800;margin:2px 0 8px}
+.sys .stats{display:flex;gap:14px;font-size:11px}
+.sys .stats b{display:block;font-size:13px}
+.sys .nudge{margin-top:8px;font-size:10.5px;opacity:.85}
+.wal{display:flex;align-items:center;gap:10px}
+.dot{width:36px;height:36px;border-radius:12px;background:var(--pbg);display:grid;place-items:center;color:var(--primary);font-weight:800}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.t1{font-weight:700;font-size:13px}.t2{font-size:11px;color:var(--muted)}
+.right{text-align:right}
+.tabs{display:flex;background:var(--input);border-radius:14px;padding:3px;margin:8px 0 12px}
+.tabs button{flex:1;border:0;background:none;height:34px;border-radius:11px;font:inherit;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer}
+.tabs button.on{background:var(--surface);color:var(--primary)}
+.chip{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--input);color:var(--text2)}
+.chip.red{background:rgba(220,38,38,.12);color:var(--owe)}
+.chip.green{background:rgba(22,163,74,.12);color:var(--owed)}
+.chip.amber{background:rgba(217,119,6,.14);color:var(--warn)}
+.chip.blue{background:var(--pbg);color:var(--primary)}
+.track{height:6px;border-radius:3px;background:var(--input);overflow:hidden;margin:9px 0 4px}
+.fill{height:100%;border-radius:3px}
+.sec{font-size:13px;font-weight:700;margin:16px 0 8px;display:flex;align-items:center}
+.sec span{flex:1}
+.link{color:var(--primary);font-size:12px;font-weight:700;cursor:pointer;background:none;border:0;font-family:inherit}
+.amtcard{border-radius:18px;padding:14px;border:1px solid}
+.amtcard.oweC{background:rgba(220,38,38,.07);border-color:rgba(220,38,38,.2)}
+.amtcard.owedC{background:rgba(22,163,74,.07);border-color:rgba(22,163,74,.2)}
+.big2{font-size:26px;font-weight:800}
+.tl{position:relative;padding-left:22px}
+.tl:before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--border)}
+.tli{position:relative;margin-bottom:10px}
+.tli:before{content:"";position:absolute;left:-20px;top:14px;width:12px;height:12px;border-radius:50%;background:var(--surface);border:3px solid var(--muted)}
+.tli.PAID:before{border-color:var(--owed);background:var(--owed)}
+.tli.PARTIAL:before{border-color:var(--warn)}
+.tli.OVERDUE:before{border-color:var(--owe);background:var(--owe)}
+.tli.PENDING:before{border-color:var(--primary)}
+.tli.old{opacity:.6}
+.tli.old:before{border-style:dashed}
+.inst{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 12px}
+.inst.OVERDUE{border-color:rgba(220,38,38,.4)}
+.acts{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.btn{border:0;border-radius:11px;padding:7px 11px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;background:var(--pbg);color:var(--primary)}
+.btn.solid{background:var(--primary);color:#fff}
+.btn.danger{background:rgba(220,38,38,.1);color:var(--owe)}
+.btn.full{width:100%;height:44px;border-radius:22px;font-size:13px;margin-top:10px}
+.field{display:flex;align-items:center;gap:8px;height:42px;border-radius:12px;border:1px solid var(--border);background:var(--input);padding:0 12px;font-size:13px;color:var(--text)}
+.field input{flex:1;border:0;background:none;font:inherit;color:var(--text);outline:none;min-width:0}
+.lab{font-size:11px;font-weight:600;color:var(--text2);margin:10px 0 6px}
+.sw{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:var(--input);border-radius:14px}
+.sw i{width:38px;height:22px;border-radius:11px;background:var(--muted);position:relative;flex:none;cursor:pointer;transition:.2s}
+.sw i:after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.sw i.on{background:var(--primary)}.sw i.on:after{left:18px}
+.tx{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.tx .ic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:14px}
+.sheetbg{position:absolute;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;z-index:20}
+.sheetbg.on{display:flex}
+.sheet{background:var(--surface);width:100%;border-radius:26px 26px 0 0;padding:8px 18px 22px;max-height:88%;overflow:auto}
+.grab{width:38px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 10px}
+.opt{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--input);margin-bottom:8px;cursor:pointer}
+.opt b{font-size:13px}.opt small{display:block;font-size:11px;color:var(--text2)}
+.opt .oi{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:var(--pbg);color:var(--primary);font-size:16px}
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:64px;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center;font-size:10px;color:var(--muted)}
+.tabbar div.on{color:var(--primary);font-weight:700}
+.hint{font-size:10.5px;color:var(--muted);margin:6px 0}
+.banner{border-radius:12px;padding:9px 11px;font-size:11.5px;background:var(--pbg);color:var(--text2);margin:8px 0}
+.empty{text-align:center;color:var(--muted);padding:18px 0;font-size:12px}
+.toast{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);background:#11242b;color:#fff;padding:8px 14px;border-radius:99px;font-size:11.5px;display:none;z-index:30;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>Phase 3 — Debt &amp; Credit v2</h1>
+  <p>Interactive mock of the screens that change. Nothing here is saved. Tap around: record a payment, add / move a pay date, forgive, archive.</p>
+  <button class="nav on" data-go="wallets">1 · Wallets tab — Debt &amp; Credit wallet cards</button>
+  <button class="nav" data-go="ledger">2 · Debt wallet (ledger) screen</button>
+  <button class="nav" data-go="credit">3 · Credit wallet (ledger) screen</button>
+  <button class="nav" data-go="list">4 · Debts &amp; credits list</button>
+  <button class="nav" data-go="detail">5 · Debt detail — pay dates + history</button>
+  <button class="nav" data-go="newdebt">6 · New debt (pay date required)</button>
+  <button class="nav" data-go="txd">7 · Transaction detail — link back to the debt</button>
+  <button class="nav" id="darkBtn">Toggle dark mode</button>
+  <div class="note"><b>How the pay-date status works.</b> Payments are applied to pay dates oldest first. Each date is <code>Paid</code> when the money paid so far covers it, <code>Partial</code> when it covers part, <code>Overdue</code> when the time has passed and it is not covered. Moving a pay date never edits the old one: it stays in the history as <code>Moved</code>, and a new one is added.</div>
+  <div class="note"><b>Debt / Credit wallets</b> are not real wallets. They are protected summary cards worked out from your debts. You cannot pay from them, delete them or transfer to them.</div>
+  <div class="note"><b>Repeating does not apply</b> here. Each pay date is added by hand.</div>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- 1 WALLETS -->
+  <div class="screen on" id="wallets">
+    <div class="hd"><h2>Wallets<small>Net worth 1,245,000 RWF</small></h2><button class="round">+</button></div>
+    <div class="sec"><span>Your money</span></div>
+    <div class="card wal"><div class="dot">M</div><div class="grow"><div class="t1">MoMo</div><div class="t2">Mobile money · RWF</div></div><div class="t1">320,000</div></div>
+    <div class="card wal"><div class="dot">B</div><div class="grow"><div class="t1">Bank of Kigali</div><div class="t2">Checking · RWF</div></div><div class="t1">1,150,000</div></div>
+    <div class="sec"><span>Debts &amp; credits</span><button class="link" data-go="list">Manage</button></div>
+    <div class="card sys debt" data-go="ledger" style="cursor:pointer">
+      <span class="lock">🔒 System</span>
+      <div class="lbl">Debt wallet · what I owe</div>
+      <div class="big">RWF 150,000</div>
+      <div class="stats"><div>Taken<b>300,000</b></div><div>Paid<b>150,000</b></div><div>Fully paid<b>2</b></div></div>
+      <div class="nudge">Borrowed cash is not income. Tap to see every related transaction.</div>
+    </div>
+    <div class="card sys credit" data-go="credit" style="cursor:pointer">
+      <span class="lock">🔒 System</span>
+      <div class="lbl">Credit wallet · owed to me</div>
+      <div class="big">RWF 80,000</div>
+      <div class="stats"><div>Lent<b>120,000</b></div><div>Received<b>40,000</b></div><div>Fully paid<b>1</b></div></div>
+    </div>
+    <div class="hint">Dollar debts show as their own line, e.g. “USD 50 owed”. Currencies are never mixed.</div>
+  </div>
+
+  <!-- 2 LEDGER DEBT -->
+  <div class="screen" id="ledger">
+    <div class="hd"><button class="round back" data-go="wallets">‹</button><h2>Debt wallet<small>What I owe · virtual ledger</small></h2></div>
+    <div class="card sys debt">
+      <div class="lbl">Remaining</div><div class="big">RWF 150,000</div>
+      <div class="stats"><div>Taken<b>300,000</b></div><div>Paid<b>150,000</b></div><div>Open<b>2</b></div><div>Fully paid<b>2</b></div></div>
+    </div>
+    <div class="tabs" data-tabs><button class="on">All</button><button>Taken</button><button>Payments</button></div>
+    <div class="sec"><span>Related transactions</span></div>
+    <div class="tx"><div class="ic" style="background:rgba(22,163,74,.12)">↓</div><div class="grow"><div class="t1">Borrowed from John</div><div class="t2">12 Oct · MoMo · <span class="chip blue">Borrowed</span></div></div><div class="t1" style="color:var(--text2)">+200,000</div></div>
+    <div class="tx"><div class="ic" style="background:rgba(220,38,38,.12)">↑</div><div class="grow"><div class="t1">Paid John</div><div class="t2">18 Oct · MoMo · <span class="chip red">Debt payment</span></div></div><div class="t1" style="color:var(--owe)">−50,000</div></div>
+    <div class="tx"><div class="ic" style="background:rgba(22,163,74,.12)">↓</div><div class="grow"><div class="t1">Borrowed from Aline</div><div class="t2">2 Oct · Cash · <span class="chip blue">Borrowed</span></div></div><div class="t1" style="color:var(--text2)">+100,000</div></div>
+    <div class="tx"><div class="ic" style="background:rgba(220,38,38,.12)">↑</div><div class="grow"><div class="t1">Paid Aline</div><div class="t2">14 Oct · Cash · <span class="chip red">Debt payment</span></div></div><div class="t1" style="color:var(--owe)">−100,000</div></div>
+    <div class="banner">“Borrowed” rows raise your wallet but are <b>not counted as income</b>. “Debt payment” rows count as expense (switch on Home: <i>Include loans</i>).</div>
+    <div class="sec"><span>Archived</span><button class="link">View (3)</button></div>
+  </div>
+
+  <!-- 3 LEDGER CREDIT -->
+  <div class="screen" id="credit">
+    <div class="hd"><button class="round back" data-go="wallets">‹</button><h2>Credit wallet<small>Owed to me · virtual ledger</small></h2></div>
+    <div class="card sys credit">
+      <div class="lbl">Receivable</div><div class="big">RWF 80,000</div>
+      <div class="stats"><div>Lent<b>120,000</b></div><div>Received<b>40,000</b></div><div>Open<b>1</b></div><div>Fully paid<b>1</b></div></div>
+    </div>
+    <div class="sec"><span>Related transactions</span></div>
+    <div class="tx"><div class="ic" style="background:rgba(220,38,38,.12)">↑</div><div class="grow"><div class="t1">Lent to Eric</div><div class="t2">5 Oct · Bank · <span class="chip amber">Lent</span></div></div><div class="t1" style="color:var(--owe)">−120,000</div></div>
+    <div class="tx"><div class="ic" style="background:rgba(22,163,74,.12)">↓</div><div class="grow"><div class="t1">Eric paid back</div><div class="t2">15 Oct · Bank · <span class="chip green">Received</span></div></div><div class="t1" style="color:var(--owed)">+40,000</div></div>
+    <div class="banner">Lent 120,000, received 40,000 → <b>80,000</b> still owed. When it reaches 0 it counts as fully paid and income and expense net out.</div>
+  </div>
+
+  <!-- 4 LIST -->
+  <div class="screen" id="list">
+    <div class="hd"><h2>Debts &amp; credits<small>Debt (I owe) · Credit (owed to me)</small></h2><button class="round" data-go="newdebt">+</button></div>
+    <div style="display:flex;gap:10px">
+      <div class="card" style="flex:1"><div class="t2">I owe</div><div class="t1" style="color:var(--owe);font-size:16px">150,000</div></div>
+      <div class="card" style="flex:1"><div class="t2">Owed to me</div><div class="t1" style="color:var(--owed);font-size:16px">80,000</div></div>
+    </div>
+    <div class="banner" style="background:rgba(220,38,38,.1);color:var(--owe)">⚠ 1 overdue · next pay date: John, today 6:00 PM</div>
+    <div class="tabs" id="listTabs"><button class="on" data-t="D">Debt</button><button data-t="C">Credit</button><button data-t="S">Closed</button></div>
+    <div id="listBody"></div>
+  </div>
+
+  <!-- 5 DETAIL -->
+  <div class="screen" id="detail">
+    <div class="hd"><button class="round back" data-go="list">‹</button>
+      <div class="grow"><div class="t2" style="color:var(--owe);font-weight:700">Borrowed from</div><div style="font-size:18px;font-weight:800">John</div></div>
+      <button class="btn" id="moreBtn">⋯</button></div>
+    <div class="amtcard oweC">
+      <div class="t2">Left to pay</div>
+      <div class="big2" id="dLeft" style="color:var(--owe)"></div>
+      <div class="track" style="background:var(--surface)"><div class="fill" id="dFill" style="background:var(--owe)"></div></div>
+      <div class="t2" id="dPaid"></div>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:6px"><span class="chip blue">Borrowed 12 Oct</span><span class="chip" id="dFinal"></span><span class="chip blue">🔔 Reminders on</span></div>
+    </div>
+    <div class="acts"><button class="btn solid" id="payBtn" style="flex:1">Record payment</button><button class="btn" id="addDateBtn" style="flex:1">+ Add pay date</button></div>
+
+    <div class="sec"><span>Pay dates</span><button class="link" id="histToggle">Show history</button></div>
+    <div class="tl" id="timeline"></div>
+
+    <div class="sec"><span>Payments made</span></div>
+    <div id="payList"></div>
+
+    <div class="sec"><span>Linked transactions</span></div>
+    <div class="tx" data-go="txd" style="cursor:pointer"><div class="ic" style="background:rgba(22,163,74,.12)">↓</div><div class="grow"><div class="t1">Borrowed from John</div><div class="t2">12 Oct · MoMo · opens transaction</div></div><div class="t1">+200,000</div></div>
+  </div>
+
+  <!-- 6 NEW DEBT -->
+  <div class="screen" id="newdebt">
+    <div class="hd"><button class="round back" data-go="list">‹</button><h2>New debt or credit</h2></div>
+    <div class="tabs" id="kindTabs"><button class="on" data-k="D" style="color:var(--owe)">Debt · I owe</button><button data-k="C">Credit · owed to me</button></div>
+    <div class="lab" id="whoLab">Borrowed from</div><div class="field">👤 <input placeholder="Name"></div>
+    <div class="lab">Amount</div><div class="field">🇷🇼 RWF <input placeholder="0" style="font-weight:700;font-size:16px"></div>
+    <div class="lab" id="dateLab">First pay date <span style="color:var(--owe)">required</span></div>
+    <div class="field" id="dateField">📅 <span style="flex:1">Tue 21 Oct · 6:00 PM</span><span class="chip blue">in 1 day</span></div>
+    <div class="hint" id="dateHint">You can add more pay dates later. Old ones are kept.</div>
+    <div class="sw"><i class="on" id="remSw"></i><div class="grow"><div class="t1">Remind me</div><div class="t2" id="remTxt">1 day before, 1 hour before and when due. Repeats until you act.</div></div></div>
+    <div class="lab">Phone (optional)</div><div class="field">📞 <input placeholder="+250 788 123 456"></div>
+    <div class="lab">Wallet (optional)</div><div class="field">MoMo ▾</div>
+    <button class="btn solid full">Save</button>
+  </div>
+
+  <!-- 7 TX DETAIL -->
+  <div class="screen" id="txd">
+    <div class="hd"><button class="round back" data-go="detail">‹</button><h2>Transaction</h2></div>
+    <div class="card" style="text-align:center"><div class="t2">Borrowed from John</div><div class="big2">+RWF 200,000</div><div class="t2">12 Oct · MoMo</div></div>
+    <div class="card" style="cursor:pointer" data-go="detail">
+      <div class="t2">Linked to debt</div>
+      <div class="row"><div class="grow"><div class="t1">John · remaining 150,000</div><div class="t2">Next pay date today 6:00 PM</div></div><span style="color:var(--primary);font-weight:800">›</span></div>
+    </div>
+    <div class="banner">This transaction is part of a debt, so amount and delete are changed from the debt, not here. It is <b>not counted as income</b>.</div>
+  </div>
+
+  <div class="tabbar"><div>Home</div><div>History</div><div class="on">Wallets</div><div>Reports</div><div>Profile</div></div>
+
+  <!-- sheets -->
+  <div class="sheetbg" id="paySheet"><div class="sheet"><div class="grab"></div>
+    <div class="t1" style="font-size:16px;margin-bottom:6px">Record payment</div>
+    <div class="field">RWF <input id="payAmt" value="50000" style="font-weight:700;font-size:17px"><button class="btn" id="payAll">All</button></div>
+    <div class="hint" id="payHint"></div>
+    <div class="lab">From wallet (optional)</div><div class="field">MoMo ▾</div>
+    <button class="btn solid full" id="payGo">Record payment</button></div></div>
+
+  <div class="sheetbg" id="dateSheet"><div class="sheet"><div class="grab"></div>
+    <div class="t1" style="font-size:16px;margin-bottom:6px" id="dsTitle">Add pay date</div>
+    <div class="lab">Date &amp; time <span class="chip blue" style="margin-left:6px">opens the date sheet</span></div>
+    <div class="field">📅 <input id="dsWhen" value="Sat 25 Oct · 9:00 AM"></div>
+    <div class="lab">Planned amount (optional)</div><div class="field">RWF <input id="dsAmt" value="50000"></div>
+    <div class="hint" id="dsHint">The old date stays in the history, marked “Moved”.</div>
+    <button class="btn solid full" id="dsGo">Save</button></div></div>
+
+  <div class="sheetbg" id="moreSheet"><div class="sheet"><div class="grab"></div>
+    <div class="opt" id="optForgive"><div class="oi">✂</div><div><b>Forgive the rest</b><small>Close this debt without paying 150,000. No money moves.</small></div></div>
+    <div class="opt"><div class="oi">✎</div><div><b>Edit details</b><small>Name, phone, note. Changing the amount also corrects the wallet.</small></div></div>
+    <div class="opt" id="optArchive"><div class="oi">🗄</div><div><b>Archive</b><small>Hide it and cancel its reminders. You can restore it.</small></div></div>
+  </div></div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const fmt=n=>n.toLocaleString('en-US');
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',2000)};
+
+/* ---- navigation ---- */
+function go(id){
+  $$('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+  $$('.panel .nav[data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===id));
+  if(id==='detail')render(); if(id==='list')renderList();
+}
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)go(g.dataset.go)});
+$('#darkBtn').onclick=()=>document.documentElement.classList.toggle('dark');
+if(location.hash.includes('dark'))document.documentElement.classList.add('dark');
+$$('[data-tabs] button').forEach(b=>b.onclick=()=>{b.parentNode.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on')});
+
+/* ---- debt model ---- */
+// installments: pay dates, append-only. status: PENDING | MOVED | SKIPPED. Paid/Partial/Overdue are derived.
+const NOW = new Date(2026,9,20,15,0); // Mon 20 Oct 2026 3pm
+const D=(m,d,h,mi=0)=>new Date(2026,m,d,h,mi);
+const state={
+  amount:200000, payments:[{amt:50000,date:D(9,18,10),w:'MoMo'}], forgiven:0, archived:false, showHist:false,
+  inst:[
+    {id:1,due:D(9,15,18),amt:50000,status:'PENDING'},
+    {id:2,due:D(9,20,18),amt:50000,status:'PENDING'},
+    {id:3,due:D(9,25,9),amt:100000,status:'MOVED',movedTo:4},
+    {id:4,due:D(10,2,9),amt:100000,status:'PENDING',from:3},
+  ],
+};
+const paidTotal=()=>state.payments.reduce((a,p)=>a+p.amt,0);
+const remaining=()=>Math.max(0,state.amount-paidTotal()-state.forgiven);
+
+// waterfall: apply paid money to active pay dates, oldest first
+function derive(){
+  let pool=paidTotal();
+  const active=state.inst.filter(i=>i.status==='PENDING').sort((a,b)=>a.due-b.due);
+  const out={};
+  for(const i of active){
+    const plan=i.amt??0, take=Math.min(pool,plan);
+    pool-=take;
+    let st;
+    if(plan>0&&take>=plan) st='PAID';
+    else if(i.due<NOW) st='OVERDUE';
+    else if(take>0) st='PARTIAL';
+    else st='PENDING';
+    if(take>0&&take<plan&&i.due<NOW) st='OVERDUE';
+    out[i.id]={st,covered:take};
+  }
+  return out;
+}
+const when=d=>d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+
+function render(){
+  const left=remaining(), paid=paidTotal();
+  $('#dLeft').textContent='RWF '+fmt(left);
+  $('#dFill').style.width=Math.min(100,(paid+state.forgiven)/state.amount*100)+'%';
+  $('#dPaid').textContent='Paid '+fmt(paid)+' of '+fmt(state.amount)+(state.forgiven?' · forgiven '+fmt(state.forgiven):'');
+  const pend=state.inst.filter(i=>i.status==='PENDING');
+  const last=pend.length?pend.reduce((a,b)=>a.due>b.due?a:b):null;
+  $('#dFinal').textContent=last?'Final pay date '+last.due.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'No pay dates';
+  $('#payBtn').style.display=left>0&&!state.archived?'':'none';
+  $('#addDateBtn').style.display=left>0&&!state.archived?'':'none';
+  $('#histToggle').textContent=state.showHist?'Hide history':'Show history';
+
+  const dv=derive(), tl=$('#timeline'); tl.innerHTML='';
+  let rows=state.inst.slice().sort((a,b)=>a.due-b.due);
+  if(!state.showHist) rows=rows.filter(i=>i.status==='PENDING');
+  if(!rows.length) tl.innerHTML='<div class="empty">'+(left>0?'No pay dates yet. Add one so you get reminded.':'Nothing left to pay 🎉')+'</div>';
+  rows.forEach(i=>{
+    const moved=i.status==='MOVED', sk=i.status==='SKIPPED';
+    const st=moved||sk?(moved?'MOVED':'SKIPPED'):dv[i.id].st;
+    const label={PAID:['Paid','green'],PARTIAL:['Partly paid','amber'],OVERDUE:['Overdue','red'],PENDING:['Upcoming','blue'],MOVED:['Moved','amber'],SKIPPED:['Skipped','']}[st];
+    const covered=!moved&&!sk?dv[i.id].covered:0;
+    const el=document.createElement('div');
+    el.className='tli '+(moved||sk?'old PENDING':st);
+    el.innerHTML=`<div class="inst ${st}"><div class="row"><div class="grow"><div class="t1" style="${moved?'text-decoration:line-through':''}">${when(i.due)}</div>
+      <div class="t2">${i.amt?'Planned '+fmt(i.amt):'No planned amount'}${covered&&st!=='PAID'?' · covered '+fmt(covered):''}${i.from?' · moved from '+i.from+'':''}${moved?' → moved to a later date':''}</div></div>
+      <span class="chip ${label[1]}">${label[0]}</span></div>
+      ${!moved&&!sk&&st!=='PAID'&&!state.archived?`<div class="acts"><button class="btn" data-mv="${i.id}">Move</button><button class="btn" data-sk="${i.id}">Skip</button></div>`:''}</div>`;
+    tl.appendChild(el);
+  });
+  $$('[data-mv]').forEach(b=>b.onclick=()=>openDate('move',+b.dataset.mv));
+  $$('[data-sk]').forEach(b=>b.onclick=()=>{state.inst.find(i=>i.id===+b.dataset.sk).status='SKIPPED';render();toast('Pay date skipped · kept in history')});
+
+  const pl=$('#payList'); pl.innerHTML='';
+  if(!state.payments.length) pl.innerHTML='<div class="empty">No payments yet</div>';
+  state.payments.forEach((p,idx)=>{pl.insertAdjacentHTML('beforeend',`<div class="tx"><div class="ic" style="background:rgba(220,38,38,.12)">↑</div><div class="grow"><div class="t1">${fmt(p.amt)}</div><div class="t2">${p.date.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} · ${p.w}</div></div><button class="btn danger" data-rm="${idx}">Undo</button></div>`)});
+  $$('[data-rm]').forEach(b=>b.onclick=()=>{state.payments.splice(+b.dataset.rm,1);render();toast('Payment removed · pay dates recalculated')});
+}
+$('#histToggle').onclick=()=>{state.showHist=!state.showHist;render()};
+
+/* ---- list ---- */
+let listTab='D';
+const cards={
+  D:[{n:'John',a:'RWF 150,000',sub:'Next: today 6:00 PM',chip:['Overdue','red'],pct:25,c:'var(--owe)',go:'detail'},
+     {n:'Aline',a:'RWF 0',sub:'Fully paid',chip:['Paid','green'],pct:100,c:'var(--owe)'}],
+  C:[{n:'Eric',a:'RWF 80,000',sub:'No pay date · reminder off',chip:['Open','blue'],pct:33,c:'var(--owed)',nudge:true}],
+  S:[{n:'Aline',a:'RWF 100,000',sub:'Settled 14 Oct',chip:['Settled','green'],pct:100,c:'var(--owe)'},
+     {n:'Marie',a:'RWF 30,000',sub:'Forgiven 3 Oct · 30,000 dropped',chip:['Forgiven','amber'],pct:0,c:'var(--owed)'}]
+};
+function renderList(){
+  $('#listBody').innerHTML=cards[listTab].map(c=>`<div class="card" ${c.go?`data-go="${c.go}" style="cursor:pointer"`:''}>
+    <div class="row"><div class="dot" style="color:${c.c};background:${c.c}1A">${c.n[0]}</div><div class="grow"><div class="t1">${c.n}</div><div class="t2">${c.sub}</div></div>
+    <div class="right"><div class="t1" style="color:${c.c}">${c.a}</div><span class="chip ${c.chip[1]}">${c.chip[0]}</span></div></div>
+    <div class="track"><div class="fill" style="width:${c.pct}%;background:${c.c}"></div></div>
+    ${c.nudge?'<div class="acts"><button class="btn">💬 Nudge on WhatsApp</button></div>':''}</div>`).join('');
+}
+$$('#listTabs button').forEach(b=>b.onclick=()=>{$$('#listTabs button').forEach(x=>x.classList.remove('on'));b.classList.add('on');listTab=b.dataset.t;renderList()});
+
+/* ---- new debt: required vs optional ---- */
+$$('#kindTabs button').forEach(b=>b.onclick=()=>{
+  $$('#kindTabs button').forEach(x=>{x.classList.remove('on');x.style.color=''});b.classList.add('on');
+  const debt=b.dataset.k==='D';
+  b.style.color=debt?'var(--owe)':'var(--owed)';
+  $('#whoLab').textContent=debt?'Borrowed from':'Lent to';
+  $('#dateLab').innerHTML=debt?'First pay date <span style="color:var(--owe)">required</span>':'Expected pay date <span style="color:var(--muted)">(optional)</span>';
+  $('#dateHint').textContent=debt?'You can add more pay dates later. Old ones are kept.':'Leave empty if there is no agreed date. You can nudge them any time.';
+  $('#remSw').classList.toggle('on',debt);
+  $('#remTxt').textContent=debt?'1 day before, 1 hour before and when due. Repeats until you act.':'Off by default for credits. Turn on to be reminded.';
+});
+$('#remSw').onclick=e=>e.target.classList.toggle('on');
+
+/* ---- sheets ---- */
+const open=id=>$(id).classList.add('on'), close=id=>$(id).classList.remove('on');
+$$('.sheetbg').forEach(s=>s.addEventListener('click',e=>{if(e.target===s)s.classList.remove('on')}));
+$('#payBtn').onclick=()=>{ $('#payHint').textContent='Left to pay: RWF '+fmt(remaining())+'. Applied to the oldest unpaid pay date first.'; open('#paySheet') };
+$('#payAll').onclick=()=>$('#payAmt').value=remaining();
+$('#payGo').onclick=()=>{
+  const v=parseInt($('#payAmt').value.replace(/\D/g,''))||0;
+  if(v<=0)return toast('Enter an amount');
+  if(v>remaining())return toast('That is more than what is left');
+  state.payments.push({amt:v,date:NOW,w:'MoMo'}); close('#paySheet'); render();
+  toast(remaining()===0?'Fully paid 🎉 reminders stopped':'Payment recorded · reminder updated');
+};
+let dateMode='add', moveId=null;
+function openDate(mode,id){dateMode=mode;moveId=id;
+  $('#dsTitle').textContent=mode==='move'?'Move pay date':'Add pay date';
+  $('#dsHint').textContent=mode==='move'?'The old date stays in the history, marked “Moved”.':'Earlier pay dates are kept. This one is added after them.';
+  $('#dsWhen').value=mode==='move'?'Sat 8 Nov · 9:00 AM':'Sat 25 Oct · 9:00 AM'; open('#dateSheet')}
+$('#addDateBtn').onclick=()=>openDate('add');
+$('#dsGo').onclick=()=>{
+  const nid=Math.max(...state.inst.map(i=>i.id))+1, due=dateMode==='move'?D(10,8,9):D(9,25,9);
+  const amt=parseInt($('#dsAmt').value.replace(/\D/g,''))||null;
+  if(dateMode==='move'){const old=state.inst.find(i=>i.id===moveId);old.status='MOVED';old.movedTo=nid;state.inst.push({id:nid,due,amt:old.amt,status:'PENDING',from:old.id});toast('Moved · old date kept in history')}
+  else{state.inst.push({id:nid,due,amt,status:'PENDING'});toast('Pay date added · reminder scheduled')}
+  close('#dateSheet'); render();
+};
+$('#moreBtn').onclick=()=>open('#moreSheet');
+$('#optForgive').onclick=()=>{ if(remaining()===0){close('#moreSheet');return toast('Nothing left to forgive')} state.forgiven+=remaining(); close('#moreSheet'); render(); toast('Forgiven · counts as closed, no money moved') };
+$('#optArchive').onclick=()=>{state.archived=true;close('#moreSheet');render();toast('Archived · reminders cancelled')};
+
+/* deep links: #detail #ledger #credit #list #newdebt #txd #hist */
+const h=location.hash.replace('#','').split(/[&,]/);
+const target=h.find(x=>['wallets','ledger','credit','list','newdebt','txd','detail'].includes(x));
+if(h.includes('hist'))state.showHist=true;
+if(h.includes('moved')){state.inst.find(i=>i.id===1).status='SKIPPED'}
+render(); renderList(); if(target)go(target);
+</script>
+</body>
+</html>

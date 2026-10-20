@@ -17,7 +17,14 @@ import { processReceipt } from '@/services/receipts.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
 import { CATEGORIES, CategorySlug, categoryOf } from '@/constants/categories';
 import { DatePickerModal } from '@/components/date-picker-modal';
+import { RepeatSheet } from '@/components/repeat-sheet';
+import { ModeChoice, RepeatRow } from '@/components/schedule/schedule-fields';
+import { createScheduled, ScheduleMode } from '@/services/scheduled.service';
+import { RepeatRule } from '@/utils/recurrence';
+import { deviceTimeZone } from '@/utils/reminders';
+import { isScheduledForm, scheduledPayload, scheduleSaveLabel, scheduleStartError } from '@/utils/schedule-form';
 import { WalletChips } from '@/components/wallet/wallet-chips';
+import { getDebts, Debt } from '@/services/debt.service';
 import ENV from '@/env';
 
 type Kind = 'EXPENSE' | 'INCOME';
@@ -43,8 +50,14 @@ export default function AddTransactionScreen() {
   const [description, setDescription] = useState('');
   const [wallets, setWallets]     = useState<Wallet[]>([]);
   const [walletId, setWalletId]   = useState<string | null>(null);
+  const [pots, setPots]           = useState<Debt[]>([]);
+  const [potId, setPotId]         = useState<string | null>(null);
   const [date, setDate]           = useState(new Date());
   const [pickDate, setPickDate]   = useState(false);
+  // Scheduling: a future date or a repeat turns this into a scheduled transaction (nothing moves until it is due).
+  const [rule, setRule]           = useState<RepeatRule | null>(null);
+  const [mode, setMode]           = useState<ScheduleMode>('REMIND_CONFIRM');
+  const [pickRepeat, setPickRepeat] = useState(false);
   const [receiptUrl, setReceiptUrl]             = useState<string | null>(null);
   const [receiptReportUrl, setReceiptReportUrl] = useState<string | null>(null);
   const [receiptMime, setReceiptMime]           = useState<string | null>(null);
@@ -55,6 +68,7 @@ export default function AddTransactionScreen() {
   // The screen stays mounted as a hidden tab: reset from params on every visit.
   useFocusEffect(useCallback(() => {
     const k: Kind = params.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+    getDebts().then(ds => setPots(ds.filter(d => d.kind === 'BORROWED' && d.status === 'OPEN' && !d.archived && (d.unspent ?? 0) > 0))).catch(() => setPots([]));
     getWallets().then(list => {
       const usable = list.filter(w => !w.archived);
       setWallets(usable);
@@ -84,6 +98,7 @@ export default function AddTransactionScreen() {
     return sel && !head.includes(sel) ? [...head.slice(0, COLLAPSED - 1), sel] : head;
   })();
   const accent = kind === 'INCOME' ? '#16A34A' : theme.primary;
+  const scheduled = isScheduledForm(date, rule);
 
   const switchKind = (k: Kind) => {
     setKind(k);
@@ -151,9 +166,40 @@ export default function AddTransactionScreen() {
     setReceiptName(null);
   };
 
+  /** Saves as a scheduled transaction: nothing moves now, the server posts or reminds on the due dates. */
+  const saveScheduled = async (value: number) => {
+    setSaving(true);
+    try {
+      const created = await createScheduled(scheduledPayload({
+        kind, category, title: description.trim() || t(`cat.${category}` as any), description: description.trim(),
+        amount: value, walletId, date, rule, mode, timezone: deviceTimeZone(),
+      }));
+      const first = created.waiting[0]?.dueAt ?? created.nextDueAt ?? date.toISOString();
+      Alert.alert(t('sched.savedTitle'), t('sched.savedMsg', {
+        when: formatDate(first, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }),
+      }), [{ text: t('rep.done'), onPress: leave }], { onDismiss: leave });
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e?.response?.data?.message || t('add.errSave'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const save = async () => {
     const value = parseFloat(amount.replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
+
+    if (scheduled) {
+      if (scheduleStartError(date, rule)) return Alert.alert(t('sched.repeat'), t('sched.errPast'));
+      if (receiptUrl) {
+        // A schedule cannot carry a receipt, so say so instead of dropping it silently.
+        return Alert.alert(t('sched.receiptDropTitle'), t('sched.receiptDropMsg'), [
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('sched.continue'), onPress: () => { void saveScheduled(value); } },
+        ]);
+      }
+      return saveScheduled(value);
+    }
 
     setSaving(true);
     try {
@@ -164,7 +210,8 @@ export default function AddTransactionScreen() {
         description: description.trim() || undefined,
         amount: value,
         date: date.toISOString(),
-        walletId: walletId ?? undefined,
+        walletId: potId ? undefined : walletId ?? undefined,
+        fundedByDebtId: potId ?? undefined,
         receiptUrl: receiptUrl ?? undefined,
         receiptReportUrl: receiptReportUrl ?? undefined,
       });
@@ -193,11 +240,14 @@ export default function AddTransactionScreen() {
         onConfirm={d => { setDate(d); setPickDate(false); }}
       />
 
+      <RepeatSheet visible={pickRepeat} start={date} value={rule} onClose={() => setPickRepeat(false)}
+                   onConfirm={r => { setRule(r); setPickRepeat(false); }} />
+
       <View style={s.header}>
         <TouchableOpacity style={[s.round, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={leave} hitSlop={6}>
           <MaterialIcons name="close" size={18} color={theme.text} />
         </TouchableOpacity>
-        <Text style={[s.title, { color: theme.text }]}>{t('add.title')}</Text>
+        <Text style={[s.title, { color: theme.text }]}>{t(scheduled ? 'sched.newTitle' : 'add.title')}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -266,7 +316,24 @@ export default function AddTransactionScreen() {
 
           {/* Wallet */}
           <Label text={t('add.wallet')} />
-          <WalletChips wallets={wallets} value={walletId} onChange={setWalletId} noneLabel={wallets.length ? undefined : t('add.noWallet')} />
+          <WalletChips wallets={wallets} value={potId ? null : walletId} onChange={id => { setPotId(null); setWalletId(id); }} noneLabel={wallets.length ? undefined : t('add.noWallet')} />
+          {kind === 'EXPENSE' && !rule && pots.length > 0 && (
+            <>
+              <Label text={t('debt2.paidFrom')} />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {pots.map(p => {
+                  const on = p.id === potId;
+                  return (
+                    <TouchableOpacity key={p.id} testID="pot-chip" onPress={() => setPotId(on ? null : p.id)} activeOpacity={0.8}
+                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: on ? theme.primary : theme.border, backgroundColor: on ? theme.primaryBg : theme.surface }}>
+                      <Text style={{ color: theme.text, fontWeight: '600' }}>{p.person}</Text>
+                      <Text style={{ color: theme.textMuted, fontSize: 12 }}>{(p.unspent ?? 0).toLocaleString('en-US')} {p.currency} {t('debt2.unspentLeft')}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
 
           {/* Date */}
           <Label text={t('add.date')} />
@@ -277,6 +344,17 @@ export default function AddTransactionScreen() {
             </Text>
             <MaterialIcons name="expand-more" size={18} color={theme.textMuted} />
           </TouchableOpacity>
+
+          {/* Repeat (transactions only) */}
+          <Label text={t('sched.repeat')} />
+          <RepeatRow start={date} rule={rule} onPress={() => setPickRepeat(true)} />
+
+          {scheduled && (
+            <>
+              <Label text={t('sched.whenDue')} />
+              <ModeChoice value={mode} onChange={setMode} />
+            </>
+          )}
 
           {/* Receipt */}
           <Label text={`${t('add.receipt')} (${t('add.optional')})`} />
@@ -341,7 +419,7 @@ export default function AddTransactionScreen() {
 
         <View style={[s.footer, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
           <TouchableOpacity style={[s.save, { backgroundColor: accent }]} onPress={save} disabled={saving} activeOpacity={0.85}>
-            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.saveText}>{t('add.save')}</Text>}
+            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.saveText}>{t(scheduled ? scheduleSaveLabel(rule) : 'add.save')}</Text>}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

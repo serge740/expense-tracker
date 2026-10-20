@@ -19,7 +19,7 @@ export function settingsBack(navigation: StackNav) {
   const state = navigation.getState();
   const index = state?.index ?? (state ? state.routes.length - 1 : 0);
   const prev = index > 0 ? state?.routes[index - 1] : undefined;
-  if (prev && prev.name !== 'index') navigation.goBack();
+  if (prev && prev.name !== 'hub') navigation.goBack();
   else router.navigate('/(dashboard)/profile');
 }
 
@@ -45,6 +45,6 @@ export const resetSettingsOnBlur = ({ navigation }: { navigation: TabNav }) => (
     const settings = navigation.getState().routes.find(r => r.name === '(settings)');
     const target = settings?.state?.key;
     if (!target) return;
-    navigation.dispatch({ type: 'RESET', payload: { index: 0, routes: [{ name: 'index' }] }, target });
+    navigation.dispatch({ type: 'RESET', payload: { index: 0, routes: [{ name: 'hub' }] }, target });
   },
 });

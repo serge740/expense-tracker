@@ -23,6 +23,7 @@ import { ActivityRow } from '@/components/wallet/activity-row';
 import { CurrencyPicker } from '@/components/wallet/currency-picker';
 import { CardColorPicker } from '@/components/wallet/card-color-picker';
 import { cardTheme } from '@/constants/card-themes';
+import { LedgerCards } from '@/components/debt/ledger-cards';
 
 const SIDE = 16;
 const GAP = 10;
@@ -286,6 +287,9 @@ export default function WalletsScreen() {
             </Text>
           </View>
         )}
+
+        {/* Protected summaries of debts and credits (not real wallets) */}
+        <LedgerCards hidden={hidden} />
       </ScrollView>
     </SafeAreaView>
   );

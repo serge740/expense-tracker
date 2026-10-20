@@ -227,6 +227,7 @@ export default function ProfileScreen() {
               <Row icon="account-balance-wallet" title={t('row.wallets')}
                    sub={t('row.walletsSub', { w: walletCount ?? 0, t: txCount ?? 0 })} onPress={go('/(dashboard)/wallets')} />
               <Row icon="handshake" title={t('debts.title')} sub={t('debts.manageSub')} onPress={go('/(dashboard)/debts')} />
+              <Row icon="event-repeat" title={t('sched.title')} sub={t('sched.rowSub')} onPress={go('/(dashboard)/scheduled')} />
               <Row icon="payments" title={t('row.currency')} value={`${currency.flag} ${currency.code}`} onPress={go('/(dashboard)/(settings)/currency')} />
             </Section>
 

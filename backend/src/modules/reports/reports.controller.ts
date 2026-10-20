@@ -2,6 +2,7 @@ import { Controller, Get, HttpException, Query, Req, UseGuards } from '@nestjs/c
 import { ReportsService } from './reports.service';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
 import { RequestWithClient } from '../../common/interfaces/client.interface';
+import { parseIncludeLoans } from '../../common/utils/loan-filter';
 
 @Controller('reports')
 @UseGuards(ClientJwtAuthGuard)
@@ -13,6 +14,7 @@ export class ReportsController {
     @Req() req: RequestWithClient,
     @Query('year')   year?:   string,
     @Query('months') months?: string,
+    @Query('includeLoans') includeLoans?: string,
   ) {
     try {
       const now = new Date();
@@ -20,6 +22,7 @@ export class ReportsController {
         req.client.id,
         year ? Number(year) : now.getFullYear(),
         months ? Number(months) : 6,
+        parseIncludeLoans(includeLoans),
       );
     } catch (e: any) {
       throw new HttpException(e.message || 'Failed to fetch monthly report', 400);
@@ -33,6 +36,7 @@ export class ReportsController {
     @Query('year')      year?:      string,
     @Query('startDate') startDate?: string,
     @Query('endDate')   endDate?:   string,
+    @Query('includeLoans') includeLoans?: string,
   ) {
     try {
       const now = new Date();
@@ -42,6 +46,7 @@ export class ReportsController {
         year  ? Number(year)  : now.getFullYear(),
         startDate,
         endDate,
+        parseIncludeLoans(includeLoans),
       );
     } catch (e: any) {
       throw new HttpException(e.message || 'Failed to fetch category breakdown', 400);
@@ -55,6 +60,7 @@ export class ReportsController {
     @Query('year')      year?:      string,
     @Query('startDate') startDate?: string,
     @Query('endDate')   endDate?:   string,
+    @Query('includeLoans') includeLoans?: string,
   ) {
     try {
       const now = new Date();
@@ -64,6 +70,7 @@ export class ReportsController {
         year  ? Number(year)  : now.getFullYear(),
         startDate,
         endDate,
+        parseIncludeLoans(includeLoans),
       );
     } catch (e: any) {
       throw new HttpException(e.message || 'Failed to fetch summary', 400);
@@ -76,6 +83,7 @@ export class ReportsController {
     @Query('month') month?: string,
     @Query('year')  year?:  string,
     @Query('limit') limit?: string,
+    @Query('includeLoans') includeLoans?: string,
   ) {
     try {
       const now = new Date();
@@ -84,6 +92,7 @@ export class ReportsController {
         month ? Number(month) : now.getMonth() + 1,
         year  ? Number(year)  : now.getFullYear(),
         limit ? Number(limit) : 4,
+        parseIncludeLoans(includeLoans),
       );
     } catch (e: any) {
       throw new HttpException(e.message || 'Failed to fetch top expenses', 400);
@@ -98,6 +107,7 @@ export class ReportsController {
     @Query('startDate') startDate?: string,
     @Query('endDate')   endDate?:   string,
     @Query('currency')  currency?:  string,
+    @Query('includeLoans') includeLoans?: string,
   ) {
     try {
       const now = new Date();
@@ -108,6 +118,7 @@ export class ReportsController {
         startDate,
         endDate,
         currency,
+        parseIncludeLoans(includeLoans),
       );
     } catch (e: any) {
       if (e instanceof HttpException) throw e;

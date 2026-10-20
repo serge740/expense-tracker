@@ -1,41 +1,82 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '../../../generated/prisma';
-import { CreateDebtDto, DebtPaymentDto, UpdateDebtDto } from './dto/debt.dto';
+import { DebtRole, Prisma } from '../../../generated/prisma';
+import { CreateDebtDto, DebtPaymentDto, InstallmentDto, UpdateDebtDto } from './dto/debt.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RemindersService } from '../reminders/reminders.service';
+import {
+  buildLedger, CLOSED_STATUSES, DebtKindName, directionFor, remainingOf, roleFor, rolesOf, round2, statusFor,
+} from './debt-accounting';
+import { deriveInstallments, finalDeadline, InstallmentInput, isOverdue, nextUnpaid } from './debt-installments';
 
 type Tx = Prisma.TransactionClient;
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * Money you borrowed (BORROWED) or lent (LENT), with repayments.
- * When a wallet is involved the money is recorded as a normal transaction
- * in the "loan" category, linked by debtId:
- *   money into the wallet (borrowing, being repaid) → INCOME
- *   money out of the wallet (lending, repaying)     → EXPENSE
+ * Every event is recorded as a transaction in the "loan" category, linked by debtId and tagged with a debtRole.
+ * A debt (money I borrowed) never touches one of my wallets: it lives under the Debt wallet. A credit (money I
+ * lent) takes money from / returns money to the wallet I choose, or touches none when I choose none:
+ *   BORROW_IN  borrowed money received  (INCOME, but never counted as income)
+ *   REPAY_OUT  I repaid what I borrowed (EXPENSE)
+ *   LEND_OUT   I lent money out          (EXPENSE)
+ *   REPAY_IN   I was repaid              (INCOME)
  */
 @Injectable()
 export class DebtsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly reminders: RemindersService,
   ) {}
 
   private serialize(d: any) {
     const amount = Number(d.amount);
     const paid = Number(d.paid);
+    const writtenOff = Number(d.writtenOffAmount ?? 0);
+    const rows: InstallmentInput[] = (d.installments ?? []).map((i: any) => ({
+      id: i.id, dueAt: new Date(i.dueAt), plannedAmount: i.plannedAmount == null ? null : Number(i.plannedAmount), status: i.status,
+    }));
+    const derived = deriveInstallments({ amount, writtenOff, paid, installments: rows });
+    const next = d.status === 'OPEN' ? nextUnpaid(rows, derived) : null;
+    const live = d.status === 'OPEN' && !d.archivedAt;
+    const rem = (d.reminders ?? [])[0];
     return {
       ...d,
+      reminders: undefined,
+      reminderId: rem?.id ?? null,
+      reminderStatus: rem?.status ?? null,
+      nextReminderAt: rem?.nextFireAt ?? null,
       amount,
       paid,
-      remaining: round2(Math.max(0, amount - paid)),
-      overdue: d.status === 'OPEN' && !!d.dueDate && new Date(d.dueDate) < new Date(),
+      writtenOffAmount: writtenOff,
+      remaining: remainingOf(amount, paid, writtenOff),
+      spent: Number(d.spent ?? 0),
+      unspent: d.kind === 'BORROWED' ? Math.max(0, round2(amount - Number(d.spent ?? 0))) : null,
+      // Late = a pay date is overdue; a debt without pay dates falls back to its single due date.
+      overdue: live && (rows.length ? isOverdue(derived) : !!d.dueDate && new Date(d.dueDate) < new Date()),
+      archived: !!d.archivedAt,
+      nextDueAt: next ? next.dueAt : null,
       payments: (d.payments ?? []).map((p: any) => ({ ...p, amount: Number(p.amount) })),
+      installments: (d.installments ?? []).map((i: any) => {
+        const x = derived.find(v => v.id === i.id)!;
+        return { ...i, plannedAmount: x.planned || null, view: x.view, covered: x.covered };
+      }),
     };
   }
 
+  /** Every change to a debt ends here: reminders are re-aligned with its pay dates, then the debt is returned. */
+  private async finish(clientId: string, id: string) {
+    await this.reminders.syncDebtSafe(id);
+    return this.findOne(clientId, id);
+  }
+
+  private kindOf(kind?: string): DebtKindName {
+    if (kind !== 'BORROWED' && kind !== 'LENT') throw new BadRequestException('Choose borrowed or lent');
+    return kind;
+  }
+
   private async owned(clientId: string, id: string) {
-    const d = await this.prisma.debt.findFirst({ where: { id, clientId }, include: { payments: { orderBy: { date: 'desc' } } } });
+    const d = await this.prisma.debt.findFirst({ where: { id, clientId }, include: { payments: { orderBy: { date: 'desc' } }, installments: { orderBy: { dueAt: 'asc' } }, reminders: { where: { status: { in: ['ACTIVE', 'SNOOZED'] } } } } });
     if (!d) throw new NotFoundException('Debt not found');
     return d;
   }
@@ -49,7 +90,7 @@ export class DebtsService {
 
   /** Move money for a debt event and return the transaction id. */
   private async move(prx: Tx, clientId: string, opts: {
-    debtId: string; walletId: string; amount: number; direction: 'in' | 'out'; title: string; date: Date; note?: string | null;
+    debtId: string; walletId: string | null; amount: number; direction: 'in' | 'out'; role: DebtRole; title: string; date: Date; note?: string | null;
   }) {
     const tx = await prx.transaction.create({
       data: {
@@ -61,13 +102,17 @@ export class DebtsService {
         amount: opts.amount,
         date: opts.date,
         debtId: opts.debtId,
+        debtRole: opts.role,
         walletId: opts.walletId,
       },
     });
-    await prx.wallet.update({
-      where: { id: opts.walletId },
-      data: { balance: opts.direction === 'in' ? { increment: opts.amount } : { decrement: opts.amount } },
-    });
+    // No wallet (always the case for a debt): the event is recorded, no balance moves.
+    if (opts.walletId) {
+      await prx.wallet.update({
+        where: { id: opts.walletId },
+        data: { balance: opts.direction === 'in' ? { increment: opts.amount } : { decrement: opts.amount } },
+      });
+    }
     return tx.id;
   }
 
@@ -83,14 +128,73 @@ export class DebtsService {
     await prx.transaction.delete({ where: { id: transactionId } });
   }
 
-  async list(clientId: string, kind?: string, status?: string) {
+  /** Re-derive paid + status from the payments that really exist (no running subtraction). */
+  private async recompute(prx: Tx, debtId: string) {
+    const d = await prx.debt.findUniqueOrThrow({ where: { id: debtId } });
+    const agg = await prx.debtPayment.aggregate({ where: { debtId }, _sum: { amount: true } });
+    const paid = round2(Number(agg._sum.amount ?? 0));
+    const status = statusFor({
+      kind: d.kind, amount: Number(d.amount), paid, writtenOff: Number(d.writtenOffAmount), current: d.status,
+    });
+    await prx.debt.update({ where: { id: debtId }, data: { paid, status } });
+    return { paid, status, previous: d.status };
+  }
+
+  /** Keep Debt.dueDate equal to the last active pay date (the final deadline). */
+  private async syncDeadline(prx: Tx, debtId: string) {
+    const rows = await prx.debtInstallment.findMany({ where: { debtId } });
+    const deadline = finalDeadline(rows.map(r => ({ id: r.id, dueAt: r.dueAt, plannedAmount: r.plannedAmount == null ? null : Number(r.plannedAmount), status: r.status })));
+    if (rows.length) await prx.debt.update({ where: { id: debtId }, data: { dueDate: deadline } });
+  }
+
+  private validDate(value?: string | null) {
+    const d = value ? new Date(value) : null;
+    if (!d || Number.isNaN(d.getTime())) throw new BadRequestException('Choose a valid pay date');
+    return d;
+  }
+
+  /** Pay-date edits only make sense on an open, un-archived debt. */
+  private assertEditable(d: { status: string; archivedAt: Date | null }) {
+    if (d.status !== 'OPEN') throw new BadRequestException('This debt is already closed');
+    if (d.archivedAt) throw new BadRequestException('Restore this debt before changing its pay dates');
+  }
+
+  private mapTx(t: any, debt?: { person: string; currency: string; kind: string }) {
+    const raw = Number(t.amount);
+    return {
+      id: t.id,
+      type: t.type,
+      category: t.category,
+      title: t.title,
+      description: t.description,
+      amount: t.type === 'INCOME' ? raw : -raw,
+      date: t.date,
+      walletId: t.walletId,
+      receiptUrl: t.receiptUrl,
+      debtId: t.debtId,
+      debtRole: t.debtRole,
+      ...(debt ? { person: debt.person, currency: debt.currency, debtKind: debt.kind } : {}),
+    };
+  }
+
+  async list(clientId: string, kind?: string, status?: string, archived?: string) {
+    const statusFilter: Prisma.DebtWhereInput =
+      status === 'OPEN' ? { status: 'OPEN' }
+      // The "Settled" tab shows everything that is no longer open.
+      : status === 'SETTLED' ? { status: { in: CLOSED_STATUSES } }
+      : status === 'WRITTEN_OFF' || status === 'FORGIVEN' ? { status }
+      : {};
+    const archivedFilter: Prisma.DebtWhereInput =
+      archived === 'only' ? { archivedAt: { not: null } } : archived === 'include' ? {} : { archivedAt: null };
+
     const debts = await this.prisma.debt.findMany({
       where: {
         clientId,
         ...(kind === 'BORROWED' || kind === 'LENT' ? { kind } : {}),
-        ...(status === 'OPEN' || status === 'SETTLED' ? { status } : {}),
+        ...statusFilter,
+        ...archivedFilter,
       },
-      include: { payments: { orderBy: { date: 'desc' } } },
+      include: { payments: { orderBy: { date: 'desc' } }, installments: { orderBy: { dueAt: 'asc' } }, reminders: { where: { status: { in: ['ACTIVE', 'SNOOZED'] } } } },
       orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
     });
     return debts.map(d => this.serialize(d));
@@ -102,28 +206,113 @@ export class DebtsService {
 
   /** Open balances per currency, split into what I owe and what I'm owed. */
   async summary(clientId: string) {
-    const open = await this.prisma.debt.findMany({ where: { clientId, status: 'OPEN' } });
+    const open = await this.prisma.debt.findMany({ where: { clientId, status: 'OPEN', archivedAt: null }, include: { installments: true } });
     const owe: Record<string, number> = {};
     const owed: Record<string, number> = {};
     let overdue = 0;
     for (const d of open) {
-      const rem = Number(d.amount) - Number(d.paid);
+      const rem = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
       const bucket = d.kind === 'BORROWED' ? owe : owed;
       bucket[d.currency] = round2((bucket[d.currency] ?? 0) + rem);
-      if (d.dueDate && d.dueDate < new Date()) overdue++;
+      // Same rule as the list: any late, uncovered pay date makes the debt overdue.
+      if (this.serialize(d).overdue) overdue++;
     }
     return { owe, owed, openCount: open.length, overdue };
   }
 
+  /**
+   * What Home needs about debts and credits: open totals per currency (with how many are open and overdue
+   * and the soonest pay date), and the ones that need attention (overdue, or a pay date within 3 days).
+   * Currencies are never mixed.
+   */
+  async overview(clientId: string, now = new Date()) {
+    type Bucket = { amount: number; count: number; overdue: number; nextDueAt: Date | null };
+    const rows = await this.prisma.debt.findMany({ where: { clientId, status: 'OPEN', archivedAt: null }, include: { installments: true } });
+    const owe: Record<string, Bucket> = {};
+    const owed: Record<string, Bucket> = {};
+    const attention: Array<{ source: 'DEBT'; debtId: string; kind: string; person: string; currency: string; remaining: number; dueAt: Date; overdue: boolean }> = [];
+    const soon = new Date(now.getTime() + 3 * 24 * 60 * 60_000);
+
+    for (const row of rows) {
+      const d = this.serialize(row);
+      const group = d.kind === 'BORROWED' ? owe : owed;
+      const b = (group[d.currency] ??= { amount: 0, count: 0, overdue: 0, nextDueAt: null });
+      b.amount = round2(b.amount + d.remaining);
+      b.count++;
+      if (d.overdue) b.overdue++;
+      const due: Date | null = d.nextDueAt ? new Date(d.nextDueAt) : d.dueDate ? new Date(d.dueDate) : null;
+      if (due && (!b.nextDueAt || due < b.nextDueAt)) b.nextDueAt = due;
+      if (due && (d.overdue || due <= soon)) {
+        attention.push({ source: 'DEBT', debtId: d.id, kind: d.kind, person: d.person, currency: d.currency, remaining: d.remaining, dueAt: due, overdue: d.overdue });
+      }
+    }
+    return { owe, owed, attention };
+  }
+
+  /** Ledger for the Debt wallet (BORROWED) or Credit wallet (LENT): totals per currency. */
+  async ledger(clientId: string, kind?: string) {
+    const k = this.kindOf(kind);
+    const debts = await this.prisma.debt.findMany({ where: { clientId, kind: k, archivedAt: null } });
+    const currencies = buildLedger(debts.map(d => ({
+      amount: Number(d.amount),
+      paid: Number(d.paid),
+      writtenOff: Number(d.writtenOffAmount),
+      currency: d.currency,
+      status: d.status,
+      dueDate: d.dueDate,
+    })));
+    const sum = (f: (c: (typeof currencies)[number]) => number) => currencies.reduce((s, c) => s + f(c), 0);
+    return {
+      kind: k,
+      currencies,
+      debtCount: sum(c => c.debtCount),
+      openCount: sum(c => c.openCount),
+      settledCount: sum(c => c.settledCount),
+      closedOutCount: sum(c => c.closedOutCount),
+      overdueCount: sum(c => c.overdueCount),
+    };
+  }
+
+  /** Every cash movement that belongs to a ledger, newest first. */
+  async ledgerTransactions(clientId: string, kind?: string, page = 1, limit = 30) {
+    const k = this.kindOf(kind);
+    const take = Math.min(Math.max(limit, 1), 100);
+    const where: Prisma.TransactionWhereInput = { clientId, debtRole: { in: rolesOf(k) } };
+    const [rows, total] = await Promise.all([
+      this.prisma.transaction.findMany({ where, orderBy: { date: 'desc' }, skip: (Math.max(page, 1) - 1) * take, take }),
+      this.prisma.transaction.count({ where }),
+    ]);
+    const ids = [...new Set(rows.map(r => r.debtId).filter((x): x is string => !!x))];
+    const debts = ids.length
+      ? await this.prisma.debt.findMany({ where: { id: { in: ids } }, select: { id: true, person: true, currency: true, kind: true } })
+      : [];
+    const byId = new Map(debts.map(d => [d.id, d]));
+    return {
+      items: rows.map(r => this.mapTx(r, r.debtId ? byId.get(r.debtId) : undefined)),
+      total,
+      page: Math.max(page, 1),
+      limit: take,
+    };
+  }
+
+  /** Transactions caused by one debt (principal + payments). */
+  async transactionsOf(clientId: string, id: string) {
+    const d = await this.owned(clientId, id);
+    const rows = await this.prisma.transaction.findMany({ where: { clientId, debtId: id }, orderBy: { date: 'desc' } });
+    return rows.map(r => this.mapTx(r, { person: d.person, currency: d.currency, kind: d.kind }));
+  }
+
   async create(clientId: string, dto: CreateDebtDto) {
     const amount = Number(dto.amount);
-    if (dto.kind !== 'BORROWED' && dto.kind !== 'LENT') throw new BadRequestException('Choose borrowed or lent');
+    const kind = this.kindOf(dto.kind);
     if (!dto.person?.trim()) throw new BadRequestException('Enter who the money is with');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Enter an amount greater than zero');
 
+    // A debt never uses one of my wallets (an old app may still send one: it is ignored).
+    const walletId = kind === 'LENT' ? dto.walletId || undefined : undefined;
     let currency = (dto.currency ?? '').toUpperCase();
-    if (dto.walletId) {
-      const w = await this.prisma.wallet.findFirst({ where: { id: dto.walletId, clientId } });
+    if (walletId) {
+      const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId } });
       if (!w) throw new NotFoundException('Wallet not found');
       currency = w.currency;
     }
@@ -134,73 +323,106 @@ export class DebtsService {
     const debt = await this.prisma.$transaction(async prx => {
       const d = await prx.debt.create({
         data: {
-          clientId, kind: dto.kind, person, phone: dto.phone?.trim() || null, amount, currency, date,
-          dueDate: dto.dueDate ? new Date(dto.dueDate) : null, note: dto.note?.trim() || null, walletId: dto.walletId ?? null,
+          clientId, kind, person, phone: dto.phone?.trim() || null, amount, currency, date,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null, note: dto.note?.trim() || null, walletId: walletId ?? null,
+          // A debt (I owe) reminds by default; a credit only when asked.
+          remindersOn: dto.remind ?? kind === 'BORROWED',
         },
       });
-      if (dto.walletId) {
-        await this.move(prx, clientId, {
-          debtId: d.id, walletId: dto.walletId, amount, date, note: d.note,
-          direction: dto.kind === 'BORROWED' ? 'in' : 'out',
-          title: dto.kind === 'BORROWED' ? `Borrowed from ${person}` : `Lent to ${person}`,
-        });
+      if (dto.dueDate) {
+        await prx.debtInstallment.create({ data: { debtId: d.id, dueAt: new Date(dto.dueDate), plannedAmount: null } });
       }
+      // Always recorded: borrowing is money in (never counted as income in totals), lending is money out.
+      const principalTransactionId = await this.move(prx, clientId, {
+        debtId: d.id, walletId: walletId ?? null, amount, date, note: d.note,
+        direction: directionFor(kind, 'principal'),
+        role: roleFor(kind, 'principal'),
+        title: kind === 'BORROWED' ? `Borrowed from ${person}` : `Lent to ${person}`,
+      });
+      await prx.debt.update({ where: { id: d.id }, data: { principalTransactionId } });
       return d;
     });
-    return this.findOne(clientId, debt.id);
+    return this.finish(clientId, debt.id);
   }
 
   async update(clientId: string, id: string, dto: UpdateDebtDto) {
     const d = await this.owned(clientId, id);
-    const amount = dto.amount !== undefined ? Number(dto.amount) : undefined;
-    if (amount !== undefined && (!Number.isFinite(amount) || amount < Number(d.paid) || amount <= 0)) {
-      throw new BadRequestException('Amount cannot be less than what was already paid');
+    const oldAmount = Number(d.amount);
+    const paid = Number(d.paid);
+    const writtenOff = Number(d.writtenOffAmount);
+    const amount = dto.amount !== undefined ? round2(Number(dto.amount)) : undefined;
+    if (amount !== undefined && (!Number.isFinite(amount) || amount <= 0 || amount < round2(paid + writtenOff))) {
+      throw new BadRequestException('Amount cannot be less than what was already paid or written off');
     }
-    await this.prisma.debt.update({
-      where: { id },
-      data: {
-        ...(dto.person !== undefined ? { person: dto.person.trim() } : {}),
-        ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
-        ...(dto.note !== undefined ? { note: dto.note.trim() || null } : {}),
-        ...(dto.dueDate !== undefined ? { dueDate: dto.dueDate ? new Date(dto.dueDate) : null } : {}),
-        ...(amount !== undefined ? { amount, status: Number(d.paid) >= amount ? 'SETTLED' : 'OPEN' } : {}),
-      },
+
+    await this.prisma.$transaction(async prx => {
+      // Changing the amount also corrects the original cash movement, so debt and wallet never drift.
+      if (amount !== undefined && amount !== oldAmount && d.principalTransactionId) {
+        const principal = await prx.transaction.findUnique({ where: { id: d.principalTransactionId } });
+        if (principal) {
+          const delta = round2(amount - oldAmount);
+          await prx.transaction.update({ where: { id: principal.id }, data: { amount } });
+          if (principal.walletId) {
+            const into = directionFor(d.kind, 'principal') === 'in';
+            await prx.wallet.updateMany({
+              where: { id: principal.walletId },
+              data: { balance: into ? { increment: delta } : { decrement: delta } },
+            });
+          }
+        }
+      }
+      // A due date sent here only seeds the first pay date; later dates are added, moved or skipped one by one.
+      if (dto.dueDate && !(await prx.debtInstallment.count({ where: { debtId: id, status: 'PENDING' } }))) {
+        await prx.debtInstallment.create({ data: { debtId: id, dueAt: new Date(dto.dueDate), plannedAmount: null } });
+        await this.syncDeadline(prx, id);
+      }
+      await prx.debt.update({
+        where: { id },
+        data: {
+          ...(dto.person !== undefined ? { person: dto.person.trim() } : {}),
+          ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
+          ...(dto.note !== undefined ? { note: dto.note.trim() || null } : {}),
+          ...(dto.remindersOn !== undefined ? { remindersOn: !!dto.remindersOn } : {}),
+          ...(amount !== undefined
+            ? { amount, status: statusFor({ kind: d.kind, amount, paid, writtenOff, current: d.status }) }
+            : {}),
+        },
+      });
     });
-    return this.findOne(clientId, id);
+    return this.finish(clientId, id);
   }
 
   async addPayment(clientId: string, id: string, dto: DebtPaymentDto) {
     const d = await this.owned(clientId, id);
-    const remaining = round2(Number(d.amount) - Number(d.paid));
+    const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
     const amount = round2(Number(dto.amount));
-    if (d.status === 'SETTLED' || remaining <= 0) throw new BadRequestException('This debt is already settled');
+    if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException('This debt is already closed');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Enter an amount greater than zero');
     if (amount > remaining) throw new BadRequestException(`Only ${remaining} ${d.currency} is left to pay`);
-    if (dto.walletId) await this.wallet(clientId, dto.walletId, d.currency);
+    // Paying a debt never touches my wallets; a credit repaid to me goes into the wallet I chose (or none).
+    const walletId = d.kind === 'LENT' ? dto.walletId || undefined : undefined;
+    if (walletId) await this.wallet(clientId, walletId, d.currency);
     const date = dto.date ? new Date(dto.date) : new Date();
 
-    await this.prisma.$transaction(async prx => {
-      const transactionId = dto.walletId
-        ? await this.move(prx, clientId, {
-            debtId: d.id, walletId: dto.walletId, amount, date, note: dto.note,
-            // Repaying what I borrowed → money out; being repaid → money in.
-            direction: d.kind === 'BORROWED' ? 'out' : 'in',
-            title: d.kind === 'BORROWED' ? `Repaid ${d.person}` : `Repayment from ${d.person}`,
-          })
-        : null;
-      await prx.debtPayment.create({
-        data: { debtId: d.id, amount, date, walletId: dto.walletId ?? null, transactionId, note: dto.note?.trim() || null },
+    const result = await this.prisma.$transaction(async prx => {
+      // Always recorded: repaying what I borrowed is money out, being repaid is money in.
+      const transactionId = await this.move(prx, clientId, {
+        debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note,
+        direction: directionFor(d.kind, 'payment'),
+        role: roleFor(d.kind, 'payment'),
+        title: d.kind === 'BORROWED' ? `Repaid ${d.person}` : `Repayment from ${d.person}`,
       });
-      const paid = round2(Number(d.paid) + amount);
-      await prx.debt.update({ where: { id: d.id }, data: { paid, status: paid >= Number(d.amount) ? 'SETTLED' : 'OPEN' } });
+      await prx.debtPayment.create({
+        data: { debtId: d.id, amount, date, walletId: walletId ?? null, transactionId, note: dto.note?.trim() || null },
+      });
+      return this.recompute(prx, d.id);
     });
 
-    const settled = round2(Number(d.paid) + amount) >= Number(d.amount);
-    if (settled) {
+    if (result.status === 'SETTLED' && result.previous === 'OPEN') {
       this.notifications.notify(clientId, 'Debt settled',
         d.kind === 'BORROWED' ? `You've fully repaid ${d.person}.` : `${d.person} has fully repaid you.`, 'transaction');
     }
-    return this.findOne(clientId, id);
+    return this.finish(clientId, id);
   }
 
   async removePayment(clientId: string, id: string, paymentId: string) {
@@ -210,10 +432,102 @@ export class DebtsService {
     await this.prisma.$transaction(async prx => {
       if (p.transactionId) await this.unmove(prx, p.transactionId);
       await prx.debtPayment.delete({ where: { id: p.id } });
-      const paid = round2(Math.max(0, Number(d.paid) - Number(p.amount)));
-      await prx.debt.update({ where: { id: d.id }, data: { paid, status: paid >= Number(d.amount) ? 'SETTLED' : 'OPEN' } });
+      await this.recompute(prx, d.id);
     });
-    return this.findOne(clientId, id);
+    return this.finish(clientId, id);
+  }
+
+  /** Give up (credit) or have forgiven (debt) whatever is still unpaid. No cash moves. */
+  async writeOff(clientId: string, id: string) {
+    const d = await this.owned(clientId, id);
+    const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
+    if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException('There is nothing left to write off');
+    const writtenOff = round2(Number(d.writtenOffAmount) + remaining);
+    const status = statusFor({ kind: d.kind, amount: Number(d.amount), paid: Number(d.paid), writtenOff, current: d.status });
+    await this.prisma.$transaction(async prx => {
+      await prx.debt.update({ where: { id }, data: { writtenOffAmount: writtenOff, status } });
+      // Nothing is owed any more, so pay dates that were never met stop counting. They stay in the history.
+      const rows = await prx.debtInstallment.findMany({ where: { debtId: id, status: 'PENDING' } });
+      const derived = deriveInstallments({
+        amount: Number(d.amount), writtenOff, paid: Number(d.paid), now: new Date(),
+        installments: rows.map(r => ({ id: r.id, dueAt: r.dueAt, plannedAmount: r.plannedAmount == null ? null : Number(r.plannedAmount), status: r.status })),
+      });
+      const unmet = derived.filter(x => x.view !== 'PAID').map(x => x.id);
+      if (unmet.length) await prx.debtInstallment.updateMany({ where: { id: { in: unmet } }, data: { status: 'SKIPPED' } });
+    });
+    return this.finish(clientId, id);
+  }
+
+  /** Undo a write-off / forgiveness. */
+  async reopen(clientId: string, id: string) {
+    const d = await this.owned(clientId, id);
+    if (d.status !== 'WRITTEN_OFF' && d.status !== 'FORGIVEN') throw new BadRequestException('Only a written-off or forgiven record can be reopened');
+    const status = statusFor({ kind: d.kind, amount: Number(d.amount), paid: Number(d.paid), writtenOff: 0, current: 'OPEN' });
+    await this.prisma.debt.update({ where: { id }, data: { writtenOffAmount: 0, status } });
+    return this.finish(clientId, id);
+  }
+
+  /** Hide a debt without touching any money. Reversible. */
+  async archive(clientId: string, id: string) {
+    const d = await this.owned(clientId, id);
+    if (!d.archivedAt) await this.prisma.debt.update({ where: { id }, data: { archivedAt: new Date() } });
+    return this.finish(clientId, id);
+  }
+
+  async restore(clientId: string, id: string) {
+    await this.owned(clientId, id);
+    await this.prisma.debt.update({ where: { id }, data: { archivedAt: null } });
+    return this.finish(clientId, id);
+  }
+
+  /** Add one more pay date. Earlier ones are untouched. */
+  async addInstallment(clientId: string, id: string, dto: InstallmentDto) {
+    const d = await this.owned(clientId, id);
+    this.assertEditable(d);
+    const dueAt = this.validDate(dto.dueAt);
+    const planned = dto.plannedAmount == null ? null : round2(Number(dto.plannedAmount));
+    const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
+    if (planned !== null && (!Number.isFinite(planned) || planned <= 0)) throw new BadRequestException('Enter a planned amount greater than zero');
+    if (planned !== null && planned > remaining) throw new BadRequestException(`Only ${remaining} ${d.currency} is left to pay`);
+    await this.prisma.$transaction(async prx => {
+      await prx.debtInstallment.create({ data: { debtId: id, dueAt, plannedAmount: planned, note: dto.note?.trim() || null } });
+      await this.syncDeadline(prx, id);
+    });
+    return this.finish(clientId, id);
+  }
+
+  private async openInstallment(clientId: string, id: string, installmentId: string) {
+    const d = await this.owned(clientId, id);
+    this.assertEditable(d);
+    const row = d.installments.find(i => i.id === installmentId);
+    if (!row) throw new NotFoundException('Pay date not found');
+    if (row.status !== 'PENDING') throw new BadRequestException('That pay date was already moved or skipped');
+    const view = this.serialize(d).installments.find((i: any) => i.id === installmentId)?.view;
+    if (view === 'PAID') throw new BadRequestException('That pay date is already paid');
+    return { d, row };
+  }
+
+  /** Move a pay date: the old one stays in the history as MOVED and a new one is added. */
+  async moveInstallment(clientId: string, id: string, installmentId: string, dto: InstallmentDto) {
+    const { row } = await this.openInstallment(clientId, id, installmentId);
+    const dueAt = this.validDate(dto.dueAt);
+    await this.prisma.$transaction(async prx => {
+      await prx.debtInstallment.update({ where: { id: row.id }, data: { status: 'MOVED' } });
+      await prx.debtInstallment.create({
+        data: { debtId: id, dueAt, plannedAmount: row.plannedAmount, movedFromId: row.id, note: row.note },
+      });
+      await this.syncDeadline(prx, id);
+    });
+    return this.finish(clientId, id);
+  }
+
+  async skipInstallment(clientId: string, id: string, installmentId: string) {
+    const { row } = await this.openInstallment(clientId, id, installmentId);
+    await this.prisma.$transaction(async prx => {
+      await prx.debtInstallment.update({ where: { id: row.id }, data: { status: 'SKIPPED' } });
+      await this.syncDeadline(prx, id);
+    });
+    return this.finish(clientId, id);
   }
 
   /** Delete a debt and undo every wallet movement it caused. */

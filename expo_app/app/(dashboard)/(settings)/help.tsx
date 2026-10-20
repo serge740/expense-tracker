@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, LayoutAnimation } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -7,9 +7,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+// (LayoutAnimation works on Android by default in the New Architecture; the old opt-in call is a no-op that only logs a warning.)
 
 interface FAQ { q: string; a: string }
 

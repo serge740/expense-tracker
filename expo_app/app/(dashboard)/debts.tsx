@@ -5,19 +5,25 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { useI18n } from '@/context/language-context';
 import { formatMoney, currencyByCode, useCurrency } from '@/context/currency-context';
 import { usePreferences } from '@/context/preferences-context';
 import {
-  getDebts, getDebtSummary, addDebtPayment, removeDebtPayment, deleteDebt, createDebt, Debt, DebtSummary, DebtKind,
+  getDebts, getArchivedDebts, getDebtSummary, addDebtPayment, removeDebtPayment, deleteDebt, createDebt,
+  writeOffDebt, reopenDebt, archiveDebt, restoreDebt, shareDebtStatement, Debt, DebtSummary, DebtKind,
 } from '@/services/debt.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
 import { WalletChips } from '@/components/wallet/wallet-chips';
 import { CurrencyPicker } from '@/components/wallet/currency-picker';
-import { DatePickerModal } from '@/components/date-picker-modal';
+import { DateTimeSheet } from '@/components/datetime-sheet';
+import { PayDates } from '@/components/debt/pay-dates';
+import { DebtInfo } from '@/components/debt/debt-info';
+import { ReminderRow, RemindSwitch } from '@/components/reminders/reminder-row';
+import { ToneChip } from '@/components/debt/tone-chip';
+import { closedTag } from '@/utils/debt';
 
 type Tab = 'BORROWED' | 'LENT' | 'SETTLED';
 const OWE = '#DC2626';
@@ -29,30 +35,38 @@ export default function DebtsScreen() {
   const { prefs } = usePreferences();
   const hidden = prefs.hideBalances;
 
+  // Opened from a ledger row or a linked transaction: /debts?openId=…
+  const { openId: linkedId } = useLocalSearchParams<{ openId?: string }>();
+
   const [debts, setDebts]       = useState<Debt[]>([]);
+  const [archived, setArchived] = useState<Debt[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
   const [summary, setSummary]   = useState<DebtSummary | null>(null);
   const [wallets, setWallets]   = useState<Wallet[]>([]);
   const [tab, setTab]           = useState<Tab>('BORROWED');
-  const [openId, setOpenId]     = useState<string | null>(null);
+  const [openId, setOpenId]     = useState<string | null>(linkedId ?? null);
   const [creating, setCreating] = useState(false);
   const [loading, setLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [d, s, w] = await Promise.all([getDebts(), getDebtSummary(), getWallets()]);
-      setDebts(d); setSummary(s); setWallets(w.filter(x => !x.archived));
+      const [d, s, w, a] = await Promise.all([getDebts(), getDebtSummary(), getWallets(), getArchivedDebts()]);
+      setDebts(d); setSummary(s); setWallets(w.filter(x => !x.archived)); setArchived(a);
     } catch { /* keep last */ }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // A new deep link while this tab is already mounted.
+  React.useEffect(() => { if (linkedId) setOpenId(linkedId); }, [linkedId]);
+
   const lists = useMemo(() => ({
     BORROWED: debts.filter(d => d.kind === 'BORROWED' && d.status === 'OPEN'),
     LENT: debts.filter(d => d.kind === 'LENT' && d.status === 'OPEN'),
-    SETTLED: debts.filter(d => d.status === 'SETTLED'),
-  }), [debts]);
-  const open = debts.find(d => d.id === openId) ?? null;
+    SETTLED: [...debts.filter(d => d.status !== 'OPEN'), ...(showArchived ? archived : [])],
+  }), [debts, archived, showArchived]);
+  const open = [...debts, ...archived].find(d => d.id === openId) ?? null;
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'BORROWED', label: t('debts.tabDebt') },
@@ -73,7 +87,7 @@ export default function DebtsScreen() {
           <Text style={[s.subtitle, { color: theme.textMuted }]}>{t('debts.subtitle')}</Text>
         </View>
         <TouchableOpacity style={[s.round, { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
-                          onPress={() => setCreating(true)}>
+                          onPress={() => setCreating(true)} accessibilityRole="button" accessibilityLabel={t('debts.newTitle')}>
           <MaterialIcons name="add" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
@@ -125,6 +139,14 @@ export default function DebtsScreen() {
             <DebtCard key={d.id} debt={d} hidden={hidden} onPress={() => setOpenId(d.id)} formatDate={formatDate} t={t} />
           ))
         )}
+        {tab === 'SETTLED' && archived.length > 0 && (
+          <TouchableOpacity onPress={() => setShowArchived(v => !v)} style={s.archivedToggle} hitSlop={8}>
+            <MaterialIcons name="inventory-2" size={14} color={theme.primary} />
+            <Text style={[s.archivedToggleText, { color: theme.primary }]}>
+              {showArchived ? t('debt2.hideArchived') : t('debt2.viewArchived', { n: String(archived.length) })}
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -158,8 +180,9 @@ function DebtCard({ debt, hidden, onPress, formatDate, t }: {
 }) {
   const theme = useAppTheme();
   const color = debt.kind === 'BORROWED' ? OWE : OWED;
-  const pct = debt.amount ? Math.min(100, (debt.paid / debt.amount) * 100) : 0;
-  const settled = debt.status === 'SETTLED';
+  const pct = debt.amount ? Math.min(100, ((debt.paid + debt.writtenOffAmount) / debt.amount) * 100) : 0;
+  const settled = debt.status !== 'OPEN';
+  const outcome = closedTag(debt.status);
   const initials = debt.person.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
 
   return (
@@ -179,16 +202,15 @@ function DebtCard({ debt, hidden, onPress, formatDate, t }: {
           <Text style={[s.remaining, { color: settled ? theme.textMuted : color }]}>
             {formatMoney(settled ? debt.amount : debt.remaining, debt.currency, { hidden })}
           </Text>
-          {settled ? (
-            <View style={[s.chip, { backgroundColor: theme.primaryBg }]}>
-              <MaterialIcons name="check" size={11} color={theme.primary} />
-              <Text style={[s.chipText, { color: theme.primary }]}>{t('debts.settled')}</Text>
-            </View>
-          ) : debt.dueDate ? (
+          {settled && outcome ? (
+            <View style={{ marginTop: 3 }}><ToneChip label={t(outcome.label)} tone={outcome.tone} /></View>
+          ) : debt.archived ? (
+            <View style={{ marginTop: 3 }}><ToneChip label={t('debt2.archivedTag')} tone="muted" /></View>
+          ) : debt.overdue || debt.nextDueAt || debt.dueDate ? (
             <View style={[s.chip, { backgroundColor: debt.overdue ? `${OWE}1A` : theme.inputBg }]}>
               <MaterialIcons name={debt.overdue ? 'warning-amber' : 'event'} size={11} color={debt.overdue ? OWE : theme.textMuted} />
               <Text style={[s.chipText, { color: debt.overdue ? OWE : theme.textMuted }]}>
-                {debt.overdue ? t('debts.overdue') : t('debts.dueOn', { date: formatDate(debt.dueDate, { day: 'numeric', month: 'short' }) })}
+                {debt.overdue ? t('debts.overdue') : t('debt2.next', { date: formatDate(debt.nextDueAt ?? debt.dueDate!, { day: 'numeric', month: 'short' }) })}
               </Text>
             </View>
           ) : null}
@@ -224,11 +246,15 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
   const color = debt.kind === 'BORROWED' ? OWE : OWED;
-  const settled = debt.status === 'SETTLED';
+  const settled = debt.status !== 'OPEN';
   const usable = wallets.filter(w => w.currency === debt.currency);
 
   const [amount, setAmount]     = useState('');
-  const [walletId, setWalletId] = useState<string | null>(debt.walletId && usable.some(w => w.id === debt.walletId) ? debt.walletId : null);
+  // A payment only becomes an expense (or income) transaction when a wallet is chosen, so start on the debt's own wallet,
+  // else the default wallet in this currency. "No wallet" is still one tap away.
+  const [walletId, setWalletId] = useState<string | null>(
+    debt.walletId && usable.some(w => w.id === debt.walletId) ? debt.walletId : (usable.find(w => w.isDefault) ?? usable[0])?.id ?? null,
+  );
   const [busy, setBusy]         = useState(false);
 
   const pay = async () => {
@@ -236,7 +262,7 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('debts.recordPayment'), t('add.errAmount'));
     setBusy(true);
     try {
-      await addDebtPayment(debt.id, { amount: value, walletId: walletId ?? undefined });
+      await addDebtPayment(debt.id, { amount: value, ...(debt.kind === 'LENT' && walletId ? { walletId } : {}) });
       setAmount('');
       onChanged();
     } catch (e: any) {
@@ -246,12 +272,36 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
     }
   };
 
+  const fail = (e: any) => Alert.alert(t('common.error'), e?.response?.data?.message || t('add.errSave'));
+  const left = formatMoney(debt.remaining, debt.currency, { hidden });
+
   const confirmDelete = () => Alert.alert(t('debts.delete'), t('debts.deleteMsg'), [
     { text: t('common.cancel'), style: 'cancel' },
     { text: t('wallet.deleteBtn'), style: 'destructive', onPress: async () => {
-      try { await deleteDebt(debt.id); onClose(); onChanged(); }
-      catch (e: any) { Alert.alert(t('common.error'), e?.response?.data?.message || t('add.errSave')); }
+      try { await deleteDebt(debt.id); onClose(); onChanged(); } catch (e) { fail(e); }
     } },
+  ]);
+
+  const confirmForgive = () => Alert.alert(t(debt.kind === 'LENT' ? 'debt2.writeOff' : 'debt2.forgive'), t('debt2.forgiveMsg', { amount: left }), [
+    { text: t('common.cancel'), style: 'cancel' },
+    { text: t('common.save'), onPress: async () => { try { await writeOffDebt(debt.id); onChanged(); } catch (e) { fail(e); } } },
+  ]);
+
+  const confirmArchive = () => Alert.alert(t('debt2.archiveTitle'), t('debt2.archiveMsg'), [
+    { text: t('common.cancel'), style: 'cancel' },
+    { text: t('debt2.archive'), onPress: async () => { try { await archiveDebt(debt.id); onClose(); onChanged(); } catch (e) { fail(e); } } },
+  ]);
+
+  const moreMenu = () => Alert.alert(debt.person, undefined, [
+    ...(debt.status === 'OPEN' && !debt.archived && debt.remaining > 0
+      ? [{ text: t(debt.kind === 'LENT' ? 'debt2.writeOff' : 'debt2.forgive'), onPress: confirmForgive }] : []),
+    ...(debt.status === 'WRITTEN_OFF' || debt.status === 'FORGIVEN'
+      ? [{ text: t('debt2.reopen'), onPress: async () => { try { await reopenDebt(debt.id); onChanged(); } catch (e) { fail(e); } } }] : []),
+    debt.archived
+      ? { text: t('debt2.restore'), onPress: async () => { try { await restoreDebt(debt.id); onChanged(); } catch (e) { fail(e); } } }
+      : { text: t('debt2.archive'), onPress: confirmArchive },
+    ...(debt.archived ? [{ text: t('debt2.deleteArchived'), style: 'destructive' as const, onPress: confirmDelete }] : []),
+    { text: t('common.cancel'), style: 'cancel' as const },
   ]);
 
   const confirmRemovePayment = (paymentId: string) => Alert.alert(t('debts.removePayment'), t('debts.removePaymentMsg'), [
@@ -282,6 +332,9 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
                 <Text style={[s.callText, { color: theme.primary }]}>{t('debts.call')}</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity onPress={moreMenu} hitSlop={8} style={{ marginLeft: 8 }} accessibilityRole="button" accessibilityLabel={t('debt2.more')}>
+              <MaterialIcons name="more-horiz" size={22} color={theme.textMuted} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={onClose} hitSlop={8} style={{ marginLeft: 8 }}>
               <MaterialIcons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
@@ -301,14 +354,26 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
             </Text>
             <View style={s.metaRow}>
               <Text style={[s.metaItem, { color: theme.textMuted }]}>{t('debts.since', { date: formatDate(debt.date, { day: 'numeric', month: 'short', year: 'numeric' }) })}</Text>
-              {debt.dueDate && (
+              {debt.dueDate && !settled && (
                 <Text style={[s.metaItem, { color: debt.overdue ? OWE : theme.textMuted }]}>
-                  {debt.overdue ? `${t('debts.overdue')} · ` : ''}{t('debts.dueOn', { date: formatDate(debt.dueDate, { day: 'numeric', month: 'short', year: 'numeric' }) })}
+                  {debt.overdue ? `${t('debts.overdue')} · ` : ''}{t('debt2.finalDate', { date: formatDate(debt.dueDate, { day: 'numeric', month: 'short', year: 'numeric' }) })}
                 </Text>
               )}
+              {debt.archived && <ToneChip label={t('debt2.archivedTag')} tone="muted" />}
+              {closedTag(debt.status) && debt.status !== 'SETTLED' && <ToneChip label={t(closedTag(debt.status)!.label)} tone="amber" />}
             </View>
             {debt.note ? <Text style={[s.note, { color: theme.textSecondary }]}>“{debt.note}”</Text> : null}
           </View>
+
+          <DebtInfo debt={debt} hidden={hidden} />
+          <TouchableOpacity onPress={() => { shareDebtStatement(debt.id).catch(() => Alert.alert(t('common.error'), t('debt2.statementErr'))); }}
+            activeOpacity={0.8} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, marginBottom: 12 }}>
+            <MaterialIcons name="picture-as-pdf" size={18} color={theme.primary} />
+            <Text style={{ color: theme.primary, fontWeight: '700' }}>{t('debt2.statement')}</Text>
+          </TouchableOpacity>
+
+          {/* Reminders for this debt */}
+          {!settled && !debt.archived && <ReminderRow debt={debt} onChanged={onChanged} />}
 
           {/* Record payment */}
           {!settled && (
@@ -323,15 +388,21 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
                   <Text style={[s.allText, { color: theme.primary }]}>{t('debts.payAll')}</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={[s.walletLabel, { color: theme.textSecondary }]}>
-                {t(debt.kind === 'BORROWED' ? 'debts.fromWallet' : 'debts.intoWallet')} ({t('add.optional')})
-              </Text>
-              <WalletChips wallets={usable} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
+              {/* A debt never uses one of my wallets. For a credit, the repayment goes into the wallet chosen here. */}
+              {debt.kind === 'LENT' && (
+                <>
+                  <Text style={[s.walletLabel, { color: theme.textSecondary }]}>{t('debts.intoWallet')} ({t('add.optional')})</Text>
+                  <WalletChips wallets={usable} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
+                </>
+              )}
               <TouchableOpacity style={[s.payBtn, { backgroundColor: color }]} onPress={pay} disabled={busy} activeOpacity={0.85}>
                 {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.payBtnText}>{t('debts.recordPayment')}</Text>}
               </TouchableOpacity>
             </>
           )}
+
+          {/* Pay dates (history kept) */}
+          <PayDates debt={debt} hidden={hidden} onChanged={onChanged} />
 
           {/* Payments */}
           <Text style={[s.section, { color: theme.text }]}>{t('debts.payments')}</Text>
@@ -355,10 +426,11 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
             </View>
           ))}
 
-          <TouchableOpacity style={[s.deleteBtn, { borderColor: `${OWE}55` }]} onPress={confirmDelete} activeOpacity={0.8}>
-            <MaterialIcons name="delete-outline" size={16} color={OWE} />
-            <Text style={[s.deleteText, { color: OWE }]}>{t('debts.delete')}</Text>
+          <TouchableOpacity style={[s.deleteBtn, { borderColor: theme.border }]} onPress={debt.archived ? async () => { try { await restoreDebt(debt.id); onChanged(); } catch (e) { fail(e); } } : confirmArchive} activeOpacity={0.8}>
+            <MaterialIcons name={debt.archived ? 'unarchive' : 'inventory-2'} size={16} color={theme.textSecondary} />
+            <Text style={[s.deleteText, { color: theme.textSecondary }]}>{t(debt.archived ? 'debt2.restore' : 'debt2.archive')}</Text>
           </TouchableOpacity>
+          <Text style={[s.metaItem, { color: theme.textMuted, textAlign: 'center', marginTop: 6 }]}>{t('debt2.archiveSub')}</Text>
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -385,15 +457,22 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
   const [person, setPerson]     = useState('');
   const [phone, setPhone]       = useState('');
   const [amount, setAmount]     = useState('');
-  const [walletId, setWalletId] = useState<string | null>(null);
+  // The money only shows up as a transaction (lending = expense, borrowing = income) when a wallet is chosen,
+  // so start on the default wallet. "No wallet" is still one tap away.
+  const [walletId, setWalletId] = useState<string | null>(() => (wallets.find(w => w.isDefault) ?? wallets[0])?.id ?? null);
   const [currency, setCurrency] = useState(mainCurrency.code);
-  const [dueDate, setDueDate]   = useState<Date | null>(null);
+  // A debt (I owe) needs a first pay date, so it starts on tomorrow evening; a credit may have none.
+  const tomorrowEvening = () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(18, 0, 0, 0); return d; };
+  const [dueDate, setDueDate]   = useState<Date | null>(() => (initialKind === 'BORROWED' ? tomorrowEvening() : null));
+  const [dateTouched, setDateTouched] = useState(false);
+  const [remind, setRemind] = useState(initialKind === 'BORROWED');
+  const [remindTouched, setRemindTouched] = useState(false);
   const [note, setNote]         = useState('');
   const [pickDue, setPickDue]   = useState(false);
   const [pickCur, setPickCur]   = useState(false);
   const [saving, setSaving]     = useState(false);
 
-  const wallet = wallets.find(w => w.id === walletId) ?? null;
+  const wallet = kind === 'LENT' ? wallets.find(w => w.id === walletId) ?? null : null;
   const cur = wallet?.currency ?? currency;
   const color = kind === 'BORROWED' ? OWE : OWED;
 
@@ -401,11 +480,13 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
     const value = parseFloat(amount.replace(/,/g, ''));
     if (!person.trim()) return Alert.alert(t(kind === 'BORROWED' ? 'add.borrowedFrom' : 'add.lentTo'), t('add.errPerson'));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
+    if (kind === 'BORROWED' && !dueDate) return Alert.alert(t('debt2.firstDate'), t('debt2.errPayDate'));
     setSaving(true);
     try {
       await createDebt({
         kind, person: person.trim(), phone: phone.trim() || undefined, amount: value, currency: cur,
-        walletId: walletId ?? undefined, dueDate: dueDate?.toISOString(), note: note.trim() || undefined,
+        walletId: kind === 'LENT' ? walletId ?? undefined : undefined, dueDate: dueDate?.toISOString(), note: note.trim() || undefined,
+        remind: remind && !!dueDate,
       });
       onCreated();
     } catch (e: any) {
@@ -430,7 +511,13 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
               const on = kind === k;
               const c = k === 'BORROWED' ? OWE : OWED;
               return (
-                <TouchableOpacity key={k} onPress={() => setKind(k)} activeOpacity={0.85} style={[s.tab, on && { backgroundColor: theme.surface }]}>
+                <TouchableOpacity key={k} activeOpacity={0.85} style={[s.tab, on && { backgroundColor: theme.surface }]}
+                                  onPress={() => {
+                                    setKind(k);
+                                    // Follow the kind's default until the person picks a date themselves.
+                                    if (!dateTouched) setDueDate(k === 'BORROWED' ? tomorrowEvening() : null);
+                                    if (!remindTouched) setRemind(k === 'BORROWED');
+                                  }}>
                   <MaterialIcons name={k === 'BORROWED' ? 'call-received' : 'call-made'} size={13} color={on ? c : theme.textMuted} />
                   <Text style={[s.tabText, { color: on ? c : theme.textMuted }]} numberOfLines={1}>{t(k === 'BORROWED' ? 'debts.kindBorrowed' : 'debts.kindLent')}</Text>
                 </TouchableOpacity>
@@ -462,19 +549,34 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
                        placeholderTextColor={theme.textMuted} keyboardType="decimal-pad" style={[s.payInput, { color }]} />
           </View>
 
-          <Text style={[s.walletLabel, { color: theme.textSecondary }]}>
-            {t(kind === 'BORROWED' ? 'add.walletInto' : 'add.walletFrom')} ({t('add.optional')})
-          </Text>
-          <WalletChips wallets={wallets} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
+          {/* A debt is kept under the Debt wallet and never touches one of my wallets: nothing to choose.
+              A credit takes the money from the wallet chosen here. */}
+          {kind === 'LENT' && (
+            <>
+              <Text style={[s.walletLabel, { color: theme.textSecondary }]}>{t('add.walletFrom')} ({t('add.optional')})</Text>
+              <WalletChips wallets={wallets} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
+            </>
+          )}
 
-          <Text style={[s.walletLabel, { color: theme.textSecondary }]}>{t('add.dueDate')}</Text>
+          <Text style={[s.walletLabel, { color: theme.textSecondary }]}>
+            {kind === 'BORROWED' ? t('debt2.firstDate') : t('debt2.expectedDate')}
+            {kind === 'BORROWED' ? <Text style={{ color: OWE }}>{`  ${t('debt2.required')}`}</Text> : null}
+          </Text>
           <TouchableOpacity style={[s.field, { backgroundColor: theme.inputBg, borderColor: theme.border }]} onPress={() => setPickDue(true)} activeOpacity={0.8}>
             <MaterialIcons name="event" size={16} color={theme.textMuted} />
             <Text style={[s.fieldText, { color: dueDate ? theme.text : theme.textMuted }]}>
-              {dueDate ? formatDate(dueDate, { day: 'numeric', month: 'short', year: 'numeric' }) : t('add.noDue')}
+              {dueDate ? formatDate(dueDate, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : t('add.noDue')}
             </Text>
-            {dueDate && <TouchableOpacity onPress={() => setDueDate(null)} hitSlop={8}><MaterialIcons name="close" size={16} color={theme.textMuted} /></TouchableOpacity>}
+            {dueDate && kind === 'LENT' && (
+              <TouchableOpacity onPress={() => { setDueDate(null); setDateTouched(true); }} hitSlop={8}><MaterialIcons name="close" size={16} color={theme.textMuted} /></TouchableOpacity>
+            )}
           </TouchableOpacity>
+          <Text style={[s.flowHint, { color: theme.textMuted }]}>{t(kind === 'BORROWED' ? 'debt2.hintDebt' : 'debt2.hintCredit')}</Text>
+
+          <View style={{ marginTop: 12 }}>
+            <RemindSwitch value={remind && !!dueDate} disabled={!dueDate} onChange={v => { setRemind(v); setRemindTouched(true); }}
+                         sub={dueDate ? t(remind ? 'rem.dueAt' : 'rem.off', { when: formatDate(dueDate, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) }) : t('rem.none')} />
+          </View>
 
           <Text style={[s.walletLabel, { color: theme.textSecondary }]}>{t('add.description')}</Text>
           <View style={[s.field, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
@@ -494,8 +596,9 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
         </ScrollView>
       </View>
 
-      <DatePickerModal visible={pickDue} title={t('add.dueDate')} value={dueDate ?? new Date()} showTime={false}
-                       onClose={() => setPickDue(false)} onConfirm={d => { setDueDate(d); setPickDue(false); }} />
+      <DateTimeSheet visible={pickDue} title={kind === 'BORROWED' ? t('debt2.firstDate') : t('debt2.expectedDate')} mode="datetime"
+                     value={dueDate ?? tomorrowEvening()} minDate={new Date(Date.now() + 5 * 60_000)} minuteStep={5} hour12
+                     onClose={() => setPickDue(false)} onConfirm={d => { setDueDate(d); setDateTouched(true); setPickDue(false); }} />
       <CurrencyPicker visible={pickCur} value={currency} onSelect={c => { setCurrency(c.code); setPickCur(false); }} onClose={() => setPickCur(false)} />
     </KeyboardAvoidingView>
   );
@@ -574,6 +677,8 @@ const s = StyleSheet.create({
   payIcon:   { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   payAmount: { fontSize: 13, fontWeight: '700' },
 
+  archivedToggle:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+  archivedToggleText: { fontSize: 12, fontWeight: '700' },
   deleteBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 14, borderWidth: 1, marginTop: 18 },
   deleteText: { fontSize: 12, fontWeight: '700' },
 });

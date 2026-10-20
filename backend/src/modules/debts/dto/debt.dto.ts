@@ -5,11 +5,13 @@ export class CreateDebtDto {
   amount: number;
   /** Required when no wallet is given; otherwise the wallet's currency is used. */
   currency?: string;
-  /** Wallet the money went into (borrowed) or came out of (lent). Optional. */
+  /** Credits only: the wallet the money comes out of (optional). Ignored for a debt, which never uses a wallet. */
   walletId?: string;
   date?: string;
   dueDate?: string;
   note?: string;
+  /** Remind me about the pay dates. Defaults to on for a debt, off for a credit. */
+  remind?: boolean;
 }
 
 export class UpdateDebtDto {
@@ -18,11 +20,20 @@ export class UpdateDebtDto {
   amount?: number;
   dueDate?: string | null;
   note?: string;
+  remindersOn?: boolean;
 }
 
 export class DebtPaymentDto {
   amount: number;
   walletId?: string;
   date?: string;
+  note?: string;
+}
+
+export class InstallmentDto {
+  /** ISO date-time of the pay date. */
+  dueAt: string;
+  /** What this date asks for. Leave empty for "the rest". */
+  plannedAmount?: number | null;
   note?: string;
 }

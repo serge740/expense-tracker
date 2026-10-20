@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reminder UX prototype</title>
+<style>
+:root{--bg:#EEF7FA;--surface:#fff;--primary:#00627F;--pbg:rgba(0,98,127,.08);--text:#0E2A33;--text2:#5A7682;--muted:#9AB0B9;--border:rgba(0,98,127,.12);--input:#F3F8FA;--owe:#DC2626;--owed:#16A34A;--warn:#D97706;--shadow:0 20px 50px rgba(0,40,60,.18)}
+:root.dark{--bg:#0B1A20;--surface:#13262E;--primary:#4FB3D1;--pbg:rgba(79,179,209,.12);--text:#E6F2F6;--text2:#9DB6C0;--muted:#6C8791;--border:rgba(255,255,255,.08);--input:#0F2128;--shadow:0 20px 50px rgba(0,0,0,.5)}
+*{box-sizing:border-box;margin:0}
+body{font-family:Poppins,system-ui,Segoe UI,sans-serif;background:#cfdde3;color:var(--text);display:flex;gap:28px;padding:24px;min-height:100vh;flex-wrap:wrap;justify-content:center}
+.panel{width:330px;font-size:13px;line-height:1.5}
+.panel h1{font-size:18px;margin-bottom:6px}
+.panel p{color:#35505a;margin-bottom:10px}
+.panel button.nav{display:block;width:100%;text-align:left;border:1px solid #9fb6bf;background:#fff;border-radius:12px;padding:9px 12px;margin-bottom:7px;cursor:pointer;font:inherit;font-size:12.5px}
+.panel button.nav.on{background:#00627F;color:#fff;border-color:#00627F}
+.panel .note{background:#fff;border-radius:12px;padding:10px 12px;font-size:12px;margin-top:10px}
+.panel code{background:#e3eef2;padding:1px 5px;border-radius:5px}
+.phone{width:390px;height:780px;background:var(--bg);border-radius:38px;box-shadow:var(--shadow);position:relative;overflow:hidden;border:8px solid #11242b;display:flex;flex-direction:column}
+.screen{flex:1;overflow-y:auto;padding:14px 16px 90px;display:none}
+.screen.on{display:block}.screen::-webkit-scrollbar{display:none}
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}.hd h2{font-size:17px;flex:1}.hd small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.round{width:36px;height:36px;border-radius:50%;background:var(--surface);color:var(--text);display:grid;place-items:center;border:1px solid var(--border);font-size:16px;cursor:pointer}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px}.grow{flex:1;min-width:0}
+.t1{font-weight:700;font-size:13px}.t2{font-size:11px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--input);color:var(--text2)}
+.chip.red{background:rgba(220,38,38,.12);color:var(--owe)}.chip.green{background:rgba(22,163,74,.12);color:var(--owed)}.chip.amber{background:rgba(217,119,6,.14);color:var(--warn)}.chip.blue{background:var(--pbg);color:var(--primary)}
+.sec{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:16px 0 6px;text-transform:uppercase}
+.sw{display:flex;align-items:center;gap:10px;padding:11px 12px;background:var(--surface);border-bottom:1px solid var(--border)}
+.sw:first-of-type{border-radius:16px 16px 0 0}.sw:last-of-type{border-radius:0 0 16px 16px;border-bottom:0}.sw:only-of-type{border-radius:16px}
+.grp{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.grp .sw{border-radius:0}
+.sw i{width:38px;height:22px;border-radius:11px;background:var(--muted);position:relative;flex:none;cursor:pointer;transition:.2s}
+.sw i:after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.sw i.on{background:var(--primary)}.sw i.on:after{left:18px}
+.ico{width:32px;height:32px;border-radius:10px;background:var(--pbg);display:grid;place-items:center;font-size:15px;flex:none}
+.btn{border:0;border-radius:14px;padding:12px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;background:var(--pbg);color:var(--primary)}
+.btn.solid{background:var(--primary);color:#fff}.btn.ghost{background:none;color:var(--text2);font-weight:600;font-size:12px}
+.field{display:flex;align-items:center;gap:8px;height:44px;border-radius:12px;border:1px solid var(--border);background:var(--input);padding:0 12px;font-size:13px}
+.field input{flex:1;border:0;background:none;font:inherit;color:var(--text);outline:none;min-width:0}
+.lab{font-size:11px;font-weight:600;color:var(--text2);margin:10px 0 6px}
+.stepper{display:flex;align-items:center;gap:8px}.stepper b{min-width:28px;text-align:center}
+.stepper button{width:30px;height:30px;border-radius:10px;border:1px solid var(--border);background:var(--input);color:var(--text);font-size:15px;cursor:pointer}
+.hint{font-size:10.5px;color:var(--muted);line-height:1.5;margin:6px 2px}
+.banner{border-radius:12px;padding:9px 11px;font-size:11.5px;background:var(--pbg);color:var(--text2);margin:8px 0}
+.bg{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;z-index:20}.bg.on{display:flex}
+.bg.center{align-items:center;justify-content:center;padding:22px}.bg.bottom{align-items:flex-end}
+.modal{background:var(--surface);border-radius:26px;width:100%;padding:18px;box-shadow:var(--shadow)}
+.sheet{background:var(--surface);width:100%;border-radius:26px 26px 0 0;padding:8px 18px 22px}
+.grab{width:38px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 10px}
+.queue{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.dots{display:flex;gap:4px;flex:1}.dots i{height:4px;flex:1;border-radius:2px;background:var(--border)}.dots i.on{background:var(--primary)}
+.bell{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:22px;margin-bottom:8px}
+.big{font-size:28px;font-weight:800;margin:2px 0}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.actions .full{grid-column:1/-1}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.pill{padding:10px 14px;border-radius:14px;border:1px solid var(--border);background:var(--input);font-size:12.5px;font-weight:700;cursor:pointer;color:var(--text)}
+.pill.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.when{margin-top:12px;padding:10px 12px;border-radius:14px;background:var(--pbg);font-size:12px;color:var(--text2)}
+.when b{color:var(--text)}
+.lock{background:linear-gradient(160deg,#1b3a4b,#0b1a20);position:absolute;inset:0;z-index:25;padding:60px 14px 14px;display:none;color:#fff}
+.lock.on{display:block}
+.lock .clock{text-align:center;font-size:54px;font-weight:300;margin-bottom:28px}
+.notif{background:rgba(255,255,255,.14);backdrop-filter:blur(10px);border-radius:20px;padding:12px 14px;margin-bottom:10px}
+.notif .nh{display:flex;gap:8px;align-items:center;font-size:11px;opacity:.8;margin-bottom:4px}
+.notif .nh span.ap{width:18px;height:18px;border-radius:5px;background:#00627F;display:inline-grid;place-items:center;font-size:10px}
+.notif b{font-size:13.5px}.notif p{font-size:12.5px;opacity:.9;margin-top:1px}
+.nbtns{display:flex;gap:6px;margin-top:10px}.nbtns button{flex:1;border:0;border-radius:12px;padding:8px;background:rgba(255,255,255,.2);color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:64px;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center;font-size:10px;color:var(--muted)}
+.tabbar .on{color:var(--primary);font-weight:700}
+.toast{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);background:#11242b;color:#fff;padding:8px 14px;border-radius:99px;font-size:11.5px;display:none;z-index:40;white-space:nowrap}
+.nrow{display:flex;gap:10px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:8px;cursor:pointer}
+.nrow .dot{width:8px;height:8px;border-radius:50%;background:var(--primary);margin-top:6px;flex:none}
+.wal{display:flex;gap:6px;flex-wrap:wrap}.wal span{padding:7px 12px;border-radius:12px;background:var(--input);border:1px solid var(--border);font-size:12px;font-weight:600;cursor:pointer}.wal span.on{background:var(--pbg);border-color:var(--primary);color:var(--primary)}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>Phase 5 — Reminder experience</h1>
+  <p>How reminders look and behave in the app. Nothing here is saved. Try the buttons inside the phone.</p>
+  <button class="nav on" data-go="home">1 · A reminder is due (popup in the app)</button>
+  <button class="nav" data-go="lock">2 · Push on the lock screen (with buttons)</button>
+  <button class="nav" data-go="inbox">3 · Inbox row</button>
+  <button class="nav" data-go="detail">4 · Debt detail — reminder switch</button>
+  <button class="nav" data-go="settings">5 · Settings — reminders, quiet hours, time zone</button>
+  <button class="nav" id="darkBtn">Toggle dark mode</button>
+  <div class="note"><b>The popup</b> appears by itself when the app opens or comes to the front, when you tap a reminder push, and once a minute while you use the app. It shows the most urgent first. Closing it with the × does <b>not</b> count as an answer, so the reminder comes back on schedule. <b>Mark paid</b>, <b>Snooze</b> and <b>Dismiss</b> are answers.</div>
+  <div class="note"><b>Mark paid</b> does not just tick a box: it records the payment on the debt (amount and wallet), so your balances and history stay right. The reminder completes by itself.</div>
+  <div class="note"><b>Push buttons</b> (Snooze 10 min, Snooze 1 h, Open) open the app and apply your choice. They are plain notification actions, so no rebuild is needed; I will test them on a real phone.</div>
+  <div class="note"><b>Quiet hours move to your account</b> so they work while the app is closed. Your current quiet hours on this phone are copied over once.</div>
+</div>
+
+<div class="phone" id="phone">
+
+  <!-- 1 HOME + popup -->
+  <div class="screen on" id="home">
+    <div class="hd"><div class="grow"><div class="t1" style="font-size:17px">Good evening</div><div class="t2">Tuesday 21 Oct</div></div><div class="round">🔔</div></div>
+    <div class="card"><div class="t2">Balance</div><div style="font-size:24px;font-weight:800">RWF 1,470,000</div></div>
+    <div class="card row"><div class="ico">↓</div><div class="grow"><div class="t1">Salary</div><div class="t2">Today</div></div><div class="t1" style="color:var(--owed)">+500,000</div></div>
+    <div class="card row"><div class="ico">↑</div><div class="grow"><div class="t1">Groceries</div><div class="t2">Yesterday</div></div><div class="t1" style="color:var(--owe)">−18,400</div></div>
+    <button class="btn" id="reopen" style="width:100%;margin-top:6px">↻ Show the popup again</button>
+    <div class="hint">The popup sits above whatever screen you are on.</div>
+  </div>
+
+  <!-- 3 INBOX -->
+  <div class="screen" id="inbox">
+    <div class="hd"><button class="round" data-go="home">‹</button><h2>Notifications</h2></div>
+    <div class="nrow" data-go="detail"><span class="dot"></span><div class="grow"><div class="row"><div class="t1 grow">Payment overdue</div><span class="chip red">Reminder</span></div><div class="t2" style="color:var(--text2);margin:2px 0">Your payment to John (RWF 150,000) was due Tue, 21 Oct, 6:00 PM.</div><div class="t2">2 min ago · tap to open</div></div></div>
+    <div class="nrow" data-go="detail"><span class="dot" style="background:transparent"></span><div class="grow"><div class="row"><div class="t1 grow">Repayment due tomorrow</div><span class="chip red">Reminder</span></div><div class="t2" style="color:var(--text2);margin:2px 0">Eric owes you RWF 80,000, due Wed, 22 Oct, 9:00 AM.</div><div class="t2">Yesterday</div></div></div>
+    <div class="nrow"><span class="dot" style="background:transparent"></span><div class="grow"><div class="t1">Budget alert</div><div class="t2" style="color:var(--text2);margin:2px 0">You've used 80% of your Food budget.</div><div class="t2">Mon</div></div></div>
+    <div class="banner">A reminder keeps <b>one row</b> that is refreshed each time it fires, so the inbox never fills with repeats. It turns unread again when it fires again.</div>
+  </div>
+
+  <!-- 4 DETAIL -->
+  <div class="screen" id="detail">
+    <div class="hd"><button class="round" data-go="home">‹</button><div class="grow"><div class="t2" style="color:var(--owe);font-weight:700">Borrowed from</div><div style="font-size:18px;font-weight:800">John</div></div></div>
+    <div class="card" style="background:rgba(220,38,38,.07);border-color:rgba(220,38,38,.2)">
+      <div class="t2">Left to pay</div><div class="big" style="color:var(--owe)">RWF 150,000</div>
+      <div style="margin-top:6px"><span class="chip red">Overdue · Tue 21 Oct, 6:00 PM</span></div>
+    </div>
+    <div class="grp">
+      <div class="sw"><div class="ico">🔔</div><div class="grow"><div class="t1">Remind me</div><div class="t2" id="remSub">Next reminder: in 30 min</div></div><i class="on" id="remSw"></i></div>
+    </div>
+    <div class="hint" id="remHint">Reminds you 1 day before, 1 hour before, when it is due, then again after 30 min, 2 h and daily for a week, until you pay, snooze or dismiss it.</div>
+    <div class="card" style="margin-top:8px"><div class="row"><span class="chip amber">Snoozed</span><div class="t2 grow" id="snoozeLine">Not snoozed</div><button class="btn ghost" id="clearSnooze" style="padding:4px 8px">Wake now</button></div></div>
+    <button class="btn" id="openPop" style="width:100%">Show the reminder popup</button>
+  </div>
+
+  <!-- 5 SETTINGS -->
+  <div class="screen" id="settings">
+    <div class="hd"><button class="round" data-go="home">‹</button><h2>Notifications<small>Channels, alerts and quiet hours</small></h2></div>
+    <div class="sec">Payment reminders</div>
+    <div class="grp">
+      <div class="sw"><div class="ico">📲</div><div class="grow"><div class="t1">Push</div><div class="t2">Pop up on this phone</div></div><i class="on"></i></div>
+      <div class="sw"><div class="ico">✉</div><div class="grow"><div class="t1">Email</div><div class="t2">First reminder, due time, and daily when overdue</div></div><i class="on"></i></div>
+      <div class="sw"><div class="ico">🗂</div><div class="grow"><div class="t1">Inbox</div><div class="t2">Saved in your notification inbox</div></div><i class="on"></i></div>
+    </div>
+    <div class="sec">Quiet hours</div>
+    <div class="grp">
+      <div class="sw"><div class="ico">🌙</div><div class="grow"><div class="t1">Quiet hours</div><div class="t2">Reminders wait until quiet time ends</div></div><i class="on" id="quietSw"></i></div>
+      <div class="sw" id="quietRows"><div class="grow"><div class="t2">From</div><div class="t1">10:00 PM</div></div><div class="grow"><div class="t2">To</div><div class="t1">7:00 AM</div></div><span class="chip blue">edit</span></div>
+    </div>
+    <div class="hint">Works while the app is closed. A reminder that falls in quiet time is delivered when it ends.</div>
+    <div class="sec">Limits</div>
+    <div class="grp">
+      <div class="sw"><div class="ico">⏱</div><div class="grow"><div class="t1">Daily push limit</div><div class="t2">Extra reminders still reach your inbox</div></div><div class="stepper"><button id="capMinus">−</button><b id="cap">8</b><button id="capPlus">+</button></div></div>
+    </div>
+    <div class="sec">Time zone</div>
+    <div class="grp">
+      <div class="sw"><div class="ico">🌍</div><div class="grow"><div class="t1">Africa/Kigali</div><div class="t2">Detected from this phone · UTC+2</div></div><span class="chip green">Auto</span></div>
+    </div>
+    <div class="hint">Daily reminders keep the same local time, and quiet hours use this zone. It updates by itself when you travel.</div>
+  </div>
+
+  <!-- 2 LOCK SCREEN -->
+  <div class="lock" id="lock">
+    <div class="clock">6:02</div>
+    <div class="notif"><div class="nh"><span class="ap">R</span> RABBIT TRACKER · now</div><b>Payment due now</b><p>Pay John RWF 150,000 by Tue, 21 Oct, 6:00 PM.</p>
+      <div class="nbtns"><button data-act="snooze10">Snooze 10 min</button><button data-act="snooze60">Snooze 1 h</button><button data-act="open">Open</button></div></div>
+    <div class="notif"><div class="nh"><span class="ap">R</span> RABBIT TRACKER · 5 min ago</div><b>3 payments need attention</b><p>John · RWF 150,000, Aline · RWF 50,000, Marie · RWF 2,000</p></div>
+    <div style="text-align:center;margin-top:18px"><button class="btn" data-go="home" style="background:rgba(255,255,255,.2);color:#fff">Unlock and open app</button></div>
+  </div>
+
+  <div class="tabbar"><div class="on">Home</div><div>History</div><div>Wallets</div><div>Debts</div><div>Profile</div></div>
+
+  <!-- REMINDER POPUP -->
+  <div class="bg center on" id="popBg"><div class="modal" id="pop"></div></div>
+
+  <!-- SNOOZE SHEET -->
+  <div class="bg bottom" id="snoozeBg"><div class="sheet"><div class="grab"></div>
+    <div class="t1" style="font-size:16px">Snooze for…</div>
+    <div class="t2" id="snoozeFor"></div>
+    <div class="pills" id="snoozePills"></div>
+    <div class="when" id="snoozeWhen"></div>
+    <div class="actions"><button class="btn" id="snoozeCancel">Cancel</button><button class="btn solid" id="snoozeGo">Snooze</button></div>
+  </div></div>
+
+  <!-- MARK PAID SHEET -->
+  <div class="bg bottom" id="payBg"><div class="sheet"><div class="grab"></div>
+    <div class="t1" style="font-size:16px">Record payment</div>
+    <div class="t2" id="payFor"></div>
+    <div class="lab">Amount</div>
+    <div class="field">RWF <input id="payAmt" style="font-weight:700;font-size:17px"><button class="btn" id="payAll" style="padding:6px 10px;font-size:11px">All</button></div>
+    <div class="lab">From wallet (optional)</div>
+    <div class="wal" id="payWal"><span class="on">MoMo</span><span>Bank of Kigali</span><span>No wallet</span></div>
+    <div class="hint">This adds a payment to the debt, the reminder completes by itself, and the next pay date (if any) takes over.</div>
+    <div class="actions"><button class="btn" id="payCancel">Back</button><button class="btn solid" id="payGo">Record payment</button></div>
+  </div></div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',2200)};
+const fmt=n=>n.toLocaleString('en-US');
+const NOW=new Date(2026,9,21,18,2);
+const hm=d=>d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+const dm=d=>d.toLocaleDateString('en-US',{weekday:'short',day:'numeric',month:'short'});
+
+/* queue of fired reminders, most urgent first */
+let queue=[
+  {id:1,kind:'D',person:'John',left:150000,due:'Tue 21 Oct · 6:00 PM',overdue:true,fires:3},
+  {id:2,kind:'D',person:'Aline',left:50000,due:'Tue 21 Oct · 9:00 AM',overdue:true,fires:5},
+  {id:3,kind:'C',person:'Eric',left:80000,due:'Wed 22 Oct · 9:00 AM',overdue:false,fires:1},
+];
+let idx=0;
+
+function show(el,on){el.classList.toggle('on',on)}
+function renderPop(){
+  const p=$('#pop');
+  if(!queue.length){show($('#popBg'),false);return}
+  idx=Math.min(idx,queue.length-1);
+  const q=queue[idx],debt=q.kind==='D';
+  const col=q.overdue?'var(--owe)':'var(--primary)';
+  p.innerHTML=`
+    <div class="queue"><div class="dots">${queue.map((_,i)=>`<i class="${i===idx?'on':''}"></i>`).join('')}</div><span>${idx+1} of ${queue.length}</span><button class="round" id="x" style="width:28px;height:28px;font-size:13px" aria-label="Close">✕</button></div>
+    <div class="bell" style="background:${col}1F;color:${col}">${q.overdue?'⏰':'🔔'}</div>
+    <div class="t2" style="font-weight:700;color:${col}">${q.overdue?'Overdue':'Due soon'} · ${debt?'Payment':'Repayment'}</div>
+    <div style="font-size:18px;font-weight:800;margin-top:2px">${debt?'Pay '+q.person:q.person+' owes you'}</div>
+    <div class="big" style="color:${col}">RWF ${fmt(q.left)}</div>
+    <div class="t2">${q.overdue?'Was due':'Due'} ${q.due}${q.fires>1?` · reminded ${q.fires} times`:''}</div>
+    <div class="actions">
+      <button class="btn solid full" id="paid">${debt?'Mark paid':'Mark received'}</button>
+      <button class="btn" id="snz">Snooze</button>
+      <button class="btn" id="open">Open ${debt?'debt':'credit'}</button>
+      <button class="btn ghost full" id="dis">Dismiss this reminder</button>
+    </div>
+    ${queue.length>1?`<div class="row" style="justify-content:space-between;margin-top:4px"><button class="btn ghost" id="prev">‹ Previous</button><button class="btn ghost" id="next">Next ›</button></div>`:''}`;
+  $('#x').onclick=()=>{show($('#popBg'),false);toast('Closed · it will remind you again later')};
+  $('#paid').onclick=openPay;$('#snz').onclick=openSnooze;
+  $('#open').onclick=()=>{show($('#popBg'),false);go('detail')};
+  $('#dis').onclick=()=>{queue.splice(idx,1);toast('Dismissed · no more reminders for this date');renderPop()};
+  if($('#prev'))$('#prev').onclick=()=>{idx=(idx-1+queue.length)%queue.length;renderPop()};
+  if($('#next'))$('#next').onclick=()=>{idx=(idx+1)%queue.length;renderPop()};
+}
+
+/* snooze */
+const PRESETS=[['10 min',10],['30 min',30],['1 hour',60],['1 day',1440],['1 week',10080],['Pick date & time…','custom']];
+let pick=60;
+function renderSnooze(){
+  $('#snoozeFor').textContent=queue[idx].person+' · RWF '+fmt(queue[idx].left);
+  $('#snoozePills').innerHTML=PRESETS.map(([l,v])=>`<span class="pill ${pick===v?'on':''}" data-v="${v}">${l}</span>`).join('');
+  $$('#snoozePills .pill').forEach(el=>el.onclick=()=>{pick=el.dataset.v==='custom'?'custom':+el.dataset.v;renderSnooze()});
+  let w;
+  if(pick==='custom'){w=new Date(2026,9,23,9,0);$('#snoozeWhen').innerHTML='Opens the date and time sheet. Example: <b>'+dm(w)+' · '+hm(w)+'</b>'}
+  else{w=new Date(NOW.getTime()+pick*60000);$('#snoozeWhen').innerHTML='You will be reminded at <b>'+dm(w)+' · '+hm(w)+'</b>'}
+}
+function openSnooze(){pick=60;renderSnooze();show($('#snoozeBg'),true)}
+$('#snoozeCancel').onclick=()=>show($('#snoozeBg'),false);
+$('#snoozeGo').onclick=()=>{
+  const q=queue.splice(idx,1)[0];show($('#snoozeBg'),false);
+  $('#snoozeLine').textContent='Until '+(pick==='custom'?'Thu 23 Oct · 9:00 AM':hm(new Date(NOW.getTime()+pick*60000)));
+  toast('Snoozed '+q.person+' · '+(pick==='custom'?'until Thu 23 Oct, 9:00 AM':PRESETS.find(p=>p[1]===pick)[0]));
+  renderPop();
+};
+
+/* mark paid */
+function openPay(){const q=queue[idx];$('#payFor').textContent=q.person+' · left RWF '+fmt(q.left);$('#payAmt').value=q.left;show($('#payBg'),true)}
+$('#payAll').onclick=()=>$('#payAmt').value=queue[idx].left;
+$$('#payWal span').forEach(s=>s.onclick=()=>{$$('#payWal span').forEach(x=>x.classList.remove('on'));s.classList.add('on')});
+$('#payCancel').onclick=()=>show($('#payBg'),false);
+$('#payGo').onclick=()=>{
+  const q=queue[idx],v=parseInt($('#payAmt').value.replace(/\D/g,''))||0;
+  if(v<=0)return toast('Enter an amount');
+  if(v>q.left)return toast('That is more than what is left');
+  show($('#payBg'),false);
+  if(v===q.left){queue.splice(idx,1);toast('Fully paid · reminders stopped')}
+  else{q.left-=v;queue.splice(idx,1);toast('Recorded RWF '+fmt(v)+' · RWF '+fmt(q.left)+' left, reminder continues')}
+  renderPop();
+};
+
+/* nav */
+function go(id){
+  $$('.screen,.lock').forEach(s=>s.classList.toggle('on',s.id===id));
+  $$('.panel .nav[data-go]').forEach(b=>b.classList.toggle('on',b.dataset.go===id));
+  show($('#popBg'),id==='home'&&queue.length>0&&go.autoPop!==false);
+}
+document.addEventListener('click',e=>{const g=e.target.closest('[data-go]');if(g)go(g.dataset.go)});
+$('#darkBtn').onclick=()=>document.documentElement.classList.toggle('dark');
+$('#reopen').onclick=()=>{if(!queue.length){queue=[{id:9,kind:'D',person:'John',left:150000,due:'Tue 21 Oct · 6:00 PM',overdue:true,fires:4}]}idx=0;renderPop();show($('#popBg'),true)};
+$('#openPop').onclick=()=>{go('home');if(!queue.length)$('#reopen').click();else{idx=0;renderPop();show($('#popBg'),true)}};
+
+/* lock screen actions */
+$$('[data-act]').forEach(b=>b.onclick=()=>{
+  const a=b.dataset.act;
+  if(a==='open'){go('detail');toast('Opens the debt')}
+  else{toast('Snoozed '+(a==='snooze10'?'10 min':'1 hour')+' · opens the app briefly to save it')}
+});
+
+/* detail switch */
+$('#remSw').onclick=e=>{const on=e.target.classList.toggle('on');
+  $('#remSub').textContent=on?'Next reminder: in 30 min':'Off · no reminders for this debt';
+  $('#remHint').textContent=on?'Reminds you 1 day before, 1 hour before, when it is due, then again after 30 min, 2 h and daily for a week, until you pay, snooze or dismiss it.':'You will not be reminded about this debt. You can turn it on again at any time.';
+  toast(on?'Reminders on':'Reminders off')};
+$('#clearSnooze').onclick=()=>{$('#snoozeLine').textContent='Not snoozed';toast('Woken: it will remind you at the next step')};
+
+/* settings */
+$('#quietSw').onclick=e=>{const on=e.target.classList.toggle('on');$('#quietRows').style.display=on?'flex':'none'};
+let cap=8;const setCap=v=>{cap=Math.max(1,Math.min(50,v));$('#cap').textContent=cap};
+$('#capMinus').onclick=()=>setCap(cap-1);$('#capPlus').onclick=()=>setCap(cap+1);
+$$('.sw i').forEach(i=>{if(!i.id)i.onclick=()=>i.classList.toggle('on')});
+
+/* deep links: #home #lock #inbox #detail #settings  + #dark + #snooze + #pay + #closed */
+const h=location.hash.replace('#','').split(/[&,]/);
+if(h.includes('dark'))document.documentElement.classList.add('dark');
+renderPop();
+const t=h.find(x=>['home','lock','inbox','detail','settings'].includes(x));
+if(t)go(t);
+if(h.includes('snooze')){go('home');openSnooze()}
+if(h.includes('pay')){go('home');openPay()}
+if(h.includes('closed'))show($('#popBg'),false);
+</script>
+</body>
+</html>

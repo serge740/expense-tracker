@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Repeat editor — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  .screen{--background:#EEF7FA;--surface:#FFFFFF;--primary:#00627F;--primaryBg:rgba(0,98,127,.08);--text:#0E2A33;--textSecondary:#5A7682;--textMuted:#9AB0B9;--border:rgba(0,98,127,.12);--inputBg:#F3F8FA;--headerBg:#00627F;--danger:#DC2626;--ok:#16A34A}
+  .screen.dark{--background:#0A1A20;--surface:#11262E;--primary:#5BB8D6;--primaryBg:rgba(91,184,214,.15);--text:#EAF5F8;--textSecondary:rgba(234,245,248,.60);--textMuted:rgba(234,245,248,.35);--border:rgba(234,245,248,.08);--inputBg:#0E2129;--headerBg:#061217;--danger:#F87171;--ok:#4ADE80}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0%,#15202b 0%,#0D1117 60%);font-family:'Poppins',sans-serif;color:#fff;padding:32px 16px}
+  .stage{max-width:1000px;margin:0 auto;display:flex;gap:40px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+  .panel{width:320px;display:flex;flex-direction:column;gap:14px}
+  .panel h1{font-size:16px;margin:0 0 2px}.panel p{font-size:12px;color:rgba(255,255,255,.55);line-height:1.5;margin:0}
+  .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px}
+  .box h2{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0 0 8px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;margin:6px 0}
+  .switch{width:38px;height:22px;border-radius:11px;background:rgba(255,255,255,.2);position:relative;cursor:pointer;border:none}
+  .switch::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}
+  .switch.on{background:#00A3CC}.switch.on::after{left:19px}
+  .ex{display:block;width:100%;text-align:left;font:inherit;font-size:11.5px;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:7px 10px;margin:4px 0;cursor:pointer}
+  .ex:hover{background:rgba(255,255,255,.14)}
+  #out{font-size:10.5px;line-height:1.45;white-space:pre-wrap;color:#9be9ff;margin:0;max-height:210px;overflow:auto}
+
+  .phone{position:relative;width:390px;height:844px;background:#05050a;border-radius:52px;padding:12px;box-shadow:0 0 0 2px rgba(255,255,255,.06),0 30px 60px -20px rgba(0,0,0,.7)}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#05050a;border-radius:0 0 18px 18px;z-index:50}
+  .screen{position:relative;width:100%;height:100%;background:var(--background);border-radius:42px;overflow:hidden;color:var(--text);isolation:isolate}
+  .statusbar{display:flex;justify-content:space-between;padding:16px 30px 0;font-size:14px;font-weight:600;color:#fff;position:relative;z-index:3}
+  .appbar{background:var(--headerBg);padding:50px 20px 18px;margin-top:-34px}
+  .appbar small{color:rgba(255,255,255,.6);font-size:12px}.appbar h3{margin:6px 0 0;font-size:18px;color:#fff}
+  .form{padding:6px 16px;overflow:auto;height:calc(100% - 118px)}.form::-webkit-scrollbar{display:none}
+  .label{font-size:11px;font-weight:600;color:var(--textSecondary);margin:12px 2px 5px}
+  .field{display:flex;align-items:center;gap:10px;min-height:46px;border-radius:12px;border:1px solid var(--border);background:var(--inputBg);padding:8px 12px;width:100%;color:var(--text);font:inherit;font-size:13px;cursor:pointer;text-align:left}
+  .field svg{flex:none;color:var(--textMuted)}.field .val{flex:1;line-height:1.35}.field small{display:block;color:var(--textSecondary);font-size:11px}
+  .amount{font-size:22px;font-weight:700;color:var(--primary)}
+  .seg{display:flex;background:var(--inputBg);border-radius:14px;padding:3px}
+  .seg button{flex:1;font:inherit;font-size:12px;font-weight:600;color:var(--textMuted);background:none;border:none;border-radius:11px;height:34px;cursor:pointer}
+  .seg button.on{background:var(--surface);color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .hint{font-size:11px;color:var(--textMuted);margin:6px 2px}
+  .newtag{font-size:9px;font-weight:800;letter-spacing:.6px;color:#fff;background:var(--primary);border-radius:6px;padding:1px 5px;margin-left:4px;vertical-align:1px}
+  .screen.dark .newtag{color:#06222B}
+  .savebar{position:absolute;left:0;right:0;bottom:0;background:var(--background);border-top:1px solid var(--border);padding:8px 16px 16px;z-index:5}
+  .schednote{font-size:11px;color:var(--textSecondary);text-align:center;margin-bottom:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:var(--primary);background:var(--primaryBg);border-radius:9px;padding:3px 8px}
+
+  .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}.backdrop.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-radius:26px 26px 0 0;padding:10px 18px 16px;transform:translateY(105%);transition:transform .38s cubic-bezier(.22,1,.36,1);max-height:94%;display:flex;flex-direction:column;box-shadow:0 -20px 50px -10px rgba(0,0,0,.35)}
+  .sheet.show{transform:none}
+  .grab{width:38px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 10px;flex:none}
+  .shead{display:flex;align-items:center;justify-content:space-between;flex:none}.shead h4{margin:0;font-size:15px;font-weight:700}
+  .xbtn{width:32px;height:32px;border-radius:16px;border:1px solid var(--border);background:var(--inputBg);color:var(--text);display:grid;place-items:center;cursor:pointer}
+  .sbody{overflow-y:auto;flex:1;min-height:0;margin:0 -4px;padding:0 4px}.sbody::-webkit-scrollbar{display:none}
+  .summary{margin:10px 0 10px;border-radius:16px;background:var(--primaryBg);padding:12px 14px}
+  .summary .big{font-size:14.5px;font-weight:700;color:var(--primary);line-height:1.35}.summary .sub{font-size:11px;color:var(--textSecondary);margin-top:3px}
+  .sec{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--textMuted);margin:12px 2px 6px;display:flex;justify-content:space-between;align-items:center}
+  .stepper{display:flex;align-items:center;gap:12px;background:var(--inputBg);border-radius:14px;padding:6px 8px;justify-content:space-between}
+  .stepper b{font-size:14px}.stepper .n{min-width:46px;text-align:center;font-weight:700;font-size:16px}
+  .stepper button{width:34px;height:34px;border-radius:17px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:18px;cursor:pointer}
+  .wd{display:flex;gap:6px;justify-content:space-between}
+  .circ{flex:1;aspect-ratio:1;max-width:44px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .circ.on{background:var(--primary);border-color:var(--primary);color:#fff}
+  .screen.dark .circ.on{color:#06222B}
+  .grid31{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+  .dcell{aspect-ratio:1;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
+  .dcell.on{background:var(--primary);border-color:var(--primary);color:#fff}.screen.dark .dcell.on{color:#06222B}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font:inherit;font-size:12px;font-weight:600;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:7px 12px;cursor:pointer}
+  .chip.on{background:var(--primaryBg);border-color:var(--primary);color:var(--primary)}
+  .months{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .months .chip{text-align:center;padding:9px 0}
+  .next{border:1px solid var(--border);border-radius:16px;overflow:hidden}
+  .next div{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:12.5px;border-bottom:1px solid var(--border)}
+  .next div:last-child{border:none}.next .i{width:22px;height:22px;border-radius:7px;background:var(--primaryBg);color:var(--primary);display:grid;place-items:center;font-size:11px;font-weight:700}
+  .next .when{margin-left:auto;color:var(--textMuted);font-size:11px}
+  .empty{padding:12px;font-size:12px;color:var(--textMuted)}
+  .foot{display:flex;gap:10px;padding-top:8px;flex:none}
+  .btn{height:46px;border-radius:23px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;border:none}
+  .btn.ghost{flex:0 0 100px;background:var(--inputBg);color:var(--textSecondary)}.btn.main{flex:1;background:var(--primary);color:#fff;box-shadow:0 6px 14px -4px var(--primary)}
+  .screen.dark .btn.main{color:#06222B}
+  input[type=date],input[type=datetime-local]{font:inherit;font-size:13px;color:var(--text);background:transparent;border:none;outline:none;width:100%}
+  .dateline{display:flex;align-items:center;gap:8px;background:var(--inputBg);border:1px solid var(--border);border-radius:12px;padding:8px 12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="panel">
+    <div><h1>Repeat editor — prototype</h1>
+      <p>How a scheduled transaction is marked as one-time or recurring. Open the Repeat row in the phone, or jump to an example below.</p></div>
+    <div class="box"><h2>Examples</h2>
+      <button class="ex" data-ex="weekly">Every Tuesday and Friday, forever</button>
+      <button class="ex" data-ex="biweekly">Every 2 weeks on Monday, 10 times</button>
+      <button class="ex" data-ex="monthly">Monthly on the 1st and 15th, until a date</button>
+      <button class="ex" data-ex="last">Last day of every month</button>
+      <button class="ex" data-ex="nth">2nd Friday of every month</button>
+      <button class="ex" data-ex="yearly">Once a year, in March on the 5th</button>
+      <button class="ex" data-ex="quarterly">Quarterly (Jan, Apr, Jul, Oct) on the 10th</button>
+      <button class="ex" data-ex="once">One time only (normal transaction)</button>
+      <button class="ex" id="exFuture">Future date, no repeat → scheduled once</button></div>
+    <div class="box"><h2>Options</h2>
+      <div class="row"><span>Dark theme</span><button class="switch" id="optDark" aria-label="Dark"></button></div></div>
+    <div class="box"><h2>Saved rule (what the app stores)</h2><pre id="out"></pre></div>
+  </aside>
+
+  <div class="phone"><div class="notch"></div>
+    <div class="screen" id="screen">
+      <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+      <div class="appbar"><small>Add</small><h3 id="addTitle">New transaction</h3></div>
+      <div class="form">
+        <!-- Same order as the real Add screen: kind, amount, category, description, wallet, date … -->
+        <div class="seg"><button class="on" style="color:var(--primary)">Expense</button><button>Income</button></div>
+        <div class="field" style="margin-top:10px;cursor:default"><span style="color:var(--textMuted);font-weight:700">RWF</span><span class="val amount">150,000</span></div>
+        <div class="label">Category</div>
+        <div class="chips"><span class="chip">Food</span><span class="chip on">Rent</span><span class="chip">Bills</span><span class="chip">Transport</span><span class="chip">+12</span></div>
+        <div class="label">Description</div><div class="field" style="cursor:default"><span class="val">Monthly rent</span></div>
+        <div class="label">Wallet</div>
+        <div class="chips"><span class="chip on">Main · RWF</span><span class="chip">Savings</span><span class="chip">Mobile money</span></div>
+
+        <div class="label">Date</div>
+        <div class="field" style="cursor:default"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg><input type="datetime-local" id="start" aria-label="Date and time"></div>
+
+        <div class="label">Repeat <span class="newtag">NEW</span></div>
+        <button class="field" id="repeatRow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg>
+          <span class="val" id="repeatVal">Does not repeat</span><span class="badge" id="repeatBadge" style="display:none">↻ Recurring</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg></button>
+
+        <!-- Appears only when the date is in the future or a Repeat rule is set -->
+        <div id="dueBlock" style="display:none">
+          <div class="label">When it is due</div>
+          <div class="seg" id="mode"><button class="on" data-m="confirm">Remind me to confirm</button><button data-m="auto">Post automatically</button></div>
+          <p class="hint" id="modeHint">You get a reminder and tap Pay. Nothing moves until you confirm.</p>
+        </div>
+        <div style="height:90px"></div>
+      </div>
+      <div class="savebar"><div class="schednote" id="schedNote" style="display:none">⏳ Your balance won't change until it is due.</div><button class="btn main" id="saveBtn" style="width:100%">Save</button></div>
+
+      <div class="backdrop" id="backdrop"></div>
+      <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+        <div class="grab"></div>
+        <div class="shead"><h4 id="sTitle">Repeat</h4><button class="xbtn" id="sClose" aria-label="Close"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+        <div class="sbody" id="sBody"></div>
+        <div class="foot"><button class="btn ghost" id="sCancel">Cancel</button><button class="btn main" id="sOk">Done</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'], WDL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'], WDI = ['S','M','T','W','T','F','S'];
+  const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'], MONL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const ORD = { 1:'1st', 2:'2nd', 3:'3rd', 4:'4th', '-1':'last' };
+  const pad = n => String(n).padStart(2,'0');
+  const dim = (y,m) => new Date(y, m+1, 0).getDate();
+  const sod = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const eod = d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999);
+  const ordinal = n => n === -1 ? 'last day' : n + (n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+  const at = (y,m,day,ref) => new Date(y, m, day, ref.getHours(), ref.getMinutes(), 0, 0);
+
+  /* ────────────────────────  Recurrence engine (reference for the TypeScript port)  ──────────────────────── */
+  // rule = null (one time) | { unit:'DAY'|'WEEK'|'MONTH'|'YEAR', every, weekdays[], monthDays[], nth:{n,weekday}|null, months[], ends:{type:'never'|'on'|'after', date?, count?} }
+  function nthWeekday(y, m, n, weekday) {            // n: 1..4 or -1 (last)
+    if (n === -1) { const last = new Date(y, m, dim(y,m)); return dim(y,m) - ((last.getDay() - weekday + 7) % 7); }
+    const first = new Date(y, m, 1); const day = 1 + ((weekday - first.getDay() + 7) % 7) + (n-1)*7;
+    return day <= dim(y,m) ? day : null;
+  }
+  function monthDaysIn(y, m, rule, start) {           // sorted unique days of month for one calendar month
+    const out = new Set();
+    if (rule.nth) { const d = nthWeekday(y, m, rule.nth.n, rule.nth.weekday); if (d) out.add(d); }
+    else (rule.monthDays && rule.monthDays.length ? rule.monthDays : [start.getDate()]).forEach(md => out.add(md === -1 ? dim(y,m) : Math.min(md, dim(y,m))));   // 31st clamps to the last day
+    return [...out].sort((a,b) => a-b);
+  }
+  function occurrences(rule, start, max = 5, from = start) {
+    if (!rule) return start >= from ? [start] : [];
+    const out = []; let produced = 0; const every = Math.max(1, rule.every || 1);
+    const stopAt = rule.ends.type === 'on' ? eod(new Date(rule.ends.date)) : null;
+    const limit = rule.ends.type === 'after' ? rule.ends.count : Infinity;
+    const push = d => { if (d < start) return true; if (stopAt && d > stopAt) return false; if (produced >= limit) return false; produced++; if (d >= from) out.push(d); return out.length < max; };
+    let guard = 0;
+    if (rule.unit === 'DAY') { for (let k = 0; guard++ < 5000; k++) { const d = new Date(start); d.setDate(d.getDate() + k*every); if (!push(d)) break; } }
+    else if (rule.unit === 'WEEK') {
+      const wds = (rule.weekdays && rule.weekdays.length ? rule.weekdays : [start.getDay()]).slice().sort((a,b)=>a-b);
+      // Count the interval from the FIRST matching day, so "every 2 weeks on Monday" starting on a Tuesday means the next Monday, then every 2 weeks.
+      const anchor = new Date(start); for (let i = 0; i < 7 && !wds.includes(anchor.getDay()); i++) anchor.setDate(anchor.getDate() + 1);
+      const w0 = new Date(anchor); w0.setDate(w0.getDate() - w0.getDay());
+      outer: for (let k = 0; guard++ < 5000; k++) for (const wd of wds) { const d = new Date(w0); d.setDate(d.getDate() + k*7*every + wd); d.setHours(start.getHours(), start.getMinutes(), 0, 0); if (d < start) continue; if (!push(d)) break outer; }
+    }
+    else if (rule.unit === 'MONTH') {
+      // Interval counted from the first month that actually has a date on/after the start.
+      const hasDate = (y, m) => monthDaysIn(y, m, rule, start).some(day => at(y, m, day, start) >= start);
+      const off = hasDate(start.getFullYear(), start.getMonth()) ? 0 : 1;
+      outer2: for (let k = 0; guard++ < 2000; k++) { const base = new Date(start.getFullYear(), start.getMonth() + off + k*every, 1); for (const day of monthDaysIn(base.getFullYear(), base.getMonth(), rule, start)) { if (!push(at(base.getFullYear(), base.getMonth(), day, start))) break outer2; } }
+    }
+    else if (rule.unit === 'YEAR') {
+      const months = (rule.months && rule.months.length ? rule.months : [start.getMonth()+1]).slice().sort((a,b)=>a-b);
+      const yearHas = y => months.some(mo => monthDaysIn(y, mo-1, rule, start).some(day => at(y, mo-1, day, start) >= start));
+      const yOff = yearHas(start.getFullYear()) ? 0 : 1;
+      outer3: for (let k = 0; guard++ < 500; k++) { const y = start.getFullYear() + yOff + k*every; for (const mo of months) for (const day of monthDaysIn(y, mo-1, rule, start)) { if (!push(at(y, mo-1, day, start))) break outer3; } }
+    }
+    return out;
+  }
+  function describe(rule, start) {
+    if (!rule) return 'Does not repeat';
+    const e = rule.every || 1; const t = start.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+    const list = a => a.length < 2 ? a.join('') : a.slice(0,-1).join(', ') + ' and ' + a[a.length-1];
+    let s;
+    if (rule.unit === 'DAY') s = e === 1 ? 'Every day' : `Every ${e} days`;
+    else if (rule.unit === 'WEEK') { const wds = (rule.weekdays.length ? rule.weekdays : [start.getDay()]).slice().sort(); s = `${e === 1 ? 'Every' : 'Every ' + e + ' weeks on'} ${list(wds.map(d => WDL[d]))}`.replace('Every Sunday','Every Sunday'); if (e === 1) s = `Every ${list(wds.map(d => WDL[d]))}`; }
+    else if (rule.unit === 'MONTH') {
+      const pre = e === 1 ? 'Every month' : `Every ${e} months`;
+      s = rule.nth ? `${pre} on the ${ORD[rule.nth.n]} ${WDL[rule.nth.weekday]}` : `${pre} on the ${list((rule.monthDays.length ? rule.monthDays : [start.getDate()]).slice().sort((a,b)=>(a===-1?99:a)-(b===-1?99:b)).map(ordinal))}`;
+    } else { const months = (rule.months.length ? rule.months : [start.getMonth()+1]).slice().sort((a,b)=>a-b);
+      s = `${e === 1 ? 'Every year' : 'Every ' + e + ' years'} in ${list(months.map(m => MONL[m-1]))} on the ${list((rule.monthDays.length ? rule.monthDays : [start.getDate()]).map(ordinal))}`; }
+    s += ` at ${t}`;
+    if (rule.ends.type === 'on') s += `, until ${new Date(rule.ends.date).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'})}`;
+    if (rule.ends.type === 'after') s += `, ${rule.ends.count} time${rule.ends.count===1?'':'s'}`;
+    return s;
+  }
+  /* ───────────────────────────────────────────────────────────────────────────────────────────────────────── */
+
+  const startEl = $('#start');
+  const toLocal = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const nowRounded = (() => { const d = new Date(); d.setSeconds(0,0); d.setMinutes(Math.ceil(d.getMinutes()/5)*5); return d; })();
+  const tomorrow9 = (() => { const d = new Date(); d.setDate(d.getDate()+1); d.setHours(9,0,0,0); return d; })();
+  startEl.value = toLocal(nowRounded);                       // a normal transaction: dated now
+  const getStart = () => new Date(startEl.value || nowRounded);
+  // Scheduled = the date is in the future OR a repeat rule is set.
+  const isScheduled = () => !!saved || getStart().getTime() > Date.now() + 5 * 60000;
+  function renderScheduled() {
+    const on = isScheduled();
+    $('#dueBlock').style.display = on ? '' : 'none';
+    $('#schedNote').style.display = on ? '' : 'none';
+    $('#saveBtn').textContent = on ? (saved ? 'Schedule · repeating' : 'Schedule') : 'Save';
+    $('#addTitle').textContent = on ? 'New scheduled transaction' : 'New transaction';
+  }
+  const blank = () => ({ unit:'WEEK', every:1, weekdays:[], monthDays:[], nth:null, months:[], ends:{ type:'never', date: toLocal(new Date(Date.now()+365*864e5)).slice(0,10), count:12 } });
+
+  let saved = null;                 // committed rule
+  let draft = null;                 // rule being edited (null = one time)
+  let monthlyMode = 'days';         // 'days' | 'nth'
+  const mk = (over) => Object.assign(blank(), over);
+  const examples = {
+    weekly:    () => mk({ unit:'WEEK', weekdays:[2,5] }),
+    biweekly:  () => mk({ unit:'WEEK', every:2, weekdays:[1], ends:{ type:'after', count:10 } }),
+    monthly:   () => mk({ unit:'MONTH', monthDays:[1,15], ends:{ type:'on', date: toLocal(new Date(Date.now()+400*864e5)).slice(0,10) } }),
+    last:      () => mk({ unit:'MONTH', monthDays:[-1] }),
+    nth:       () => mk({ unit:'MONTH', nth:{ n:2, weekday:5 } }),
+    yearly:    () => mk({ unit:'YEAR', months:[3], monthDays:[5] }),
+    quarterly: () => mk({ unit:'YEAR', months:[1,4,7,10], monthDays:[10] }),
+    once:      () => null,
+  };
+
+  function fmtDate(d) { return d.toLocaleDateString('en-US', { weekday:'short', day:'numeric', month:'short', year:'numeric' }); }
+  function ruleOut(rule) {
+    return JSON.stringify(rule ? { repeat: rule, mode: modeVal } : { repeat: null, mode: modeVal }, null, 1);
+  }
+  let modeVal = 'confirm';
+
+  function renderRow() {
+    $('#repeatVal').innerHTML = saved ? describe(saved, getStart()) : 'Does not repeat';
+    $('#repeatBadge').style.display = saved ? '' : 'none';
+    $('#out').textContent = ruleOut(saved);
+    renderScheduled();
+  }
+
+  /* ---------- sheet ---------- */
+  const chip = (label, on, attr) => `<button class="chip ${on?'on':''}" ${attr}>${label}</button>`;
+  const stepper = (id, n, unit) => `<div class="stepper"><button data-step="${id}:-1" aria-label="Less">−</button><div><span class="n">${n}</span> <b>${unit}</b></div><button data-step="${id}:1" aria-label="More">+</button></div>`;
+
+  function renderSheet() {
+    const r = draft; const start = getStart();
+    const body = $('#sBody');
+    const freq = r ? r.unit : 'NONE';
+    const first = (r && occurrences(r, start, 1)[0]) || start;     // the first date that really matches the rule
+    let html = `<div class="summary"><div class="big">${describe(r, start)}</div><div class="sub">First: ${fmtDate(first)} · ${first.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</div></div>`;
+    html += `<div class="seg" id="freq">${[['NONE','Never'],['DAY','Daily'],['WEEK','Weekly'],['MONTH','Monthly'],['YEAR','Yearly']].map(([k,l]) => `<button data-f="${k}" class="${freq===k?'on':''}">${l}</button>`).join('')}</div>`;
+    if (r) {
+      const unitName = { DAY:'day', WEEK:'week', MONTH:'month', YEAR:'year' }[r.unit] + (r.every === 1 ? '' : 's');
+      html += `<div class="sec"><span>EVERY</span></div>${stepper('every', r.every, unitName)}`;
+      if (r.unit === 'WEEK') html += `<div class="sec"><span>ON</span><span style="letter-spacing:0;font-weight:600">pick one or more days</span></div><div class="wd">${[1,2,3,4,5,6,0].map(d => `<button class="circ ${(r.weekdays.length?r.weekdays:[start.getDay()]).includes(d)?'on':''}" data-wd="${d}" aria-label="${WDL[d]}">${WDI[d]}</button>`).join('')}</div>`;
+      if (r.unit === 'MONTH' || r.unit === 'YEAR') {
+        if (r.unit === 'YEAR') html += `<div class="sec"><span>IN</span><span style="letter-spacing:0;font-weight:600">pick one or more months</span></div><div class="months">${MON.map((m,i) => chip(m, (r.months.length?r.months:[start.getMonth()+1]).includes(i+1), `data-mo="${i+1}"`)).join('')}</div>`;
+        if (r.unit === 'MONTH') html += `<div class="seg" style="margin-top:10px"><button data-mm="days" class="${monthlyMode==='days'?'on':''}">Days of the month</button><button data-mm="nth" class="${monthlyMode==='nth'?'on':''}">Weekday of the month</button></div>`;
+        if (r.unit === 'YEAR' || monthlyMode === 'days') {
+          const sel = r.monthDays.length ? r.monthDays : [start.getDate()];
+          html += `<div class="sec"><span>ON DAY</span><span style="letter-spacing:0;font-weight:600">pick one or more</span></div><div class="grid31">${Array.from({length:31},(_,i)=>i+1).map(d => `<button class="dcell ${sel.includes(d)?'on':''}" data-md="${d}">${d}</button>`).join('')}</div>`;
+          html += `<div class="chips" style="margin-top:8px">${chip('Last day of the month', sel.includes(-1), 'data-md="-1"')}</div>`;
+        } else {
+          const nth = r.nth || { n:1, weekday:start.getDay() };
+          html += `<div class="sec"><span>WHICH</span></div><div class="chips">${[1,2,3,4,-1].map(n => chip(ORD[n][0].toUpperCase()+ORD[n].slice(1), nth.n===n, `data-nn="${n}"`)).join('')}</div>`;
+          html += `<div class="wd" style="margin-top:8px">${[1,2,3,4,5,6,0].map(d => `<button class="circ ${nth.weekday===d?'on':''}" data-nw="${d}" aria-label="${WDL[d]}">${WDI[d]}</button>`).join('')}</div>`;
+        }
+      }
+      html += `<div class="sec"><span>ENDS</span></div><div class="seg" id="ends">${[['never','Never'],['on','On a date'],['after','After a number']].map(([k,l]) => `<button data-e="${k}" class="${r.ends.type===k?'on':''}">${l}</button>`).join('')}</div>`;
+      if (r.ends.type === 'on') html += `<div class="dateline"><span style="color:var(--textMuted);font-size:12px">Last day</span><input type="date" id="endDate" value="${r.ends.date}" min="${toLocal(start).slice(0,10)}"></div>`;
+      if (r.ends.type === 'after') html += `<div style="margin-top:8px">${stepper('count', r.ends.count, r.ends.count === 1 ? 'time' : 'times')}</div>`;
+      const list = occurrences(r, start, 5);
+      html += `<div class="sec"><span>NEXT DATES</span><span style="letter-spacing:0;font-weight:600">${r.ends.type==='never'?'repeats forever':r.ends.type==='on'?'until the end date':r.ends.count+' in total'}</span></div><div class="next">${list.length ? list.map((d,i) => `<div><span class="i">${i+1}</span>${fmtDate(d)}<span class="when">${d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</span></div>`).join('') : '<div class="empty">No dates match. Check the end date.</div>'}</div>`;
+    } else html += `<p class="hint" style="margin-top:14px">It happens once, on the first date above.</p>`;
+    body.innerHTML = html;
+    wire();
+  }
+
+  const toggle = (arr, v, fallbackAll) => { const cur = arr.length ? arr : fallbackAll; const next = cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v]; return next.length ? next : cur; };
+  function wire() {
+    const q = (s, f) => document.querySelectorAll(s).forEach(el => el.onclick = () => f(el));
+    q('[data-f]', el => { const k = el.dataset.f; draft = k === 'NONE' ? null : (draft ? { ...draft, unit:k, weekdays:[], monthDays:[], nth:null, months:[] } : { ...blank(), unit:k }); renderSheet(); });
+    q('[data-step]', el => { const [id, d] = el.dataset.step.split(':'); const n = +d; if (id === 'every') draft.every = Math.max(1, Math.min(99, draft.every + n)); else draft.ends.count = Math.max(1, Math.min(999, draft.ends.count + n)); renderSheet(); });
+    q('[data-wd]', el => { draft.weekdays = toggle(draft.weekdays, +el.dataset.wd, [getStart().getDay()]); renderSheet(); });
+    q('[data-md]', el => { draft.monthDays = toggle(draft.monthDays, +el.dataset.md, [getStart().getDate()]); renderSheet(); });
+    q('[data-mo]', el => { draft.months = toggle(draft.months, +el.dataset.mo, [getStart().getMonth()+1]); renderSheet(); });
+    q('[data-mm]', el => { monthlyMode = el.dataset.mm; draft.nth = monthlyMode === 'nth' ? (draft.nth || { n:1, weekday:getStart().getDay() }) : null; renderSheet(); });
+    q('[data-nn]', el => { draft.nth = { ...(draft.nth || { weekday:getStart().getDay() }), n:+el.dataset.nn }; renderSheet(); });
+    q('[data-nw]', el => { draft.nth = { ...(draft.nth || { n:1 }), weekday:+el.dataset.nw }; renderSheet(); });
+    q('[data-e]', el => { draft.ends.type = el.dataset.e; renderSheet(); });
+    const ed = $('#endDate'); if (ed) ed.onchange = () => { draft.ends.date = ed.value; renderSheet(); };
+  }
+
+  function open() { draft = saved ? JSON.parse(JSON.stringify(saved)) : null; monthlyMode = draft && draft.nth ? 'nth' : 'days'; renderSheet(); $('#backdrop').classList.add('show'); $('#sheet').classList.add('show'); }
+  function close() { $('#backdrop').classList.remove('show'); $('#sheet').classList.remove('show'); }
+  $('#repeatRow').onclick = open; $('#sClose').onclick = close; $('#sCancel').onclick = close; $('#backdrop').onclick = close;
+  $('#sOk').onclick = () => { saved = draft ? JSON.parse(JSON.stringify(draft)) : null; renderRow(); close(); };
+  startEl.onchange = renderRow;
+  document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => { saved = examples[b.dataset.ex](); monthlyMode = saved && saved.nth ? 'nth' : 'days'; renderRow(); open(); });
+  document.querySelectorAll('#mode button').forEach(b => b.onclick = () => { modeVal = b.dataset.m; document.querySelectorAll('#mode button').forEach(x => x.classList.toggle('on', x === b)); $('#modeHint').textContent = modeVal === 'auto' ? 'The transaction is created for you at the due time and the wallet balance changes.' : 'You get a reminder and tap Pay. Nothing moves until you confirm.'; renderRow(); });
+  $('#exFuture').onclick = () => { saved = null; startEl.value = toLocal(tomorrow9); renderRow(); };
+  $('#optDark').onclick = e => { e.currentTarget.classList.toggle('on'); $('#screen').classList.toggle('dark'); };
+  window.__engine = { occurrences, describe };     // exposed so the engine can be tested from outside
+
+  renderRow();
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (q.get('dark') === '1') $('#optDark').click();
+  if (q.get('ex') && examples[q.get('ex')]) { saved = examples[q.get('ex')](); monthlyMode = saved && saved.nth ? 'nth' : 'days'; renderRow(); }
+  if (q.get('future') === '1') { startEl.value = toLocal(tomorrow9); renderRow(); }   // future date, no repeat
+  if (q.get('open') === '1') open();
+})();
+</script>
+</body>
+</html>

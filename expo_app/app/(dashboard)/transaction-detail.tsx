@@ -11,7 +11,7 @@ import { Text } from '@/components/text';
 import { deleteTransaction, CATEGORY_ICON, CATEGORY_LABEL, CategorySlug } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
 

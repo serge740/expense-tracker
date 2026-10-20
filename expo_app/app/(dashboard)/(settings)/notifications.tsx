@@ -4,6 +4,8 @@ import {
   TouchableOpacity, Switch, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { useI18n } from '@/context/language-context';
 import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
@@ -14,7 +16,8 @@ import {
   NotificationItem, NotificationPreference,
 } from '@/services/notification.service';
 
-function channelIcon(channel: string) {
+function channelIcon(channel: string, type?: string) {
+  if (type === 'reminder')  return 'alarm';
   if (channel === 'push')   return 'notifications';
   if (channel === 'email')  return 'email';
   return 'info-outline';
@@ -23,6 +26,7 @@ function channelIcon(channel: string) {
 function typeColor(type: string, theme: any) {
   if (type === 'transaction') return theme.primary;
   if (type === 'security')    return '#f87171';
+  if (type === 'reminder')    return '#D97706';
   return theme.textMuted;
 }
 
@@ -38,6 +42,7 @@ function timeStr(dateStr: string): string {
 export default function NotificationsScreen() {
   const goBack = useSettingsBack();
   const theme = useAppTheme();
+  const { t: tr } = useI18n();
   const [tab, setTab]                 = useState<'list' | 'settings'>('list');
   const [items, setItems]             = useState<NotificationItem[]>([]);
   const [prefs, setPrefs]             = useState<NotificationPreference | null>(null);
@@ -67,6 +72,15 @@ export default function NotificationsScreen() {
   }, [loadList, loadPrefs]);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // A reminder opens the debt or schedule it is about; everything else just becomes read.
+  const handlePress = (item: NotificationItem) => {
+    handleMarkRead(item);
+    const debtId = item.type === 'reminder' ? item.data?.debtId : null;
+    const scheduleId = item.type === 'reminder' ? item.data?.scheduleId : null;
+    if (typeof debtId === 'string') router.push({ pathname: '/(dashboard)/debts' as any, params: { openId: debtId } });
+    else if (typeof scheduleId === 'string') router.push({ pathname: '/(dashboard)/scheduled' as any, params: { id: scheduleId } });
+  };
 
   const handleMarkRead = async (item: NotificationItem) => {
     if (item.read) return;
@@ -177,15 +191,18 @@ export default function NotificationsScreen() {
                 <React.Fragment key={item.id}>
                   <TouchableOpacity
                     style={[s.notifRow, !item.read && { backgroundColor: `${theme.primary}0A` }]}
-                    onPress={() => handleMarkRead(item)}
+                    onPress={() => handlePress(item)}
                     activeOpacity={0.7}
                   >
                     <View style={[s.notifIcon, { backgroundColor: `${typeColor(item.type, theme)}18` }]}>
-                      <MaterialIcons name={channelIcon(item.channel) as any} size={20} color={typeColor(item.type, theme)} />
+                      <MaterialIcons name={channelIcon(item.channel, item.type) as any} size={20} color={typeColor(item.type, theme)} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={s.notifHeader}>
                         <Text style={[s.notifTitle, { color: theme.text }]} numberOfLines={1}>{item.title}</Text>
+                        {item.type === 'reminder' && (
+                          <View style={s.remChip}><Text style={s.remChipText}>{tr('rem.chip')}</Text></View>
+                        )}
                         {!item.read && <View style={[s.dot, { backgroundColor: theme.primary }]} />}
                       </View>
                       <Text style={[s.notifBody, { color: theme.textSecondary }]} numberOfLines={2}>{item.body}</Text>
@@ -281,6 +298,8 @@ const s = StyleSheet.create({
   notifIcon:  { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   notifHeader:{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
   notifTitle: { flex: 1, fontSize: 14, fontWeight: '600' },
+  remChip:     { backgroundColor: 'rgba(217,119,6,0.14)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, marginLeft: 6 },
+  remChipText: { color: '#D97706', fontSize: 10, fontWeight: '700' },
   dot:        { width: 8, height: 8, borderRadius: 4 },
   notifBody:  { fontSize: 13, lineHeight: 18, marginBottom: 4 },
   notifTime:  { fontSize: 11 },

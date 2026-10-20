@@ -27,7 +27,13 @@ export interface Transaction {
   walletId: string | null;
   receiptUrl: string | null;
   receiptReportUrl: string | null;
+  /** Set when this money belongs to a debt or credit (see Debts & loans). */
+  debtId: string | null;
+  debtRole: DebtRole | null;
 }
+
+/** BORROW_IN is borrowed cash (never income); the others are loan flows. */
+export type DebtRole = 'BORROW_IN' | 'LEND_OUT' | 'REPAY_OUT' | 'REPAY_IN';
 
 export interface TransactionGroup {
   date: string;
@@ -52,13 +58,17 @@ export interface CreateTransactionDto {
   walletId?: string;
   receiptUrl?: string;
   receiptReportUrl?: string;
+  fundedByDebtId?: string;
 }
 
 export const getTransactions = (params?: Record<string, any>): Promise<PaginatedTransactions> =>
   api.get('/transactions', { params }).then(r => r.data);
 
-export const getRecentTransactions = (limit = 3): Promise<Transaction[]> =>
-  api.get('/transactions/recent', { params: { limit } }).then(r => r.data);
+/** `view` is a Home chip (income | expense | debt | credit | scheduled); `includeLoans: false` leaves loan rows out of all / income / expense. */
+export const getRecentTransactions = (limit = 3, view?: string, includeLoans?: boolean): Promise<Transaction[]> =>
+  api.get('/transactions/recent', {
+    params: { limit, ...(view && view !== 'all' ? { view } : {}), ...(includeLoans === false ? { includeLoans: 'false' } : {}) },
+  }).then(r => r.data);
 
 export const getTransactionHistory = (params?: Record<string, any>): Promise<TransactionGroup[]> =>
   api.get('/transactions/history', { params }).then(r => r.data);

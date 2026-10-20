@@ -29,9 +29,14 @@ export class TransactionController {
   }
 
   @Get('recent')
-  async findRecent(@Req() req: RequestWithClient, @Query('limit') limit?: string) {
+  async findRecent(
+    @Req() req: RequestWithClient,
+    @Query('limit') limit?: string,
+    @Query('view') view?: string,
+    @Query('includeLoans') includeLoans?: string,
+  ) {
     try {
-      return await this.transactionService.findRecent(req.client.id, limit ? Number(limit) : 3);
+      return await this.transactionService.findRecent(req.client.id, limit ? Number(limit) : 3, view, includeLoans);
     } catch (e: any) {
       throw new HttpException(e.message || 'Failed to fetch recent transactions', 400);
     }

@@ -10,6 +10,23 @@ export interface DebtPayment {
   note: string | null;
 }
 
+/** OPEN has a balance; SETTLED was paid in full; WRITTEN_OFF (credit) / FORGIVEN (debt) closed with the remainder dropped. */
+export type DebtStatus = 'OPEN' | 'SETTLED' | 'WRITTEN_OFF' | 'FORGIVEN';
+
+/** Derived on the server from the money paid so far (oldest pay date is filled first). */
+export type InstallmentView = 'PAID' | 'PARTIAL' | 'OVERDUE' | 'UPCOMING' | 'MOVED' | 'SKIPPED';
+
+export interface DebtInstallment {
+  id: string;
+  dueAt: string;
+  plannedAmount: number | null;
+  status: 'PENDING' | 'MOVED' | 'SKIPPED';
+  view: InstallmentView;
+  covered: number;
+  movedFromId: string | null;
+  note: string | null;
+}
+
 export interface Debt {
   id: string;
   kind: DebtKind;
@@ -17,15 +34,47 @@ export interface Debt {
   phone: string | null;
   amount: number;
   paid: number;
+  writtenOffAmount: number;
+  /** Borrowed money already spent on expenses, and what is still unspent (debts only). */
+  spent?: number;
+  unspent?: number | null;
   remaining: number;
   currency: string;
   date: string;
   dueDate: string | null;
   note: string | null;
   walletId: string | null;
-  status: 'OPEN' | 'SETTLED';
+  principalTransactionId: string | null;
+  status: DebtStatus;
+  archived: boolean;
   overdue: boolean;
+  /** Earliest pay date that is not paid yet (null when none, or the debt is closed). */
+  nextDueAt: string | null;
+  remindersOn: boolean;
+  /** The live reminder for the next unpaid pay date, if any. */
+  reminderId: string | null;
+  reminderStatus: 'ACTIVE' | 'SNOOZED' | null;
+  /** When it will fire next (for a snoozed reminder: when the snooze ends). */
+  nextReminderAt: string | null;
   payments: DebtPayment[];
+  installments: DebtInstallment[];
+}
+
+export interface LedgerCurrency {
+  currency: string; taken: number; paid: number; writtenOff: number; remaining: number;
+  debtCount: number; openCount: number; settledCount: number; closedOutCount: number; overdueCount: number;
+}
+
+/** Totals behind the Debt wallet (BORROWED) and Credit wallet (LENT). Currencies are never mixed. */
+export interface Ledger {
+  kind: DebtKind; currencies: LedgerCurrency[];
+  debtCount: number; openCount: number; settledCount: number; closedOutCount: number; overdueCount: number;
+}
+
+export interface LedgerTransaction {
+  id: string; type: 'INCOME' | 'EXPENSE' | 'DEBT'; title: string; amount: number; date: string;
+  walletId: string | null; debtId: string | null; debtRole: 'BORROW_IN' | 'LEND_OUT' | 'REPAY_OUT' | 'REPAY_IN' | null;
+  person?: string; currency?: string; debtKind?: DebtKind;
 }
 
 export interface DebtSummary {
@@ -36,14 +85,23 @@ export interface DebtSummary {
 }
 
 export const getDebts = (): Promise<Debt[]> => api.get('/debts').then(r => r.data);
+/** Builds the statement PDF on the server, saves it in the cache and opens the share sheet. */
+export async function shareDebtStatement(id: string): Promise<void> {
+  const FileSystem = await import('expo-file-system/legacy');
+  const Sharing = await import('expo-sharing');
+  const { filename, base64 } = (await api.get(`/debts/${id}/statement`)).data as { filename: string; base64: string };
+  const uri = `${FileSystem.cacheDirectory}${filename}`;
+  await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: filename });
+}
 export const getDebtSummary = (): Promise<DebtSummary> => api.get('/debts/summary').then(r => r.data);
 
 export const createDebt = (data: {
   kind: DebtKind; person: string; phone?: string; amount: number; currency?: string;
-  walletId?: string; date?: string; dueDate?: string; note?: string;
+  walletId?: string; date?: string; dueDate?: string; note?: string; remind?: boolean;
 }): Promise<Debt> => api.post('/debts', data).then(r => r.data);
 
-export const updateDebt = (id: string, data: { person?: string; phone?: string; amount?: number; dueDate?: string | null; note?: string }): Promise<Debt> =>
+export const updateDebt = (id: string, data: { person?: string; phone?: string; amount?: number; dueDate?: string | null; note?: string; remindersOn?: boolean }): Promise<Debt> =>
   api.patch(`/debts/${id}`, data).then(r => r.data);
 
 export const addDebtPayment = (id: string, data: { amount: number; walletId?: string; date?: string; note?: string }): Promise<Debt> =>
@@ -54,3 +112,22 @@ export const removeDebtPayment = (id: string, paymentId: string): Promise<Debt> 
 
 export const deleteDebt = (id: string): Promise<{ success: boolean }> =>
   api.delete(`/debts/${id}`).then(r => r.data);
+
+export const getDebt = (id: string): Promise<Debt> => api.get(`/debts/${id}`).then(r => r.data);
+export const getArchivedDebts = (): Promise<Debt[]> => api.get('/debts', { params: { archived: 'only' } }).then(r => r.data);
+
+export const getLedger = (kind: DebtKind): Promise<Ledger> => api.get('/debts/ledger', { params: { kind } }).then(r => r.data);
+export const getLedgerTransactions = (kind: DebtKind, page = 1): Promise<{ items: LedgerTransaction[]; total: number; page: number; limit: number }> =>
+  api.get('/debts/ledger/transactions', { params: { kind, page } }).then(r => r.data);
+
+export const addInstallment = (id: string, data: { dueAt: string; plannedAmount?: number | null; note?: string }): Promise<Debt> =>
+  api.post(`/debts/${id}/installments`, data).then(r => r.data);
+export const moveInstallment = (id: string, installmentId: string, dueAt: string): Promise<Debt> =>
+  api.post(`/debts/${id}/installments/${installmentId}/move`, { dueAt }).then(r => r.data);
+export const skipInstallment = (id: string, installmentId: string): Promise<Debt> =>
+  api.post(`/debts/${id}/installments/${installmentId}/skip`).then(r => r.data);
+
+export const writeOffDebt = (id: string): Promise<Debt> => api.post(`/debts/${id}/write-off`).then(r => r.data);
+export const reopenDebt = (id: string): Promise<Debt> => api.post(`/debts/${id}/reopen`).then(r => r.data);
+export const archiveDebt = (id: string): Promise<Debt> => api.post(`/debts/${id}/archive`).then(r => r.data);
+export const restoreDebt = (id: string): Promise<Debt> => api.post(`/debts/${id}/restore`).then(r => r.data);

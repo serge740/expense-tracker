@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpsertBudgetDto } from './dto/upsert-budget.dto';
+import { NO_DEBT_FLOWS } from '../../common/utils/loan-filter';
 
 @Injectable()
 export class BudgetService {
@@ -19,7 +20,7 @@ export class BudgetService {
     const end   = new Date(year, month, 1);
 
     const agg = await this.prisma.transaction.aggregate({
-      where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end } },
+      where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end }, ...NO_DEBT_FLOWS },
       _sum: { amount: true },
     });
 

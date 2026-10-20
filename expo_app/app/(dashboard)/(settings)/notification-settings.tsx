@@ -13,6 +13,7 @@ import {
   NOTIFICATION_SOUNDS, NotificationSound, ensureNotificationPermission, scheduleLocalNotification,
 } from '@/services/local-notifications';
 import { useI18n } from '@/context/language-context';
+import { clockToMinutes, minutesToClock } from '@/utils/reminders';
 
 const STEP = 30;
 const wrap = (m: number) => (m + 24 * 60) % (24 * 60);
@@ -27,17 +28,23 @@ export default function NotificationSettingsScreen() {
     getNotificationPreferences().then(setChannels).catch(() => { /* offline: keep empty state */ });
   }, []);
 
-  const toggleChannel = async (key: keyof NotificationPreference, value: boolean) => {
+  const savePref = async (patch: Partial<NotificationPreference>) => {
     if (!channels) return;
     const prev = channels;
-    setChannels({ ...channels, [key]: value });
+    setChannels({ ...channels, ...patch });
     try {
-      await updateNotificationPreferences({ [key]: value });
+      await updateNotificationPreferences(patch);
     } catch {
       setChannels(prev);
       Alert.alert(t('common.error'), t('notif.updateFailed'));
     }
   };
+  const toggleChannel = (key: keyof NotificationPreference, value: boolean) => savePref({ [key]: value });
+
+  // Quiet hours live on the server (so they work while the app is closed): stored as "HH:MM".
+  const quietStartMin = clockToMinutes(channels?.quietStart ?? '22:00');
+  const quietEndMin = clockToMinutes(channels?.quietEnd ?? '07:00');
+  const setQuiet = (key: 'quietStart' | 'quietEnd', minutes: number) => savePref({ [key]: minutesToClock(minutes) });
 
   const soundName = (id: NotificationSound) =>
     id === 'default' ? t('sound.system') : id === 'silent' ? t('sound.silent') : NOTIFICATION_SOUNDS.find(x => x.id === id)?.label ?? id;
@@ -102,6 +109,21 @@ export default function NotificationSettingsScreen() {
              toggle={{ value: !!channels?.inAppEnabled, onChange: v => toggleChannel('inAppEnabled', v), disabled: channelDisabled }} />
       </Section>
 
+      <Section title={t('rem.section')}>
+        <Row icon="notifications-active" title={t('rem.push')} sub={t('rem.pushSub')}
+             toggle={{ value: !!channels?.remindersPush, onChange: v => toggleChannel('remindersPush', v), disabled: channelDisabled }} />
+        <Row icon="email" title={t('rem.email')} sub={t('rem.emailSub')}
+             toggle={{ value: !!channels?.remindersEmail, onChange: v => toggleChannel('remindersEmail', v), disabled: channelDisabled }} />
+        <OptionBlock icon="timer" title={t('rem.limit')} sub={t('rem.limitSub')}>
+          <Stepper label={String(channels?.dailyPushCap ?? 8)}
+                   onMinus={() => channels && savePref({ dailyPushCap: Math.max(1, channels.dailyPushCap - 1) })}
+                   onPlus={() => channels && savePref({ dailyPushCap: Math.min(50, channels.dailyPushCap + 1) })} />
+        </OptionBlock>
+        <Row icon="public" title={t('rem.tz')} sub={t('rem.tzSub', { zone: channels?.timezone ?? '…' })}
+             badge={{ label: t('rem.tzAuto'), tone: 'ok' }} />
+      </Section>
+      <Hint>{t('rem.tzHint')}</Hint>
+
       <Section title={t('section.sound')}>
         <OptionBlock icon="music-note" title={t('notif.sound')} sub={t('notif.current', { name: soundLabel })}>
           <Chips<NotificationSound>
@@ -138,27 +160,28 @@ export default function NotificationSettingsScreen() {
       </Section>
 
       <Section title={t('section.quiet')}>
-        <Row icon="bedtime" title={t('notif.quiet')} sub={t('notif.quietSub')}
-             toggle={{ value: prefs.quietHours, onChange: v => setPref('quietHours', v) }} />
-        {prefs.quietHours && (
-          <OptionBlock icon="nights-stay" title={t('notif.schedule')} sub={`${formatTime(prefs.quietStart)} – ${formatTime(prefs.quietEnd)}`}>
+        <Row icon="bedtime" title={t('notif.quiet')} sub={t('rem.quietSub')}
+             toggle={{ value: !!channels?.quietEnabled, onChange: v => toggleChannel('quietEnabled', v), disabled: channelDisabled }} />
+        {channels?.quietEnabled && (
+          <OptionBlock icon="nights-stay" title={t('notif.schedule')} sub={`${formatTime(quietStartMin)} – ${formatTime(quietEndMin)}`}>
             <View style={s.stepRow}>
               <View style={{ flex: 1 }}>
                 <Text style={[s.caption, { color: theme.textMuted }]}>{t('notif.from')}</Text>
-                <Stepper label={formatTime(prefs.quietStart)}
-                         onMinus={() => setPref('quietStart', wrap(prefs.quietStart - STEP))}
-                         onPlus={() => setPref('quietStart', wrap(prefs.quietStart + STEP))} />
+                <Stepper label={formatTime(quietStartMin)}
+                         onMinus={() => setQuiet('quietStart', wrap(quietStartMin - STEP))}
+                         onPlus={() => setQuiet('quietStart', wrap(quietStartMin + STEP))} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.caption, { color: theme.textMuted }]}>{t('notif.to')}</Text>
-                <Stepper label={formatTime(prefs.quietEnd)}
-                         onMinus={() => setPref('quietEnd', wrap(prefs.quietEnd - STEP))}
-                         onPlus={() => setPref('quietEnd', wrap(prefs.quietEnd + STEP))} />
+                <Stepper label={formatTime(quietEndMin)}
+                         onMinus={() => setQuiet('quietEnd', wrap(quietEndMin - STEP))}
+                         onPlus={() => setQuiet('quietEnd', wrap(quietEndMin + STEP))} />
               </View>
             </View>
           </OptionBlock>
         )}
       </Section>
+      <Hint>{t('rem.quietHint')}</Hint>
 
       <Section title={t('section.test')}>
         <Row icon="timer" title={t('notif.testClosed')} sub={t('notif.testClosedSub')}

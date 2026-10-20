@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationChannel, NotificationType } from '../../../generated/prisma';
+import { BadRequestException } from '@nestjs/common';
+import { isValidClock, isValidTimeZone } from '../reminders/reminder-policy';
 
 @Injectable()
 export class NotificationsService {
@@ -21,11 +23,43 @@ export class NotificationsService {
     pushEnabled?: boolean;
     emailEnabled?: boolean;
     inAppEnabled?: boolean;
+    timezone?: string;
+    quietEnabled?: boolean;
+    quietStart?: string;
+    quietEnd?: string;
+    remindersPush?: boolean;
+    remindersEmail?: boolean;
+    dailyPushCap?: number;
+    language?: string;
   }) {
+    // Only known fields are stored, each checked, so a bad value can never break reminder delivery later.
+    const data: Record<string, unknown> = {};
+    for (const k of ['pushEnabled', 'emailEnabled', 'inAppEnabled', 'quietEnabled', 'remindersPush', 'remindersEmail'] as const) {
+      if (dto[k] !== undefined) data[k] = !!dto[k];
+    }
+    if (dto.timezone !== undefined) {
+      if (!isValidTimeZone(dto.timezone)) throw new BadRequestException('Unknown time zone');
+      data.timezone = dto.timezone;
+    }
+    for (const k of ['quietStart', 'quietEnd'] as const) {
+      if (dto[k] !== undefined) {
+        if (!isValidClock(dto[k]!)) throw new BadRequestException('Use a time like 22:00');
+        data[k] = dto[k]!.padStart(5, '0');
+      }
+    }
+    if (dto.language !== undefined) {
+      if (!['en', 'fr', 'rw', 'sw'].includes(dto.language)) throw new BadRequestException('Unknown language');
+      data.language = dto.language;
+    }
+    if (dto.dailyPushCap !== undefined) {
+      const n = Number(dto.dailyPushCap);
+      if (!Number.isInteger(n) || n < 1 || n > 50) throw new BadRequestException('Daily limit must be between 1 and 50');
+      data.dailyPushCap = n;
+    }
     return this.prisma.notificationPreference.upsert({
       where: { clientId },
-      create: { clientId, ...dto },
-      update: dto,
+      create: { clientId, ...data },
+      update: data,
     });
   }
 

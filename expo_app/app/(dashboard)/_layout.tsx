@@ -4,9 +4,13 @@ import { registerDevice } from '@/services/device.service';
 import { prepareNotificationChannel, pushSoundConfig } from '@/services/local-notifications';
 import { usePreferences } from '@/context/preferences-context';
 import { resetSettingsOnBlur } from '@/hooks/use-settings-back';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BackHandler, Alert } from 'react-native';
 import { CustomTabBar } from '@/components/custom-tab-bar';
+import { ReminderModalHost } from '@/components/reminders/reminder-host';
+import { handleReminderResponse, setupReminderCategory } from '@/services/reminder-push';
+import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
+import { useI18n } from '@/context/language-context';
 
 // Segment names that correspond to the four visible tabs
 const MAIN_TAB_SEGMENTS = new Set(['index', 'wallets', 'debts', 'profile']);
@@ -15,6 +19,15 @@ export default function DashboardLayout() {
   const segments = useSegments() as string[];
   const { prefs } = usePreferences();
   const { notificationSound, notificationVibrate } = prefs;
+  const { t } = useI18n();
+
+  // Time zone + language (and the one-time quiet-hours copy) go to the server so reminders use them.
+  useReminderPrefsSync();
+
+  // Snooze / Open buttons on reminder pushes (re-created when the language changes).
+  useEffect(() => {
+    setupReminderCategory({ snooze10: t('rem.actSnooze10'), snooze60: t('rem.actSnooze60'), open: t('rem.actOpen') }).catch(() => {});
+  }, [t]);
 
   // Register for push (asks permission once) and tell the server which
   // sound/channel to ring with. Re-runs when the sound choice changes.
@@ -24,12 +37,20 @@ export default function DashboardLayout() {
       .finally(() => registerDevice(pushSoundConfig(notificationSound, notificationVibrate)));
   }, [notificationSound, notificationVibrate]);
 
-  // Tapping a notification (even from a closed app) opens the inbox.
+  // Tapping a notification (even from a closed app): a reminder shows the popup or runs its button;
+  // anything else opens the inbox. Each response is handled once.
   const lastResponse = Notifications.useLastNotificationResponse();
+  const handled = useRef<string | null>(null);
   useEffect(() => {
-    if (lastResponse?.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
-      router.push('/(dashboard)/(settings)/notifications');
-    }
+    if (!lastResponse) return;
+    const key = `${lastResponse.notification.request.identifier}:${lastResponse.actionIdentifier}`;
+    if (handled.current === key) return;
+    handled.current = key;
+    handleReminderResponse(lastResponse).then(wasReminder => {
+      if (!wasReminder && lastResponse.actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+        router.push('/(dashboard)/(settings)/notifications');
+      }
+    });
   }, [lastResponse]);
 
   useEffect(() => {
@@ -62,6 +83,7 @@ export default function DashboardLayout() {
   }, [segments]);
 
   return (
+    <>
     <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index"   />
       <Tabs.Screen name="wallets" />
@@ -75,8 +97,12 @@ export default function DashboardLayout() {
       <Tabs.Screen name="wallet-detail" options={{ href: null }} />
       <Tabs.Screen name="transfer"      options={{ href: null }} />
       <Tabs.Screen name="reports"       options={{ href: null }} />
+      <Tabs.Screen name="debt-ledger"   options={{ href: null }} />
+      <Tabs.Screen name="scheduled"     options={{ href: null }} />
       {/* Leaving settings resets its stack so Back never hits a page from an earlier visit */}
       <Tabs.Screen name="(settings)" options={{ href: null }} listeners={resetSettingsOnBlur as any} />
     </Tabs>
+    <ReminderModalHost />
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import React, { ComponentProps, useCallback, useEffect, useState } from 'react';
+import React, { ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
   ActivityIndicator, RefreshControl,
@@ -12,7 +12,13 @@ import { FadeInView } from '@/components/fade-in-view';
 import { getMe } from '@/services/client-auth.service';
 import { getRecentTransactions, CATEGORY_ICON, formatSubtitle, Transaction } from '@/services/transaction.service';
 import { getCurrentBudget, BudgetStatus } from '@/services/budget.service';
-import { getReportSummary, ReportSummary } from '@/services/reports.service';
+import { getHomeSummary, AttentionItem, HomeSummary } from '@/services/home.service';
+import { ToneChip } from '@/components/debt/tone-chip';
+import { DebtCreditCards, FeedChips, LoansBar, NeedsAttention, NetWorthRows } from '@/components/home/home-sections';
+import { useI18n } from '@/context/language-context';
+import { usePreferences } from '@/context/preferences-context';
+import { currencyEntries, needsLoansHint } from '@/utils/home';
+import { ROLE_TAG } from '@/utils/debt';
 import { BudgetModal } from '@/components/budget-modal';
 import { useCurrency } from '@/context/currency-context';
 
@@ -31,11 +37,16 @@ export default function HomeScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
   const sym = currency.symbol;
+  const { t: tr } = useI18n();
+  const { prefs, setPref } = usePreferences();
+  const includeLoans = prefs.includeLoans;
+  const view = prefs.homeView;
 
   const [firstName,      setFirstName]      = useState('');
   const [budget,         setBudget]         = useState<BudgetStatus | null>(null);
   const [recent,         setRecent]         = useState<Transaction[]>([]);
-  const [monthlySummary, setMonthlySummary] = useState<ReportSummary | null>(null);
+  const [summary,        setSummary]        = useState<HomeSummary | null>(null);
+  const ready = useRef(false);
   const [loading,        setLoading]        = useState(true);
   const [refreshing,     setRefreshing]     = useState(false);
   const [showBudget,     setShowBudget]     = useState(false);
@@ -45,29 +56,45 @@ export default function HomeScreen() {
   const year      = now.getFullYear();
   const monthName = now.toLocaleDateString('en-US', { month: 'long' });
 
+  // The month figures and the feed follow the "Include loans" switch; the feed also follows the chip.
+  const loadSummary = useCallback(async () => {
+    try { setSummary(await getHomeSummary({ month, year, includeLoans })); } catch { /* keep the last one */ }
+  }, [month, year, includeLoans]);
+  const loadFeed = useCallback(async () => {
+    try { setRecent(await getRecentTransactions(5, view, includeLoans)); } catch { /* keep the last one */ }
+  }, [view, includeLoans]);
+
+  // The full load is kept stable (through refs) so changing a chip or the switch refreshes only what it affects.
+  const summaryRef = useRef(loadSummary);
+  const feedRef = useRef(loadFeed);
+  summaryRef.current = loadSummary;
+  feedRef.current = loadFeed;
+  useEffect(() => { if (ready.current) loadSummary(); }, [loadSummary]);
+  useEffect(() => { if (ready.current) loadFeed(); }, [loadFeed]);
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [profile, bud, txns, monthly] = await Promise.all([
-        getMe(),
-        getCurrentBudget(),
-        getRecentTransactions(3),
-        getReportSummary({ month, year }),
-      ]);
+      const [profile, bud] = await Promise.all([getMe(), getCurrentBudget(), summaryRef.current(), feedRef.current()]);
       setFirstName(profile.firstName);
       setBudget(bud);
-      setRecent(txns);
-      setMonthlySummary(monthly);
     } catch {
       // fall through — show empty states
     } finally {
+      ready.current = true;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [month, year]);
+  }, []);
 
   // Reload whenever the screen comes into focus (e.g. after adding a transaction)
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const openAttention = (it: AttentionItem) => {
+    if (it.source === 'SCHEDULED') router.push({ pathname: '/(dashboard)/scheduled', params: { id: it.scheduleId } } as any);
+    else router.push({ pathname: '/(dashboard)/debts', params: { openId: it.debtId } } as any);
+  };
+  const showDebtSection = !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0 || summary.scheduled.waiting > 0 || !!summary.scheduled.next);
 
   const pct      = budget?.percentage ?? 0;
   const pctLabel = `${Math.min(pct, 100)}% used`;
@@ -139,7 +166,7 @@ export default function HomeScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" style={{ marginVertical: 12 }} />
               ) : (() => {
-                const net     = monthlySummary?.net ?? 0;
+                const net     = summary?.totals.net ?? 0;
                 const netAbs  = Math.abs(net).toFixed(2);
                 const intPart = netAbs.split('.')[0];
                 const decPart = netAbs.split('.')[1];
@@ -155,17 +182,18 @@ export default function HomeScreen() {
                 <View>
                   <Text style={s.balStatLabel}>INCOME</Text>
                   <Text style={s.balStatVal}>
-                    {sym}{Math.round(monthlySummary?.totalIncome ?? 0).toLocaleString()}
+                    {sym}{Math.round(summary?.totals.income ?? 0).toLocaleString()}
                   </Text>
                 </View>
                 <View style={s.balDivider} />
                 <View>
                   <Text style={s.balStatLabel}>SPENT</Text>
                   <Text style={s.balStatVal}>
-                    {sym}{Math.round(monthlySummary?.totalExpense ?? budget?.spent ?? 0).toLocaleString()}
+                    {sym}{Math.round(summary?.totals.expense ?? budget?.spent ?? 0).toLocaleString()}
                   </Text>
                 </View>
               </View>
+              {summary && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
             </View>
           </FadeInView>
         </View>
@@ -194,6 +222,25 @@ export default function HomeScreen() {
           </View>
         </FadeInView>
 
+        {/* ── Debts, credits, scheduled, what needs you, net worth ── */}
+        {showDebtSection && summary && (
+          <FadeInView delay={150} slideFrom="bottom" distance={16}>
+            <View style={s.sectionRow}>
+              <Text style={[s.sectionTitle, { color: theme.text }]}>{tr('home.debtsCredits')}</Text>
+              <TouchableOpacity onPress={() => router.push('/(dashboard)/debts' as any)} activeOpacity={0.7}>
+                <Text style={[s.seeAll, { color: theme.primary }]}>{tr('home.manage')}</Text>
+              </TouchableOpacity>
+            </View>
+            <DebtCreditCards owe={summary.owe} owed={summary.owed} scheduled={summary.scheduled} hidden={prefs.hideBalances}
+                             onOwe={() => router.push('/(dashboard)/debts' as any)} onOwed={() => router.push('/(dashboard)/debts' as any)}
+                             onScheduled={() => router.push('/(dashboard)/scheduled' as any)} />
+            <NeedsAttention items={summary.attention} total={summary.attentionTotal} hidden={prefs.hideBalances} fallbackCurrency={currency.code} onOpen={openAttention} />
+            <View style={{ height: 10 }} />
+            <NetWorthRows netWorth={summary.netWorth} hidden={prefs.hideBalances} />
+            <View style={{ height: 14 }} />
+          </FadeInView>
+        )}
+
         {/* ── Budget ── */}
         {budget && budget.limit > 0 ? (
           <FadeInView delay={180} slideFrom="bottom" distance={16}>
@@ -214,6 +261,7 @@ export default function HomeScreen() {
                 <Text style={[s.budgetSub, { color: theme.textSecondary }]}>{sym}{budget.spent.toFixed(2)} spent</Text>
                 <Text style={[s.budgetSub, { color: theme.textMuted }]}>{sym}{budget.limit.toFixed(2)} limit</Text>
               </View>
+              <Text style={[s.budgetSub, { color: theme.textMuted, marginTop: 6 }]}>{tr('home.budgetNoLoans')}</Text>
             </View>
           </FadeInView>
         ) : !loading ? (
@@ -233,11 +281,18 @@ export default function HomeScreen() {
         {/* ── Recent transactions ── */}
         <FadeInView delay={240} slideFrom="bottom" distance={14}>
           <View style={s.sectionRow}>
-            <Text style={[s.sectionTitle, { color: theme.text }]}>Recent</Text>
-            <TouchableOpacity onPress={() => router.push('/(dashboard)/history')} activeOpacity={0.7}>
-              <Text style={[s.seeAll, { color: theme.primary }]}>See all</Text>
+            <Text style={[s.sectionTitle, { color: theme.text }]}>{tr('home.recent')}</Text>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/(dashboard)/history', params: { view, includeLoans: String(includeLoans) } } as any)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.seeAll, { color: theme.primary }]}>{tr('home.seeAll')}</Text>
             </TouchableOpacity>
           </View>
+          <FeedChips value={view} onChange={v => setPref('homeView', v)} />
+          {needsLoansHint(view, includeLoans) && (
+            <Text style={[s.hint, { color: theme.textMuted }]}>{tr('home.loansHint')}</Text>
+          )}
         </FadeInView>
 
         {loading ? (
@@ -246,7 +301,7 @@ export default function HomeScreen() {
           <FadeInView delay={280} slideFrom="bottom" distance={12}>
             <View style={[s.emptyCard, { backgroundColor: theme.surface }]}>
               <MaterialIcons name="receipt-long" size={32} color={theme.textMuted} />
-              <Text style={[s.emptyText, { color: theme.textMuted }]}>No transactions yet</Text>
+              <Text style={[s.emptyText, { color: theme.textMuted }]}>{view === 'all' ? 'No transactions yet' : tr(view === 'scheduled' ? 'home.emptyScheduled' : 'home.emptyView')}</Text>
             </View>
           </FadeInView>
         ) : (
@@ -274,9 +329,12 @@ export default function HomeScreen() {
                   <Text style={[s.txTitle, { color: theme.text }]}>{t.title}</Text>
                   <Text style={[s.txSub, { color: theme.textSecondary }]}>{formatSubtitle(t)}</Text>
                 </View>
-                <Text style={[s.txAmount, { color: t.amount >= 0 ? theme.income : theme.expense }]}>
-                  {fmt(t.amount, sym)}
-                </Text>
+                <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                  <Text style={[s.txAmount, { color: t.debtRole === 'BORROW_IN' ? theme.textSecondary : t.amount >= 0 ? theme.income : theme.expense }]}>
+                    {fmt(t.amount, sym)}
+                  </Text>
+                  {t.debtRole ? <ToneChip label={tr(ROLE_TAG[t.debtRole].label)} tone={ROLE_TAG[t.debtRole].tone} /> : null}
+                </View>
               </TouchableOpacity>
             </FadeInView>
           ))
@@ -339,6 +397,7 @@ const s = StyleSheet.create({
   txSub:   { fontSize: 12 },
   txAmount:{ fontSize: 15, fontWeight: '700' },
 
+  hint:      { fontSize: 11, lineHeight: 15, marginHorizontal: 20, marginBottom: 8 },
   emptyCard: { marginHorizontal: 20, borderRadius: 16, padding: 28, alignItems: 'center', gap: 8 },
   emptyText: { fontSize: 14 },
 });

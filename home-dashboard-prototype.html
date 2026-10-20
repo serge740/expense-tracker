@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home dashboard prototype</title>
+<style>
+:root{--bg:#EEF7FA;--surface:#fff;--primary:#00627F;--header:#00627F;--pbg:rgba(0,98,127,.08);--text:#0E2A33;--text2:#5A7682;--muted:#9AB0B9;--border:rgba(0,98,127,.12);--input:#F3F8FA;--owe:#DC2626;--owed:#16A34A;--warn:#D97706;--shadow:0 20px 50px rgba(0,40,60,.18)}
+:root.dark{--bg:#0B1A20;--surface:#13262E;--primary:#4FB3D1;--header:#0F3340;--pbg:rgba(79,179,209,.12);--text:#E6F2F6;--text2:#9DB6C0;--muted:#6C8791;--border:rgba(255,255,255,.08);--input:#0F2128;--shadow:0 20px 50px rgba(0,0,0,.5)}
+*{box-sizing:border-box;margin:0}
+body{font-family:Poppins,system-ui,Segoe UI,sans-serif;background:#cfdde3;color:var(--text);display:flex;gap:28px;padding:24px;min-height:100vh;flex-wrap:wrap;justify-content:center}
+.panel{width:330px;font-size:13px;line-height:1.5}
+.panel h1{font-size:18px;margin-bottom:6px}.panel p{color:#35505a;margin-bottom:10px}
+.panel button.nav{display:block;width:100%;text-align:left;border:1px solid #9fb6bf;background:#fff;border-radius:12px;padding:9px 12px;margin-bottom:7px;cursor:pointer;font:inherit;font-size:12.5px}
+.panel .note{background:#fff;border-radius:12px;padding:10px 12px;font-size:12px;margin-top:10px}
+.phone{width:390px;height:780px;background:var(--bg);border-radius:38px;box-shadow:var(--shadow);position:relative;overflow:hidden;border:8px solid #11242b;display:flex;flex-direction:column}
+.scroll{flex:1;overflow-y:auto;padding-bottom:80px}.scroll::-webkit-scrollbar{display:none}
+.head{background:var(--header);padding:16px 16px 18px;border-radius:0 0 26px 26px;color:#fff}
+.hrow{display:flex;align-items:center;justify-content:space-between}
+.hi{font-size:10px;letter-spacing:1.5px;opacity:.7}.name{font-size:20px;font-weight:700}
+.ibtn{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;margin-left:8px;display:inline-grid}
+.bal{background:rgba(255,255,255,.12);border-radius:20px;padding:14px;margin-top:14px}
+.bal .lab{font-size:10px;letter-spacing:1.2px;opacity:.75}
+.bal .amt{font-size:30px;font-weight:800;margin:2px 0 8px}
+.stats{display:flex;gap:18px;font-size:11px}.stats b{display:block;font-size:14px}.stats .sep{width:1px;background:rgba(255,255,255,.25)}
+.loanline{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.2);font-size:11px}
+.loanline .grow{flex:1;min-width:0;opacity:.9}
+.tog{width:38px;height:22px;border-radius:11px;background:rgba(255,255,255,.3);position:relative;flex:none;cursor:pointer;transition:.2s}
+.tog:after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.tog.on{background:#4ADE80}.tog.on:after{left:18px}
+.quick{display:flex;gap:10px;padding:14px 16px 0}
+.q{flex:1;background:var(--surface);border-radius:16px;padding:10px 4px;text-align:center;font-size:11px;font-weight:600}
+.q i{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--pbg);margin:0 auto 5px;font-style:normal;font-size:18px;color:var(--primary)}
+.sec{display:flex;align-items:center;justify-content:space-between;padding:0 16px;margin:18px 0 8px}
+.sec h3{font-size:14px}.link{font-size:12px;font-weight:600;color:var(--primary);cursor:pointer}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px;cursor:pointer}
+.card .k{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.card .v{font-size:17px;font-weight:800;margin:3px 0 2px}
+.card .s{font-size:10.5px;color:var(--text2)}
+.dotc{width:8px;height:8px;border-radius:50%;display:inline-block}
+.need{margin:0 16px;background:var(--surface);border:1px solid var(--border);border-radius:18px;overflow:hidden}
+.nrow{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer}
+.nrow:last-child{border-bottom:0}
+.nic{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:15px;flex:none}
+.grow{flex:1;min-width:0}.t1{font-size:12.5px;font-weight:700}.t2{font-size:10.5px;color:var(--muted)}
+.chip{display:inline-flex;font-size:10px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--input);color:var(--text2)}
+.chip.red{background:rgba(220,38,38,.12);color:var(--owe)}.chip.green{background:rgba(22,163,74,.12);color:var(--owed)}.chip.amber{background:rgba(217,119,6,.14);color:var(--warn)}.chip.blue{background:var(--pbg);color:var(--primary)}
+.nw{margin:10px 16px 0;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.nw .big{font-size:15px;font-weight:800}
+.nwd{margin:6px 16px 0;font-size:11px;color:var(--text2);background:var(--pbg);border-radius:12px;padding:8px 12px;display:none}
+.nwd.on{display:block}
+.budget{margin:14px 16px 0;background:var(--surface);border-radius:18px;padding:12px}
+.track{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin:8px 0 5px}.fill{height:100%;background:var(--primary);width:62%}
+.chips{display:flex;gap:6px;padding:0 16px;overflow-x:auto;margin-bottom:8px}.chips::-webkit-scrollbar{display:none}
+.fc{flex:none;padding:7px 13px;border-radius:99px;background:var(--surface);border:1px solid var(--border);font-size:11.5px;font-weight:700;color:var(--text2);cursor:pointer}
+.fc.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.tx{display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:16px;margin:0 16px 8px;padding:10px 12px;cursor:pointer}
+.tx.up{border:1px dashed var(--border);background:transparent}
+.tic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--pbg);font-size:17px;flex:none}
+.amt{font-size:13px;font-weight:800}
+.empty{text-align:center;color:var(--muted);font-size:12px;padding:22px 16px}
+.tabbar{position:absolute;bottom:0;left:0;right:0;height:64px;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center;font-size:10px;color:var(--muted)}
+.tabbar .on{color:var(--primary);font-weight:700}
+.toast{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);background:#11242b;color:#fff;padding:8px 14px;border-radius:99px;font-size:11.5px;display:none;z-index:30;white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Phase 7 — Home dashboard</h1>
+  <p>The new Home. Nothing here is saved. Try the <b>Include loans</b> switch, the filter chips, tap a card, and open Net worth.</p>
+  <button class="nav" id="darkBtn">Toggle dark mode</button>
+  <div class="note"><b>What is new on Home.</b> A <b>Include loans</b> switch under the month figures, cards for what you owe and what you are owed, a <b>Needs attention</b> list (overdue pay dates and scheduled items waiting for you), a <b>Net worth</b> line, and a recent feed you can filter. The balance header, quick actions and budget stay as they are.</div>
+  <div class="note"><b>Include loans</b> (on by default, remembered). Borrowed money is <b>never income</b>. With it <b>on</b>, loan repayments you make count as expense, lending counts as expense and repayments you receive count as income. With it <b>off</b>, every loan movement is left out so the month shows only everyday money. A separate "Loans" line always shows how much of the month was loans.</div>
+  <div class="note"><b>The feed filters</b> work on the server: <b>Income</b> and <b>Expense</b> leave out borrowed money and respect the loans switch; <b>Debt</b> = borrowed and repayments you made; <b>Credit</b> = lent and repayments you received; <b>Scheduled</b> = upcoming dates first, then what a schedule has posted. Your choice is remembered, and "See all" opens History with the same filter.</div>
+  <div class="note"><b>Net worth</b> never mixes currencies: it is shown for each currency (wallets + owed to you − you owe). A converted total can come later from the exchange rates already in the app.</div>
+</div>
+
+<div class="phone" id="phone">
+ <div class="scroll">
+  <div class="head">
+    <div class="hrow"><div><div class="hi">GOOD EVENING</div><div class="name">Serge</div></div><div><span class="ibtn">🔍</span><span class="ibtn">🔔</span></div></div>
+    <div class="bal">
+      <div class="lab">OCTOBER NET</div>
+      <div class="amt" id="net"></div>
+      <div class="stats"><div>INCOME<b id="inc"></b></div><div class="sep"></div><div>SPENT<b id="exp"></b></div></div>
+      <div class="loanline"><div class="grow" id="loanTxt"></div><span>Include loans</span><div class="tog on" id="loanSw" role="switch" aria-checked="true"></div></div>
+    </div>
+  </div>
+
+  <div class="quick"><div class="q"><i>⇄</i>Exchange</div><div class="q"><i>＋</i>Add</div><div class="q"><i>▥</i>Reports</div></div>
+
+  <div class="sec"><h3>Debts &amp; credits</h3><span class="link" data-t="Opens the Debts tab">Manage</span></div>
+  <div class="cards">
+    <div class="card" data-t="Opens Debts · I owe"><div class="k"><span class="dotc" style="background:var(--owe)"></span>You owe</div><div class="v" style="color:var(--owe)">RWF 150,000</div><div class="s">2 open · 1 overdue</div></div>
+    <div class="card" data-t="Opens Debts · owed to me"><div class="k"><span class="dotc" style="background:var(--owed)"></span>Owed to you</div><div class="v" style="color:var(--owed)">RWF 80,000</div><div class="s">1 open · next Wed</div></div>
+    <div class="card" data-t="Another currency never mixes in"><div class="k"><span class="dotc" style="background:var(--owe)"></span>You owe</div><div class="v" style="color:var(--owe)">USD 50</div><div class="s">1 open · due 3 Nov</div></div>
+    <div class="card" data-t="Opens Scheduled"><div class="k"><span class="dotc" style="background:var(--primary)"></span>Scheduled</div><div class="v">2 waiting</div><div class="s">next: Rent, today 9 AM</div></div>
+  </div>
+
+  <div class="sec"><h3>Needs attention</h3><span class="link" data-t="Opens the reminder popup">See all (3)</span></div>
+  <div class="need">
+    <div class="nrow" data-t="Opens John's debt"><div class="nic" style="background:rgba(220,38,38,.12)">⏰</div><div class="grow"><div class="t1">Pay John</div><div class="t2">Was due Tue 21 Oct · 6:00 PM</div></div><div style="text-align:right"><div class="amt" style="color:var(--owe)">150,000</div><span class="chip red">Overdue</span></div></div>
+    <div class="nrow" data-t="Opens Scheduled"><div class="nic" style="background:var(--pbg)">🔁</div><div class="grow"><div class="t1">Rent</div><div class="t2">Due today · 9:00 AM</div></div><div style="text-align:right"><div class="amt">5,000</div><span class="chip blue">Pay now</span></div></div>
+    <div class="nrow" data-t="Opens Eric's credit"><div class="nic" style="background:rgba(22,163,74,.12)">🔔</div><div class="grow"><div class="t1">Eric owes you</div><div class="t2">Due Wed 22 Oct · 9:00 AM</div></div><div style="text-align:right"><div class="amt" style="color:var(--owed)">80,000</div><span class="chip green">Tomorrow</span></div></div>
+  </div>
+
+  <div class="nw" id="nwRow"><div class="grow"><div class="t2">NET WORTH · RWF</div><div class="big">RWF 1,400,000</div></div><span class="chip">details ▾</span></div>
+  <div class="nwd" id="nwd">Wallets <b>1,470,000</b> + owed to you <b>80,000</b> − you owe <b>150,000</b> = <b>1,400,000</b>. USD: owe 50 (no USD wallet).</div>
+
+  <div class="budget"><div style="display:flex;justify-content:space-between"><div class="t1">October Budget</div><div class="t1" style="color:var(--primary)">62%</div></div><div class="track"><div class="fill"></div></div><div style="display:flex;justify-content:space-between" class="t2"><span>RWF 186,000 spent</span><span>RWF 300,000 limit</span></div><div class="t2" style="margin-top:6px">Loans never count against your budget.</div></div>
+
+  <div class="sec"><h3>Recent</h3><span class="link" id="seeAll">See all</span></div>
+  <div class="chips" id="chips"></div>
+  <div id="feed"></div>
+ </div>
+ <div class="tabbar"><div class="on">Home</div><div>History</div><div>Wallets</div><div>Debts</div><div>Profile</div></div>
+ <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s),fmt=n=>Math.round(n).toLocaleString('en-US');
+const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',2000)};
+$('#darkBtn').onclick=()=>document.documentElement.classList.toggle('dark');
+if(location.hash.includes('dark'))document.documentElement.classList.add('dark');
+
+/* month figures: everyday money vs loans */
+const M={income:500000,expense:180000,loanIn:40000,loanOut:170000,borrowed:200000};
+let loans=true,filter='ALL';
+function figures(){
+  const inc=M.income+(loans?M.loanIn:0),exp=M.expense+(loans?M.loanOut:0),net=inc-exp;
+  $('#inc').textContent='RWF '+fmt(inc);$('#exp').textContent='RWF '+fmt(exp);
+  $('#net').textContent=(net>=0?'+':'−')+'RWF '+fmt(Math.abs(net));
+  $('#loanTxt').innerHTML=loans?`Loans in these figures: spent ${fmt(M.loanOut)} · received ${fmt(M.loanIn)}<br><span style="opacity:.7">Borrowed ${fmt(M.borrowed)} is never income</span>`:`Loans left out: ${fmt(M.loanOut)} out · ${fmt(M.loanIn)} in`;
+  $('#loanSw').classList.toggle('on',loans);$('#loanSw').setAttribute('aria-checked',loans);
+  render();
+}
+$('#loanSw').onclick=()=>{loans=!loans;figures();toast(loans?'Loans included':'Loans left out')};
+
+/* feed */
+const ICON={food:'🍽',salary:'💼',rent:'🏠',loan:'🤝',transport:'🚌'};
+const TX=[
+ {t:'Salary',s:'Today · MoMo',a:500000,cat:'salary',kind:'inc'},
+ {t:'Paid John',s:'Yesterday · MoMo',a:-50000,cat:'loan',kind:'debt',tag:['Debt payment','red']},
+ {t:'Groceries',s:'Yesterday · Cash',a:-18400,cat:'food',kind:'exp'},
+ {t:'Eric paid back',s:'Mon · Bank',a:40000,cat:'loan',kind:'credit',tag:['Received','green']},
+ {t:'Borrowed from John',s:'12 Oct · MoMo',a:200000,cat:'loan',kind:'debt',tag:['Borrowed','blue'],neutral:true,borrow:true},
+ {t:'Lent to Eric',s:'5 Oct · Bank',a:-120000,cat:'loan',kind:'credit',tag:['Lent','amber']},
+ {t:'Rent',s:'1 Oct · Bank · Scheduled',a:-5000,cat:'rent',kind:'exp',sched:true,tag:['Scheduled','blue']},
+ {t:'Taxi',s:'30 Sep · Cash',a:-2500,cat:'transport',kind:'exp'},
+];
+const UP=[{t:'Rent',s:'Due today · 9:00 AM · remind me',a:-5000,cat:'rent'},{t:'Salary',s:'Fri 31 Oct · 9:00 AM · auto',a:200000,cat:'salary'}];
+const FILTERS=[['ALL','All'],['INC','Income'],['EXP','Expense'],['DEBT','Debt'],['CREDIT','Credit'],['SCHED','Scheduled']];
+function visible(){
+  return TX.filter(x=>{
+    const loan=x.kind==='debt'||x.kind==='credit';
+    if(filter==='ALL')return loans||!loan;
+    if(filter==='INC')return x.a>0&&!x.borrow&&(loans||!loan);
+    if(filter==='EXP')return x.a<0&&(loans||!loan);
+    if(filter==='DEBT')return x.kind==='debt';
+    if(filter==='CREDIT')return x.kind==='credit';
+    if(filter==='SCHED')return !!x.sched;
+  });
+}
+function row(x,up){
+  const col=x.neutral?'var(--text2)':x.a>0?'var(--owed)':'var(--owe)';
+  return `<div class="tx ${up?'up':''}" data-t="Opens ${x.t}"><div class="tic">${ICON[x.cat]||'🧾'}</div><div class="grow"><div class="t1">${x.t}</div><div class="t2">${x.s}</div></div><div style="text-align:right"><div class="amt" style="color:${col}">${x.a>0?'+':'−'}${fmt(Math.abs(x.a))}</div>${x.tag?`<span class="chip ${x.tag[1]}">${x.tag[0]}</span>`:up?'<span class="chip blue">Upcoming</span>':''}</div></div>`;
+}
+function render(){
+  $('#chips').innerHTML=FILTERS.map(([k,l])=>`<div class="fc ${filter===k?'on':''}" data-f="${k}" role="button">${l}</div>`).join('');
+  document.querySelectorAll('[data-f]').forEach(e=>e.onclick=()=>{filter=e.dataset.f;render();toast('Filter remembered: '+e.textContent)});
+  const list=visible();
+  let h=filter==='SCHED'?UP.map(x=>row(x,true)).join(''):'';
+  h+=list.slice(0,filter==='ALL'?5:6).map(x=>row(x,false)).join('');
+  if(!h)h=`<div class="empty">Nothing here${!loans&&(filter==='DEBT'||filter==='CREDIT')?'':' yet'}.</div>`;
+  if(!loans&&(filter==='DEBT'||filter==='CREDIT'))h=`<div class="empty">These are loans. Switch “Include loans” on to see them in the totals. The ${filter==='DEBT'?'Debt':'Credit'} list still shows them below.</div>`+list.map(x=>row(x,false)).join('');
+  $('#feed').innerHTML=h;
+  bind();
+}
+function bind(){document.querySelectorAll('[data-t]').forEach(e=>e.onclick=()=>toast(e.dataset.t))}
+$('#seeAll').onclick=()=>toast('Opens History with the “'+FILTERS.find(f=>f[0]===filter)[1]+'” filter');
+$('#nwRow').onclick=()=>$('#nwd').classList.toggle('on');
+const h=location.hash.replace('#','').split(/[&,]/);
+if(h.includes('off'))loans=false;
+const f=h.find(x=>['INC','EXP','DEBT','CREDIT','SCHED'].includes(x));if(f)filter=f;
+if(h.includes('nw'))$('#nwd').classList.add('on');
+figures();
+</script>
+</body>
+</html>

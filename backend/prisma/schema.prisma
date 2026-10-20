@@ -12,6 +12,7 @@ enum NotificationType {
   transaction
   security
   system
+  reminder
 }
 
 enum NotificationChannel {
@@ -51,6 +52,8 @@ model Client {
   transactions           Transaction[]
   budgets                Budget[]
   debts                  Debt[]
+  reminders              Reminder[]
+  scheduledTransactions  ScheduledTransaction[]
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
 }
@@ -124,6 +127,16 @@ model NotificationPreference {
   pushEnabled  Boolean @default(true)
   emailEnabled Boolean @default(true)
   inAppEnabled Boolean @default(true)
+
+  // Reminder delivery (server side, so quiet hours really work while the app is closed)
+  timezone       String  @default("UTC") // IANA name, e.g. Africa/Kigali
+  quietEnabled   Boolean @default(false)
+  quietStart     String  @default("22:00") // local HH:MM
+  quietEnd       String  @default("07:00")
+  remindersPush  Boolean @default(true)
+  remindersEmail Boolean @default(true)
+  dailyPushCap   Int     @default(8)
+  language       String  @default("en") // en | fr | rw | sw: the language reminder text is written in
 }
 
 // ── Expense Tracker Models ─────────────────────────────────────────────────
@@ -172,54 +185,63 @@ enum WalletType {
 }
 
 model Wallet {
-  id           String        @id @default(uuid())
-  clientId     String
-  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  name         String
-  bank         String
-  last4        String?
+  id            String                 @id @default(uuid())
+  clientId      String
+  client        Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name          String
+  bank          String
+  last4         String?
   accountHolder String?
   accountNumber String?
-  color        String        @default("#0F2F3A")
-  currency     String        @default("RWF")
-  archived     Boolean       @default(false)
-  walletType   WalletType    @default(CHECKING)
-  balance      Decimal       @default(0) @db.Decimal(12, 2)
-  isDefault    Boolean       @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  transactions Transaction[]
+  color         String                 @default("#0F2F3A")
+  currency      String                 @default("RWF")
+  archived      Boolean                @default(false)
+  walletType    WalletType             @default(CHECKING)
+  balance       Decimal                @default(0) @db.Decimal(12, 2)
+  isDefault     Boolean                @default(false)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  transactions  Transaction[]
+  scheduled     ScheduledTransaction[]
 
   @@index([clientId])
 }
 
 model Transaction {
-  id          String          @id @default(uuid())
-  clientId    String
-  client      Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  walletId    String?
-  wallet      Wallet?         @relation(fields: [walletId], references: [id], onDelete: SetNull)
-  type        TransactionType
-  category    CategorySlug
-  title       String
-  subCategory String?
-  description String?
-  amount      Decimal         @db.Decimal(12, 2)
-  date        DateTime        @default(now())
-  receiptUrl  String?
-  receiptReportUrl String?
+  id                    String          @id @default(uuid())
+  clientId              String
+  client                Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  walletId              String?
+  wallet                Wallet?         @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  type                  TransactionType
+  category              CategorySlug
+  title                 String
+  subCategory           String?
+  description           String?
+  amount                Decimal         @db.Decimal(12, 2)
+  date                  DateTime        @default(now())
+  receiptUrl            String?
+  receiptReportUrl      String?
   // TRANSFER only: money moves from walletId to toWalletId
-  toWalletId   String?
-  toAmount     Decimal?        @db.Decimal(12, 2)
-  exchangeRate Decimal?        @db.Decimal(18, 8)
-  // DEBT only: money borrowed / lent / repaid for this debt
-  debtId       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  toWalletId            String?
+  toAmount              Decimal?        @db.Decimal(12, 2)
+  exchangeRate          Decimal?        @db.Decimal(18, 8)
+  // Debt/credit money: which debt this belongs to and what role it plays.
+  // The type stays INCOME/EXPENSE so wallet math is unchanged; reports read debtRole.
+  debtId                String?
+  debtRole              DebtRole?
+  // An ordinary expense paid out of borrowed money (that debt's "pot"). Not a debt flow.
+  fundedByDebtId        String?
+  // Set when a scheduled transaction posted this one. Unique, so one occurrence can never post twice.
+  scheduledOccurrenceId String?         @unique
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
 
   @@index([clientId])
   @@index([clientId, date])
   @@index([debtId])
+  @@index([fundedByDebtId])
+  @@index([clientId, debtRole, date])
 }
 
 model Budget {
@@ -240,34 +262,75 @@ model Budget {
 
 enum DebtKind {
   BORROWED // I owe someone
-  LENT     // someone owes me
+  LENT // someone owes me
 }
 
 enum DebtStatus {
   OPEN
   SETTLED
+  WRITTEN_OFF // credit: I gave up the remainder
+  FORGIVEN // debt: the lender forgave the remainder
+}
+
+// What a debt-linked transaction represents. Only BORROW_IN is never income.
+enum DebtRole {
+  BORROW_IN // borrowed money received (not income)
+  LEND_OUT // money I lent out
+  REPAY_OUT // I repaid what I borrowed
+  REPAY_IN // someone repaid what I lent
 }
 
 model Debt {
-  id        String        @id @default(uuid())
-  clientId  String
-  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  kind      DebtKind
-  person    String
-  phone     String?
-  amount    Decimal       @db.Decimal(12, 2)
-  paid      Decimal       @default(0) @db.Decimal(12, 2)
-  currency  String
-  date      DateTime      @default(now())
-  dueDate   DateTime?
-  note      String?
-  walletId  String?
-  status    DebtStatus    @default(OPEN)
-  payments  DebtPayment[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id                     String            @id @default(uuid())
+  clientId               String
+  client                 Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind                   DebtKind
+  person                 String
+  phone                  String?
+  amount                 Decimal           @db.Decimal(12, 2)
+  paid                   Decimal           @default(0) @db.Decimal(12, 2)
+  writtenOffAmount       Decimal           @default(0) @db.Decimal(12, 2)
+  // Borrowed money already spent on ordinary expenses (BORROWED only).
+  spent                  Decimal           @default(0) @db.Decimal(12, 2)
+  currency               String
+  date                   DateTime          @default(now())
+  dueDate                DateTime?
+  note                   String?
+  walletId               String?
+  principalTransactionId String?
+  status                 DebtStatus        @default(OPEN)
+  archivedAt             DateTime?
+  payments               DebtPayment[]
+  installments           DebtInstallment[]
+  reminders              Reminder[]
+  remindersOn            Boolean           @default(false)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
 
   @@index([clientId, status])
+}
+
+// One planned pay date. Rows are never edited to change the date: moving one marks it MOVED
+// and adds a new row, so the history stays. Paid / partly paid / overdue are derived from payments.
+enum InstallmentStatus {
+  PENDING
+  MOVED
+  SKIPPED
+}
+
+model DebtInstallment {
+  id            String            @id @default(uuid())
+  debtId        String
+  debt          Debt              @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  dueAt         DateTime
+  plannedAmount Decimal?          @db.Decimal(12, 2)
+  status        InstallmentStatus @default(PENDING)
+  movedFromId   String?
+  note          String?
+  reminder      Reminder?
+  createdAt     DateTime          @default(now())
+
+  @@index([debtId, status, dueAt])
 }
 
 model DebtPayment {
@@ -282,4 +345,146 @@ model DebtPayment {
   createdAt     DateTime @default(now())
 
   @@index([debtId])
+}
+
+// ── Reminders ────────────────────────────────────────────────────────────────
+
+enum ReminderKind {
+  DEBT_PAYMENT
+  SCHEDULED_TX
+}
+
+enum ReminderStatus {
+  ACTIVE
+  SNOOZED
+  DONE
+  DISMISSED
+  CANCELLED
+}
+
+enum FireAction {
+  NONE
+  OPENED
+  SNOOZED
+  DONE
+  DISMISSED
+}
+
+// One reminder follows one pay date. It walks a fixed timeline (see reminder-policy.ts):
+// `step` is the next rung and `nextFireAt` when it fires. `claimedUntil` is a short lease so two
+// workers never send the same reminder, and a crash re-fires instead of losing it.
+model Reminder {
+  id             String               @id @default(uuid())
+  clientId       String
+  client         Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind           ReminderKind         @default(DEBT_PAYMENT)
+  debtId         String?
+  debt           Debt?                @relation(fields: [debtId], references: [id], onDelete: Cascade)
+  installmentId  String?              @unique
+  installment    DebtInstallment?     @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  occurrenceId   String?              @unique
+  occurrence     ScheduledOccurrence? @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  dueAt          DateTime
+  timezone       String               @default("UTC")
+  step           Int                  @default(0)
+  nextFireAt     DateTime?
+  status         ReminderStatus       @default(ACTIVE)
+  snoozedUntil   DateTime?
+  claimedUntil   DateTime?
+  fireCount      Int                  @default(0)
+  lastFiredAt    DateTime?
+  notificationId String?
+  fires          ReminderFire[]
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([status, nextFireAt])
+  @@index([clientId, status])
+  @@index([debtId])
+}
+
+// A log row per fire: de-duplication, history, and what the person did about it.
+model ReminderFire {
+  id                String     @id @default(uuid())
+  reminderId        String
+  reminder          Reminder   @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  step              Int
+  firedAt           DateTime   @default(now())
+  channels          Json // e.g. { push: true, email: false, inApp: true, digest: false, reason: "cap" }
+  pushTickets       Json? // Expo ticket ids, checked for receipts ~15 min later
+  receiptsCheckedAt DateTime?
+  action            FireAction @default(NONE)
+  actedAt           DateTime?
+
+  @@index([reminderId])
+  @@index([receiptsCheckedAt, firedAt])
+}
+
+// ── Scheduled & recurring transactions ───────────────────────────────────────
+
+enum ScheduleMode {
+  REMIND_CONFIRM // you get a reminder and tap Pay: nothing moves until you confirm
+  AUTO_POST // the transaction is created for you at the due time
+}
+
+enum ScheduleStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum OccurrenceStatus {
+  PENDING
+  POSTED
+  SKIPPED
+  FAILED
+}
+
+// A template. `repeat` is the rule from recurrence.ts (null = happens once). The first date is
+// `startAt` and the rule is worked out in `timezone`, so "9:00" stays 9:00 across daylight saving.
+model ScheduledTransaction {
+  id          String                @id @default(uuid())
+  clientId    String
+  client      Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  category    CategorySlug
+  title       String
+  subCategory String?
+  description String?
+  amount      Decimal               @db.Decimal(12, 2)
+  walletId    String?
+  wallet      Wallet?               @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  startAt     DateTime
+  timezone    String                @default("UTC")
+  repeat      Json?
+  mode        ScheduleMode          @default(REMIND_CONFIRM)
+  status      ScheduleStatus        @default(ACTIVE)
+  // Due time of the latest occurrence created (also the lower bound for the next one).
+  lastDueAt   DateTime?
+  // Due time of the next occurrence that is waiting, or null when there is none.
+  nextDueAt   DateTime?
+  occurrences ScheduledOccurrence[]
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([clientId, status])
+  @@index([status, nextDueAt])
+}
+
+// One due date of a schedule. unique(scheduleId, dueAt) makes creating it idempotent.
+model ScheduledOccurrence {
+  id            String               @id @default(uuid())
+  scheduleId    String
+  schedule      ScheduledTransaction @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  dueAt         DateTime
+  status        OccurrenceStatus     @default(PENDING)
+  transactionId String?
+  failReason    String?
+  handledAt     DateTime?
+  reminder      Reminder?
+  createdAt     DateTime             @default(now())
+
+  @@unique([scheduleId, dueAt])
+  @@index([scheduleId, status])
+  @@index([status, dueAt])
 }

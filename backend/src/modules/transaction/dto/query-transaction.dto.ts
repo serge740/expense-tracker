@@ -11,4 +11,8 @@ export class QueryTransactionDto {
   page?: number;
   limit?: number;
   search?: string;    // searches title + description (case-insensitive)
+  /** Home / History chip: all | income | expense | debt | credit | scheduled. */
+  view?: string;
+  /** "false" or "0" leaves every loan row out of all / income / expense. */
+  includeLoans?: string;
 }

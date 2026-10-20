@@ -4,7 +4,7 @@ import { Stack, useSegments } from 'expo-router';
 import { settingsBack } from '@/hooks/use-settings-back';
 
 // Keep `index` at the root so every settings page sits on a known base.
-export const unstable_settings = { initialRouteName: 'index' };
+export const unstable_settings = { initialRouteName: 'hub' };
 
 export default function SettingsLayout() {
   const segments = useSegments() as string[];
@@ -34,7 +34,7 @@ export default function SettingsLayout() {
         contentStyle: { backgroundColor: 'transparent' },
       }}
     >
-      <Stack.Screen name="index"         />
+      <Stack.Screen name="hub"           />
       <Stack.Screen name="edit-profile"  />
       <Stack.Screen name="devices"       />
       <Stack.Screen name="notifications" />

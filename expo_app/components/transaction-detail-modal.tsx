@@ -7,6 +7,7 @@ import { Transaction, CATEGORY_ICON, deleteTransaction } from '@/services/transa
 import { useI18n } from '@/context/language-context';
 import { categoryOf } from '@/constants/categories';
 import { useCurrency } from '@/context/currency-context';
+import { router } from 'expo-router';
 
 
 interface Props {
@@ -131,9 +132,26 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
             )}
           </View>
 
+          {/* Debt link: opens the debt or credit this money belongs to */}
+          {!!transaction.debtId && (
+            <TouchableOpacity
+              style={[s.debtLink, { backgroundColor: theme.primaryBg }]}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              onPress={() => { onClose(); router.push({ pathname: '/(dashboard)/debts' as any, params: { openId: transaction.debtId! } }); }}
+            >
+              <MaterialIcons name="handshake" size={18} color={theme.primary} />
+              <Text style={[s.debtLinkText, { color: theme.primary }]}>{t('debt2.linked')}</Text>
+              <Text style={[s.debtLinkOpen, { color: theme.primary }]}>{t('debt2.openIt')}</Text>
+              <MaterialIcons name="chevron-right" size={18} color={theme.primary} />
+            </TouchableOpacity>
+          )}
+
           {/* Delete (debt entries are managed from the Debts tab) */}
           {locked ? (
-            <Text style={[s.lockedText, { color: theme.textMuted }]}>{t('debts.locked')}</Text>
+            <Text style={[s.lockedText, { color: theme.textMuted }]}>
+              {t('debts.locked')}{transaction.debtRole === 'BORROW_IN' ? ` ${t('debt2.notIncome')}` : ''}
+            </Text>
           ) : (
           <TouchableOpacity
             style={[s.deleteBtn, { borderColor: 'rgba(248,113,113,0.3)', backgroundColor: 'rgba(248,113,113,0.08)' }]}
@@ -171,6 +189,9 @@ function DetailRow({ icon, label, value, color, theme }: any) {
 
 const s = StyleSheet.create({
   lockedText: { fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 17 },
+  debtLink:     { flexDirection: 'row', alignItems: 'center', gap: 8, width: '100%', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 12 },
+  debtLinkText: { flex: 1, fontSize: 12.5, fontWeight: '600' },
+  debtLinkOpen: { fontSize: 12, fontWeight: '700' },
   overlay:     { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)' },
   centeredWrap:{ ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
 

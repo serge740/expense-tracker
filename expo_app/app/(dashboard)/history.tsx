@@ -6,6 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { FeedChips } from '@/components/home/home-sections';
+import { asFeedView, FeedView } from '@/utils/home';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
@@ -68,7 +70,13 @@ export default function HistoryScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
   const sym = currency.symbol;
-  const params = useLocalSearchParams<{ openSearch?: string }>();
+  const params = useLocalSearchParams<{ openSearch?: string; view?: string; includeLoans?: string }>();
+  // The same chip as Home (and its "Include loans" choice), carried over by "See all".
+  const [view, setView] = useState<FeedView>(asFeedView(params.view));
+  const [includeLoans, setIncludeLoans] = useState(params.includeLoans !== 'false');
+  useEffect(() => { setView(asFeedView(params.view)); setIncludeLoans(params.includeLoans !== 'false'); }, [params.view, params.includeLoans]);
+  const feedRef = useRef({ view, includeLoans });
+  feedRef.current = { view, includeLoans };
 
   const [active,       setActive]       = useState('All');
   const [dateFilter,   setDateFilter]   = useState<DateFilter>('Month');
@@ -95,7 +103,11 @@ export default function HistoryScreen() {
     try {
       const slug = cat === 'All' ? undefined : CAT_SLUG[cat];
       const range = getDateRange(df, cStart, cEnd);
-      const data = await getTransactionHistory({ category: slug, ...range, search: search || undefined });
+      const { view: v, includeLoans: loans } = feedRef.current;
+      const data = await getTransactionHistory({
+        category: slug, ...range, search: search || undefined,
+        ...(v !== 'all' ? { view: v } : {}), ...(loans ? {} : { includeLoans: 'false' }),
+      });
       setGroups(data);
     } catch {
       setGroups([]);
@@ -105,15 +117,18 @@ export default function HistoryScreen() {
     }
   }, []);
 
-  useEffect(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, [active, dateFilter, customStart, customEnd]);
+  useEffect(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, [active, dateFilter, customStart, customEnd, view, includeLoans]);
 
-  // Debounce search query changes
+  // Debounce search query changes. (Not on the first run: that one would fire 300 ms after opening with the
+  // filters of that moment, and undo a chip or category tapped in the meantime.)
+  const searchedOnce = useRef(false);
   useEffect(() => {
+    if (!searchedOnce.current) { searchedOnce.current = true; return; }
     const t = setTimeout(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, 300);
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, searchQuery, true); }, [active, dateFilter, customStart, customEnd, load]));
+  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, searchQuery, true); }, [active, dateFilter, customStart, customEnd, view, includeLoans, load]));
 
   const handleDateFilter = (df: DateFilter) => {
     if (df === 'Custom') {
@@ -195,6 +210,7 @@ export default function HistoryScreen() {
         visible={customPhase !== null}
         value={customPhase === 'end' ? (customStart ?? new Date()) : new Date()}
         showTime={false}
+        calendar
         title={customPhase === 'start' ? 'Select Start Date' : 'Select End Date'}
         onConfirm={handleCustomDatePick}
         onClose={() => setCustomPhase(null)}
@@ -269,6 +285,11 @@ export default function HistoryScreen() {
               ))}
             </View>
           </FadeInView>
+        </View>
+
+        {/* Kind chips: All / Income / Expense / Debt / Credit / Scheduled (same as Home) */}
+        <View style={{ paddingTop: 12 }}>
+          <FeedChips value={view} onChange={setView} />
         </View>
 
         {/* Date filter chips */}

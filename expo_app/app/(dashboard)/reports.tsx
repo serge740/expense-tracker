@@ -144,6 +144,7 @@ export default function ReportsScreen() {
         visible={customPhase !== null}
         value={customPhase === 'end' ? (customStart ?? new Date()) : new Date()}
         showTime={false}
+        calendar
         title={customPhase === 'start' ? 'Select Start Date' : 'Select End Date'}
         onConfirm={handleCustomDatePick}
         onClose={() => setCustomPhase(null)}

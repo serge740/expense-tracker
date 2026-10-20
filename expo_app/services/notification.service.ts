@@ -4,7 +4,7 @@ export type NotificationItem = {
   id: string;
   title: string;
   body: string;
-  type: 'transaction' | 'security' | 'system';
+  type: 'transaction' | 'security' | 'system' | 'reminder';
   channel: 'push' | 'email' | 'in_app';
   read: boolean;
   data: Record<string, any> | null;
@@ -15,6 +15,15 @@ export type NotificationPreference = {
   pushEnabled: boolean;
   emailEnabled: boolean;
   inAppEnabled: boolean;
+  // Reminder delivery (kept on the server so it works while the app is closed)
+  timezone: string;
+  language: string;
+  quietEnabled: boolean;
+  quietStart: string;   // 'HH:MM'
+  quietEnd: string;
+  remindersPush: boolean;
+  remindersEmail: boolean;
+  dailyPushCap: number;
 };
 
 export type NotificationList = {

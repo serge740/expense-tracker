@@ -33,6 +33,9 @@ export interface Preferences {
   notificationSound: NotificationSound;
   notificationVibrate: boolean;
   hideBalances: boolean;
+  // Home: count loans in the month's income / expense, and the feed chip last used.
+  includeLoans: boolean;
+  homeView: 'all' | 'income' | 'expense' | 'debt' | 'credit' | 'scheduled';
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -61,9 +64,11 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notificationSound: 'chime',
   notificationVibrate: true,
   hideBalances: false,
+  includeLoans: true,
+  homeView: 'all',
 };
 
-const STORAGE_KEY = 'app_preferences_v1';
+export const STORAGE_KEY = 'app_preferences_v1';
 
 type Ctx = {
   prefs: Preferences;

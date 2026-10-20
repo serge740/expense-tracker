@@ -11,4 +11,6 @@ export class CreateTransactionDto {
   walletId?: string;
   receiptUrl?: string;
   receiptReportUrl?: string;
+  /** Pay this expense out of a borrowed debt's unspent money instead of a wallet. */
+  fundedByDebtId?: string;
 }
