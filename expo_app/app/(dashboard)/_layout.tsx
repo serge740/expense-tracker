@@ -1,6 +1,7 @@
 import { Tabs, useSegments, router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { registerDevice } from '@/services/device.service';
+import { NotificationProvider } from '@/context/notification-context';
 import { prepareNotificationChannel, pushSoundConfig } from '@/services/local-notifications';
 import { usePreferences } from '@/context/preferences-context';
 import { resetSettingsOnBlur } from '@/hooks/use-settings-back';
@@ -83,7 +84,7 @@ export default function DashboardLayout() {
   }, [segments]);
 
   return (
-    <>
+    <NotificationProvider>
     <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index"   />
       <Tabs.Screen name="wallets" />
@@ -103,6 +104,6 @@ export default function DashboardLayout() {
       <Tabs.Screen name="(settings)" options={{ href: null }} listeners={resetSettingsOnBlur as any} />
     </Tabs>
     <ReminderModalHost />
-    </>
+    </NotificationProvider>
   );
 }

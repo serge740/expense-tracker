@@ -9,12 +9,14 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.abyride.expensetracker",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": true,
       "icon": "./assets/images/logo/rabbit-icon.png",
       "usesAppleSignIn": true,
-      "associatedDomains": ["webcredentials:trivial-marshy-false.ngrok-free.dev"]
+      "associatedDomains": ["webcredentials:aby-expense.onrender.com"]
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#00627F",
         "foregroundImage": "./assets/images/logo/rabbit-adaptive.png",

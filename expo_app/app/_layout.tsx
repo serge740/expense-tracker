@@ -22,6 +22,8 @@ import { CurrencyProvider } from '@/context/currency-context';
 import { PreferencesProvider } from '@/context/preferences-context';
 import { LanguageProvider } from '@/context/language-context';
 import '@/services/local-notifications'; // registers the foreground notification handler
+import '@/services/background-notification-task'; // defines the background push task (must load at startup)
+import { registerBackgroundNotificationTask } from '@/services/background-notification-task';
 import { getToken } from '@/services/client-auth.service';
 import { AppSplash } from '@/components/app-splash';
 
@@ -50,6 +52,8 @@ function RootLayoutInner() {
     Poppins_800ExtraBold,
     Poppins_900Black,
   });
+
+  useEffect(() => { registerBackgroundNotificationTask(); }, []);
 
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();

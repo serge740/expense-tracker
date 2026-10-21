@@ -1,4 +1,5 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '../../../generated/prisma';
 import { EmailService } from '../../global/email/email.service';
@@ -29,6 +30,7 @@ export class RemindersService {
     private readonly prisma: PrismaService,
     @Inject(PushService) private readonly push: PushSender,
     private readonly email: EmailService,
+    @Optional() private readonly realtime?: RealtimeGateway,
   ) {}
 
   // Other jobs that must run at the start of every tick (e.g. posting due scheduled transactions).
@@ -257,6 +259,9 @@ export class RemindersService {
         }
       }
     }
+
+    // Tell an open app right away, so the popup and the unread count do not wait for the next poll.
+    this.realtime?.emitToClient(clientId, 'new-notification', { type: 'reminder' });
 
     // Push: respects the switch, the daily cap, and collapses a pile-up into one digest.
     const pushOn = pref.pushEnabled && pref.remindersPush;

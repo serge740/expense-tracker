@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "484143566557",
+    "project_id": "rabbit-tracker-c64b1",
+    "storage_bucket": "rabbit-tracker-c64b1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:484143566557:android:6a773e7de5f91203cc9534",
+        "android_client_info": {
+          "package_name": "com.abyride.expensetracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvLA1pEHv9Pu4IZJKC8fTSq6p2NfGkao8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

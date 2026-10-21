@@ -34,7 +34,9 @@ api.interceptors.response.use(
 
     const is401 = error.response?.status === 401;
     const isRefreshUrl = original.url?.includes('/refresh');
-    const isLoginUrl   = original.url?.includes('/face-identify') || original.url?.includes('/google-auth') || original.url?.includes('/verify-email') || original.url?.includes('/passkey/login');
+    // Calls made while signed OUT: a 401 here is the real answer (wrong password, bad code), not an expired session.
+    const PUBLIC_AUTH = ['/face-identify', '/google-auth', '/apple-auth', '/facebook-auth', '/verify-email', '/passkey/login', '/client-auth/login', '/client-auth/register', '/resend-otp', '/forgot-password', '/verify-reset-otp', '/reset-password'];
+    const isLoginUrl   = PUBLIC_AUTH.some(p => original.url?.includes(p));
 
     if (is401 && !original._retry && !isRefreshUrl && !isLoginUrl) {
       if (isRefreshing) {
@@ -51,7 +53,8 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = await SecureStore.getItemAsync('client_refresh_token');
-        if (!refreshToken) throw new Error('No refresh token stored');
+        // Nothing to refresh with: pass the server's own answer on instead of hiding it.
+        if (!refreshToken) { drainQueue(error, null); return Promise.reject(error); }
 
         const { data } = await api.post<{ accessToken: string; refreshToken: string }>(
           '/client-auth/refresh',

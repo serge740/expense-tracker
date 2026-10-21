@@ -10,6 +10,7 @@ import { useSettingsBack } from '@/hooks/use-settings-back';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
+import { useNotifications } from '@/context/notification-context';
 import {
   getNotifications, getNotificationPreferences, updateNotificationPreferences,
   markNotificationRead, markAllRead, sendTestPush,
@@ -48,7 +49,7 @@ export default function NotificationsScreen() {
   const [prefs, setPrefs]             = useState<NotificationPreference | null>(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
-  const [unread, setUnread]           = useState(0);
+  const { unread, setUnread } = useNotifications();
   const [savingPref, setSavingPref]   = useState(false);
 
   const loadList = useCallback(async () => {

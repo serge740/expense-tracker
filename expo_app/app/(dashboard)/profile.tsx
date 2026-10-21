@@ -13,7 +13,7 @@ import { logout, getMe, ClientProfile } from '@/services/client-auth.service';
 import { GoogleSignin } from '@/services/google-signin';
 import { getTransactions } from '@/services/transaction.service';
 import { getWalletSummary } from '@/services/wallet.service';
-import { getNotifications } from '@/services/notification.service';
+import { useNotifications } from '@/context/notification-context';
 import ENV from '@/env';
 import { FadeInView } from '@/components/fade-in-view';
 import { useThemePreference } from '@/context/theme-context';
@@ -41,7 +41,7 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [txCount, setTxCount]       = useState<number | null>(null);
   const [walletCount, setWalletCount] = useState<number | null>(null);
-  const [unread, setUnread]         = useState(0);
+  const { unread, refresh: refreshUnread } = useNotifications();
 
   const load = useCallback(async () => {
     try {
@@ -54,7 +54,7 @@ export default function ProfileScreen() {
       setTxCount(tx.total);
       setWalletCount(wallets.walletCount);
     } catch { /* handled by api interceptor */ }
-    try { setUnread((await getNotifications(1, 1)).unreadCount); } catch { /* optional */ }
+    refreshUnread();
     setLoading(false);
     setRefreshing(false);
   }, []);

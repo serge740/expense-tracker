@@ -14,6 +14,23 @@ export type DeviceInfo = {
   createdAt: string;
 };
 
+const PUSH_TOKEN_KEY = 'registeredPushToken';
+
+/** True when this phone has an Expo push token saved on the server. */
+export async function hasRegisteredPushToken(): Promise<boolean> {
+  try { return !!(await SecureStore.getItemAsync(PUSH_TOKEN_KEY)); } catch { return false; }
+}
+
+/** At sign-out: tell the server this phone should stop receiving this account's pushes. Never throws. */
+export async function unregisterPush(): Promise<void> {
+  try {
+    const pushToken = await SecureStore.getItemAsync(PUSH_TOKEN_KEY);
+    if (!pushToken) return;
+    await api.post('/devices/unregister-push', { pushToken });
+    await SecureStore.deleteItemAsync(PUSH_TOKEN_KEY);
+  } catch { /* sign-out must not fail because of this */ }
+}
+
 /**
  * Registers this device with the server. Asks for notification permission
  * (once) and sends the Expo push token plus the Android channel / iOS sound
@@ -34,6 +51,7 @@ export async function registerDevice(push?: { channelId?: string; sound?: string
         const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
         const tokenData = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
         pushToken = tokenData.data;
+        await SecureStore.setItemAsync(PUSH_TOKEN_KEY, pushToken).catch(() => {});
       }
     } catch { /* push token is optional (e.g. Expo Go on Android) */ }
 

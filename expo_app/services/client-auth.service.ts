@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import api from '../api';
+import { unregisterPush } from './device.service';
 
 export const ACCESS_TOKEN_KEY  = 'client_access_token';
 export const REFRESH_TOKEN_KEY = 'client_refresh_token';
@@ -145,6 +146,7 @@ export async function enableBiometric(): Promise<void> {
 // ── Logout ────────────────────────────────────────────────────────────────
 export async function logout(): Promise<void> {
   const refreshToken = await getRefreshToken();
+  await unregisterPush(); // while the session is still valid
   try {
     await api.post('/client-auth/logout', { refreshToken: refreshToken ?? undefined });
   } catch { /* ignore server errors */ }

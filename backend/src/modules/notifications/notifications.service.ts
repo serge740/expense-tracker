@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationChannel, NotificationType } from '../../../generated/prisma';
 import { BadRequestException } from '@nestjs/common';
@@ -7,7 +8,10 @@ import { isValidClock, isValidTimeZone } from '../reminders/reminder-policy';
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly realtime?: RealtimeGateway,
+  ) {}
 
   async getPreferences(clientId: string) {
     let pref = await this.prisma.notificationPreference.findUnique({ where: { clientId } });
@@ -116,6 +120,8 @@ export class NotificationsService {
         ...(data.notificationData ? { data: data.notificationData } : {}),
       },
     });
+
+    this.realtime?.emitToClient(clientId, 'new-notification', { id: notification.id, type: data.type });
 
     if (pref.pushEnabled) {
       await this.sendPushToClient(clientId, data.title, data.body, {

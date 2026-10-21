@@ -1,7 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, TouchableOpacity, StyleSheet, View } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import { BACKGROUND_NOTIFICATION_TASK } from '@/services/background-notification-task';
+import { hasRegisteredPushToken, registerDevice } from '@/services/device.service';
 import { Text } from '@/components/text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferences } from '@/context/preferences-context';
@@ -23,6 +27,28 @@ export default function NotificationSettingsScreen() {
   const { prefs, setPref, formatTime } = usePreferences();
   const { t } = useI18n();
   const [channels, setChannels] = useState<NotificationPreference | null>(null);
+  const [permitted, setPermitted] = useState<boolean | null>(null);
+  const [registered, setRegistered] = useState(false);
+  const [background, setBackground] = useState(false);
+
+  const refreshStatus = useCallback(() => {
+    Notifications.getPermissionsAsync().then(r => setPermitted(r.status === 'granted')).catch(() => setPermitted(false));
+    hasRegisteredPushToken().then(setRegistered);
+    TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK).then(setBackground).catch(() => setBackground(false));
+  }, []);
+  useFocusEffect(refreshStatus);
+
+  const enablePush = async () => {
+    const { status } = await Notifications.requestPermissionsAsync().catch(() => ({ status: 'denied' as const }));
+    if (status !== 'granted') {
+      refreshStatus();
+      return Alert.alert(t('notif.offTitle'), t('notif.st.denied'));
+    }
+    await registerDevice();
+    const ok = await hasRegisteredPushToken();
+    refreshStatus();
+    Alert.alert(ok ? t('notif.sentTitle') : t('common.error'), ok ? t('notif.st.enabled') : t('notif.st.failed'));
+  };
 
   useEffect(() => {
     getNotificationPreferences().then(setChannels).catch(() => { /* offline: keep empty state */ });
@@ -100,6 +126,16 @@ export default function NotificationSettingsScreen() {
         </TouchableOpacity>
       }
     >
+      <Section title={t('notif.st.status')}>
+        <Row icon="verified-user" title={t('notif.st.perm')} sub={t('notif.st.permSub')}
+             badge={permitted === null ? undefined : { label: permitted ? t('notif.st.on') : t('notif.st.off'), tone: permitted ? 'ok' : 'danger' }} />
+        <Row icon="phone-android" title={t('notif.st.push')} sub={t('notif.st.pushSub')}
+             badge={{ label: registered ? t('notif.st.on') : t('notif.st.off'), tone: registered ? 'ok' : 'danger' }} />
+        <Row icon="nights-stay" title={t('notif.st.bg')} sub={t('notif.st.bgSub')}
+             badge={{ label: background ? t('notif.st.on') : t('notif.st.off'), tone: background ? 'ok' : 'danger' }} />
+        <Row icon="refresh" title={t('notif.st.enable')} sub={t('notif.st.enableSub')} onPress={enablePush} />
+      </Section>
+
       <Section title={t('section.channels')}>
         <Row icon="notifications-active" title={t('notif.push')} sub={t('notif.pushSub')}
              toggle={{ value: !!channels?.pushEnabled, onChange: v => toggleChannel('pushEnabled', v), disabled: channelDisabled }} />

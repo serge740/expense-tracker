@@ -24,6 +24,16 @@ export class DevicesController {
     }
   }
 
+  @Post('unregister-push')
+  async unregisterPush(@Req() req: RequestWithClient, @Body() body: { pushToken?: string }) {
+    try {
+      if (!body?.pushToken) return { cleared: 0 };
+      return await this.devicesService.clearPushToken(req.client.id, body.pushToken);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Failed to clear push token', 400);
+    }
+  }
+
   @Get()
   async list(@Req() req: RequestWithClient) {
     try {

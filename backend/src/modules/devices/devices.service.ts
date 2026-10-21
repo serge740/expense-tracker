@@ -13,6 +13,15 @@ export class DevicesService {
     channelId?: string;
     sound?: string;
   }) {
+    // A push token belongs to one phone. If another account (or another row) still holds it, take it away
+    // so a signed-out account stops receiving this phone's pushes.
+    if (data.pushToken) {
+      await this.prisma.device.updateMany({
+        where: { pushToken: data.pushToken, NOT: { clientId, deviceName: data.deviceName, platform: data.platform } },
+        data: { pushToken: null },
+      });
+    }
+
     const existing = await this.prisma.device.findFirst({
       where: { clientId, deviceName: data.deviceName, platform: data.platform },
     });
@@ -41,6 +50,12 @@ export class DevicesService {
         sound: data.sound ?? null,
       },
     });
+  }
+
+  /** Called at sign-out: this account stops receiving pushes on the phone that holds this token. */
+  async clearPushToken(clientId: string, pushToken: string) {
+    const r = await this.prisma.device.updateMany({ where: { clientId, pushToken }, data: { pushToken: null } });
+    return { cleared: r.count };
   }
 
   async getDevices(clientId: string) {
