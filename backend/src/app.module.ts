@@ -19,12 +19,14 @@ import { WellKnownModule } from './modules/well-known/well-known.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { ScheduledModule } from './modules/scheduled/scheduled.module';
 import { HomeModule } from './modules/home/home.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     ScheduleModule.forRoot(),
     PrismaModule,
+    HealthModule,
     ClientAuthModule,
     DevicesModule,
     NotificationsModule,
