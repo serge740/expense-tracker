@@ -125,7 +125,7 @@ export function Text({ style, children, numberOfLines, onPress, testID, selectab
   const nested = React.useContext(InsideText);
   const css: CSSProperties = {
     margin: 0, padding: 0, boxSizing: 'border-box', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word',
-    textAlign: 'inherit', ...(nested ? {} : { fontFamily: 'Poppins, system-ui, sans-serif', fontSize: 14 }),
+    textAlign: 'inherit', ...(nested ? {} : { fontFamily: 'Poppins, "Twemoji Country Flags", system-ui, sans-serif', fontSize: 14 }),
     ...toCss(style),
   };
   if (numberOfLines === 1) { css.whiteSpace = 'nowrap'; css.overflow = 'hidden'; css.textOverflow = 'ellipsis'; css.display = css.display ?? 'block'; }
@@ -416,7 +416,7 @@ export const TextInput = forwardRef<HTMLInputElement | HTMLTextAreaElement, Text
 ) {
   const css: CSSProperties = {
     ...VIEW_BASE, flexShrink: 1, background: 'transparent', border: '0 solid transparent', outline: 'none', borderRadius: 0,
-    fontFamily: 'Poppins, system-ui, sans-serif', fontSize: 14, color: '#000', resize: 'none', appearance: 'none', WebkitAppearance: 'none',
+    fontFamily: 'Poppins, "Twemoji Country Flags", system-ui, sans-serif', fontSize: 14, color: '#000', resize: 'none', appearance: 'none', WebkitAppearance: 'none',
     ...toCss(style),
     ['--rn-placeholder' as string]: placeholderTextColor ?? '#9aa0a6',
     ...(selectionColor || cursorColor ? { caretColor: cursorColor ?? selectionColor } : {}),

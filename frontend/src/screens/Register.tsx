@@ -4,6 +4,7 @@ import { router } from '@/router/router';
 import { registerClient } from '@/services/client-auth.service';
 import { COUNTRIES, DEFAULT_COUNTRY_ISO } from '@/lib/countries';
 import { signInWith } from '@/services/social-auth';
+import { useGoogleOneTap } from '@/hooks/use-google-one-tap';
 import {
   AuthScreen, Field, PhoneField, PrimaryButton, OrDivider, SocialRow, FooterLink, goBack, errorMessage, StrengthMeter, type Social,
 } from '@/components/auth/ui';
@@ -11,6 +12,7 @@ import {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Register() {
+  useGoogleOneTap();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [country, setCountry] = useState(COUNTRIES.find(c => c.iso === DEFAULT_COUNTRY_ISO)!);
@@ -50,8 +52,7 @@ export default function Register() {
     try {
       if (await signInWith(kind, phone.trim() ? fullPhone() : undefined)) router.replace('/(dashboard)');
     } catch (e) {
-      const name = kind === 'apple' ? 'Apple' : kind === 'facebook' ? 'Facebook' : 'Google';
-      Alert.alert(`${name} sign-up failed`, errorMessage(e));
+      Alert.alert('Google sign-up failed', errorMessage(e));
     } finally {
       setLoading(null);
     }
@@ -75,7 +76,7 @@ export default function Register() {
       <PrimaryButton label="Create Account" onPress={handleRegister} loading={loading === 'form'} />
 
       <OrDivider />
-      <SocialRow items={['google', 'facebook', 'apple']} onPress={handleSocial} busy={loading === 'form' ? null : loading} />
+      <SocialRow items={['google']} onPress={handleSocial} busy={loading === 'form' ? null : loading} />
 
       <FooterLink prompt="Already have an account?" link="Login" onPress={() => router.replace('/(auth)/login')} />
     </AuthScreen>

@@ -5,11 +5,13 @@ import { loginClient } from '@/services/client-auth.service';
 import { COUNTRIES, DEFAULT_COUNTRY_ISO } from '@/lib/countries';
 import { passkeysSupported, loginWithPasskey } from '@/services/passkey.service';
 import { signInWith } from '@/services/social-auth';
+import { useGoogleOneTap } from '@/hooks/use-google-one-tap';
 import {
   AUTH, AuthScreen, Field, PhoneField, PrimaryButton, ModeTabs, OrDivider, SocialRow, FooterLink, errorMessage, type Social,
 } from '@/components/auth/ui';
 
 export default function Login() {
+  useGoogleOneTap();
   const [mode, setMode] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
   const [country, setCountry] = useState(COUNTRIES.find(c => c.iso === DEFAULT_COUNTRY_ISO)!);
@@ -53,8 +55,7 @@ export default function Login() {
     try {
       if (await signInWith(kind)) router.replace('/(dashboard)');
     } catch (e) {
-      const name = kind === 'apple' ? 'Apple' : kind === 'facebook' ? 'Facebook' : 'Google';
-      Alert.alert(`${name} sign-in failed`, errorMessage(e));
+      Alert.alert('Google sign-in failed', errorMessage(e));
     } finally {
       setLoading(null);
     }
@@ -89,7 +90,7 @@ export default function Login() {
       )}
 
       <OrDivider />
-      <SocialRow items={['google', 'facebook', 'apple']} onPress={handleSocial} busy={loading === 'form' || loading === 'passkey' ? null : loading} />
+      <SocialRow items={['google']} onPress={handleSocial} busy={loading === 'form' || loading === 'passkey' ? null : loading} />
 
       <FooterLink prompt="Don't have an account?" link="Sign Up" onPress={() => router.push('/(auth)/register')} />
     </AuthScreen>

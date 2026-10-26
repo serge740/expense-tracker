@@ -59,7 +59,7 @@ describe('transforms, line height, borders', () => {
 
 describe('fonts', () => {
   test('Poppins_600SemiBold becomes the Poppins family at weight 600', () => {
-    expect(toCss({ fontFamily: 'Poppins_600SemiBold' })).toMatchObject({ fontFamily: 'Poppins, system-ui, sans-serif', fontWeight: '600' });
+    expect(toCss({ fontFamily: 'Poppins_600SemiBold' })).toMatchObject({ fontFamily: 'Poppins, "Twemoji Country Flags", system-ui, sans-serif', fontWeight: '600' });
   });
   test('an explicit weight wins over the one in the name', () => {
     expect(toCss({ fontFamily: 'Poppins_400Regular', fontWeight: '700' }).fontWeight).toBe('700');

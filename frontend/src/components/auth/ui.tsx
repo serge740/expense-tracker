@@ -6,6 +6,7 @@ import {
 import { router } from '@/router/router';
 import { RabbitLogo } from '@/components/rabbit-logo';
 import { COUNTRIES, flagOf, type Country } from '@/lib/countries';
+import { preloadGoogle } from '@/services/social-auth';
 
 // Auth screens always use the light palette, like onboarding.
 export const AUTH = {
@@ -227,32 +228,15 @@ export function GoogleIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-/** Facebook: a blue rounded square with a white "f" (the Material Community glyph, drawn here). */
-export function FacebookIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="2" y="2" width="20" height="20" rx="4" fill="#1877F2" />
-      <path fill="#fff" d="M16.5 22v-7.6h2.5l.4-3h-2.9V9.5c0-.9.3-1.5 1.5-1.5h1.6V5.3c-.3 0-1.200-.1-2.300-.1-2.300 0-3.800 1.400-3.800 3.900v2.300H10.900v3H13.500V22z" />
-    </svg>
-  );
-}
-
-/** Apple logo, black. */
-export function AppleIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="#000" d="M16.37 12.9c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.62-1.7-3.19-1.73-1.36-.14-2.65.8-3.34.8-.69 0-1.75-.78-2.88-.76-1.48.02-2.85.86-3.61 2.19-1.54 2.67-.39 6.62 1.1 8.79.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.7.71 2.87.69 1.19-.02 1.94-1.08 2.66-2.15.84-1.230 1.190-2.420 1.200-2.480-.03-.01-2.300-.88-2.320-3.500zM14.200 6.400c.6-.73 1.010-1.750.9-2.760-.87.04-1.920.58-2.540 1.310-.56.65-1.050 1.690-.92 2.680.97.07 1.960-.5 2.560-1.230z" />
-    </svg>
-  );
-}
-
+/** The full-width "Continue with Google" button. */
 export function SocialRow({ items, onPress, busy }: { items: Social[]; onPress: (s: Social) => void; busy?: Social | null }) {
-  const label: Record<Social, string> = { google: 'Google', facebook: 'Facebook', apple: 'Apple' };
+  useEffect(() => { void preloadGoogle().catch(() => {}); }, []);
   return (
     <View style={s.socialRow}>
       {items.map(it => (
-        <TouchableOpacity key={it} style={s.social} onPress={() => onPress(it)} disabled={!!busy} activeOpacity={0.7} accessibilityLabel={`Continue with ${label[it]}`}>
-          {busy === it ? <ActivityIndicator size="small" color={AUTH.primary} /> : it === 'google' ? <GoogleIcon size={20} /> : it === 'facebook' ? <FacebookIcon /> : <AppleIcon />}
+        <TouchableOpacity key={it} style={s.social} onPress={() => onPress(it)} disabled={!!busy} activeOpacity={0.7} accessibilityLabel="Continue with Google">
+          {busy === it ? <ActivityIndicator size="small" color={AUTH.primary} /> : <GoogleIcon size={20} />}
+          <Text style={s.socialText}>Continue with Google</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -327,8 +311,9 @@ const s = StyleSheet.create({
   orLine: { flex: 1, height: 1, backgroundColor: AUTH.line },
   orText: { fontSize: 11, color: AUTH.muted },
 
-  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
-  social: { width: 46, height: 46, borderRadius: 23, borderWidth: 1, borderColor: AUTH.line, backgroundColor: AUTH.bg, alignItems: 'center', justifyContent: 'center' },
+  socialRow: { gap: 12 },
+  social: { height: 48, borderRadius: 24, borderWidth: 1, borderColor: AUTH.line, backgroundColor: AUTH.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  socialText: { fontSize: 14, fontWeight: '600', color: AUTH.text },
 
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 'auto', paddingTop: 22 },
   footerText: { fontSize: 12, color: AUTH.textSoft },

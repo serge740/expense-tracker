@@ -81,6 +81,13 @@ export async function googleAuthClient(idToken: string, phone?: string): Promise
   return res.data;
 }
 
+/** Web: the one-time code from Google's popup, swapped for a session by the server (it holds the client secret). */
+export async function googleCodeClient(code: string, phone?: string): Promise<AuthResult> {
+  const res = await api.post<AuthResult>('/client-auth/google-code', { code, ...(phone ? { phone } : {}) });
+  await saveTokens(res.data.accessToken, res.data.refreshToken);
+  return res.data;
+}
+
 // ── Email/phone + password login ──────────────────────────────────────────
 export async function loginClient(identifier: string, password: string): Promise<AuthResult> {
   const res = await api.post<AuthResult>('/client-auth/login', { identifier, password });

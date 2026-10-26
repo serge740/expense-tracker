@@ -104,7 +104,7 @@ export function toCss(style: RNStyle): CSSProperties {
   // The phone app names Poppins by weight (Poppins_600SemiBold); on the web one family has every weight.
   const poppins = typeof out.fontFamily === 'string' ? /^Poppins_(\d{3})/.exec(out.fontFamily) : null;
   if (poppins) {
-    out.fontFamily = 'Poppins, system-ui, sans-serif';
+    out.fontFamily = 'Poppins, "Twemoji Country Flags", system-ui, sans-serif';
     if (out.fontWeight === undefined) out.fontWeight = poppins[1];
   }
 
