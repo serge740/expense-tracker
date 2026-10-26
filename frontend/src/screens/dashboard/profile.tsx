@@ -1,6 +1,6 @@
 // Ported from expo_app/app/(dashboard)/profile.tsx
 import React, { useCallback, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, ActivityIndicator, RefreshControl } from '@/rn';
+import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, ActivityIndicator, RefreshControl, Alert } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { router, useFocusEffect } from '@/router/router';
 import { LinearGradient } from '@/rn/gradient';
@@ -18,6 +18,7 @@ import { useThemePreference } from '@/context/theme-context';
 import { useCurrency } from '@/context/currency-context';
 import { usePreferences } from '@/context/preferences-context';
 import { useI18n } from '@/context/language-context';
+import { usePwaInstall } from '@/context/pwa-install-context';
 import { LANGUAGES } from '@/i18n/strings';
 import { Section, Row, toneColors } from '@/components/settings/ui';
 
@@ -33,6 +34,7 @@ export default function ProfileScreen() {
   const { currency } = useCurrency();
   const { prefs, formatTime } = usePreferences();
   const { t, language, formatDate } = useI18n();
+  const { canInstall, isInstalled, isIos, install } = usePwaInstall();
 
   const [profile, setProfile]       = useState<ClientProfile | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -238,6 +240,15 @@ export default function ProfileScreen() {
                    value={languageLabel ? `${languageLabel.flag} ${languageLabel.native}` : ''}
                    onPress={go('/(dashboard)/(settings)/appearance')} />
               <Row icon="devices" title={t('row.devices')} sub={t('row.devicesSub')} onPress={go('/(dashboard)/(settings)/devices')} />
+              {!isInstalled && (
+                <Row icon="install-mobile" title={t('pwa.installBtn')} sub={t('pwa.installHint')}
+                     onPress={() => {
+                       // One tap where the browser offers it; otherwise say where to find it (iPhone has no one-tap install).
+                       if (canInstall) void install();
+                       else if (isIos()) Alert.alert(t('pwa.iosTitle'), t('pwa.iosText'));
+                       else Alert.alert(t('pwa.title'), t('pwa.notYet'));
+                     }} />
+              )}
             </Section>
 
             <Section title={t('section.support')}>
