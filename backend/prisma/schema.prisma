@@ -45,6 +45,7 @@ model Client {
   phoneOtpExpiry         DateTime?
   refreshTokens          RefreshToken[]
   devices                Device[]
+  webPushSubscriptions   WebPushSubscription[]
   passkeys               Passkey[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
@@ -81,6 +82,31 @@ model Device {
   lastActiveAt DateTime @default(now())
   createdAt    DateTime @default(now())
 
+  @@index([clientId])
+}
+
+/// A browser (or installed web app) that can receive web push for one account. Re-subscribing the same
+/// browser moves it to whoever is signed in; dead ones are deleted when the push service says so.
+model WebPushSubscription {
+  id            String    @id @default(uuid())
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  endpoint      String    @db.Text
+  p256dh        String
+  auth          String
+  label         String?
+  userAgent     String?   @db.VarChar(400)
+  browser       String?   @db.VarChar(40)
+  os            String?   @db.VarChar(40)
+  deviceType    String?   @db.VarChar(10)
+  lastSeenAt    DateTime?
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  failureCount  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([endpoint(length: 255)])
   @@index([clientId])
 }
 

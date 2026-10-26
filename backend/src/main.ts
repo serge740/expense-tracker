@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { json, urlencoded } from 'body-parser';
 import { basename, extname, join } from 'path';
 import * as express from 'express';
+import { serveWebApp } from './common/web-app';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -85,6 +86,9 @@ async function bootstrap() {
       },
     }),
   );
+
+  // The built web app (frontend/dist), served from this same address so passkeys, cookies and CORS stay simple.
+  serveWebApp(app);
 
   await app.listen(process.env.PORT ?? 3001);
 }

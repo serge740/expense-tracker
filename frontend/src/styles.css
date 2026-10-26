@@ -1,0 +1,94 @@
+/* Fonts: Poppins in every weight the app uses, and the Material icon font (same names as the Expo app). */
+@font-face { font-family: 'Poppins'; font-weight: 100; font-display: swap; src: url('/fonts/Poppins_100Thin.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 200; font-display: swap; src: url('/fonts/Poppins_200ExtraLight.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 300; font-display: swap; src: url('/fonts/Poppins_300Light.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 400; font-display: swap; src: url('/fonts/Poppins_400Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 500; font-display: swap; src: url('/fonts/Poppins_500Medium.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 600; font-display: swap; src: url('/fonts/Poppins_600SemiBold.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 700; font-display: swap; src: url('/fonts/Poppins_700Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 800; font-display: swap; src: url('/fonts/Poppins_800ExtraBold.ttf') format('truetype'); }
+@font-face { font-family: 'Poppins'; font-weight: 900; font-display: swap; src: url('/fonts/Poppins_900Black.ttf') format('truetype'); }
+
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-icons.woff2') format('woff2');
+}
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  display: inline-block;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-size: 14px;
+  color: #000;
+  background: #0b1a20;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  text-size-adjust: 100%;
+}
+button, input, textarea { font: inherit; }
+
+/* The app is a phone: full screen on a phone, a centred phone-sized column on anything wider. */
+#phone {
+  position: relative;
+  width: min(100vw, 430px);
+  height: 100dvh;
+  margin: 0 auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+@media (min-width: 520px) {
+  body { background: radial-gradient(1200px 600px at 50% -10%, #12313c 0%, #0b1a20 60%); }
+  #phone { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 30px 80px rgba(0, 0, 0, 0.5); }
+}
+
+.rn-hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.rn-hide-scrollbar::-webkit-scrollbar { display: none; }
+.rn-input::placeholder { color: var(--rn-placeholder, #9aa0a6); opacity: 1; }
+[data-pe='box-none'] > * { pointer-events: auto; }
+
+.rn-spinner { box-sizing: border-box; border-style: solid; border-radius: 50%; animation: rn-spin 0.8s linear infinite; }
+@keyframes rn-spin { to { transform: rotate(360deg); } }
+
+@keyframes rn-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rn-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes rn-slide-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes rn-slide-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
+@keyframes rn-pop-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@keyframes rn-enter {
+  from { opacity: 0; transform: translate(var(--enter-x, 0px), var(--enter-y, 22px)); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Splash (components/app-splash.tsx) */
+@keyframes splash-glow { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes splash-logo { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+@keyframes splash-sub  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes splash-out  { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(1.07); } }

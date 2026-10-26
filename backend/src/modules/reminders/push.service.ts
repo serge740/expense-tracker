@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WebPushService } from '../web-push/web-push.service';
+import { buildWebPayload } from '../web-push/lib/payload';
 
 /** One Expo ticket, remembered with its token so a later receipt can prune a dead device. */
 export interface PushTicket { id: string; token: string }
@@ -26,7 +29,10 @@ const loadExpo = () => import('expo-server-sdk');
 @Injectable()
 export class PushService implements PushSender {
   private readonly logger = new Logger(PushService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly webPush?: WebPushService,
+  ) {}
 
   private async client() {
     const { Expo } = await loadExpo();
@@ -34,6 +40,8 @@ export class PushService implements PushSender {
   }
 
   async sendToClient(clientId: string, payload: PushPayload): Promise<PushTicket[]> {
+    // Browsers and installed web apps get the same reminder (their own tickets are not tracked: the push service answers at once).
+    void this.webPush?.sendToClient(clientId, buildWebPayload({ title: payload.title, body: payload.body, data: payload.data }));
     const { Expo } = await loadExpo();
     const devices = await this.prisma.device.findMany({
       where: { clientId, pushToken: { not: null } },

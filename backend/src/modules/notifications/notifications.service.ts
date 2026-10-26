@@ -1,5 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { WebPushService } from '../web-push/web-push.service';
+import { buildWebPayload } from '../web-push/lib/payload';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationChannel, NotificationType } from '../../../generated/prisma';
 import { BadRequestException } from '@nestjs/common';
@@ -11,6 +13,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly realtime?: RealtimeGateway,
+    @Optional() private readonly webPush?: WebPushService,
   ) {}
 
   async getPreferences(clientId: string) {
@@ -121,14 +124,13 @@ export class NotificationsService {
       },
     });
 
-    this.realtime?.emitToClient(clientId, 'new-notification', { id: notification.id, type: data.type });
+    this.realtime?.emitToClient(clientId, 'new-notification', { id: notification.id, type: data.type, title: data.title, body: data.body });
 
     if (pref.pushEnabled) {
-      await this.sendPushToClient(clientId, data.title, data.body, {
-        ...(data.notificationData ?? {}),
-        notificationId: notification.id,
-        type: data.type,
-      });
+      const pushData = { ...(data.notificationData ?? {}), notificationId: notification.id, type: data.type };
+      await this.sendPushToClient(clientId, data.title, data.body, pushData);
+      // Browsers and installed web apps get the same push (never blocks or breaks the phone push).
+      void this.webPush?.sendToClient(clientId, buildWebPayload({ title: data.title, body: data.body, data: pushData }));
     }
 
     return notification;

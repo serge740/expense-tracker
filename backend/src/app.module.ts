@@ -8,6 +8,7 @@ import { ClientAuthModule } from './modules/client-auth/client-auth.module';
 import { DevicesModule } from './modules/devices/devices.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { WebPushModule } from './modules/web-push/web-push.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -31,6 +32,7 @@ import { HealthModule } from './modules/health/health.module';
     DevicesModule,
     NotificationsModule,
     RealtimeModule,
+    WebPushModule,
     WalletModule,
     TransactionModule,
     ReportsModule,

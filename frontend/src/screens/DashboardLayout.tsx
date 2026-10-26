@@ -1,0 +1,45 @@
+import { useEffect } from 'react';
+import { Outlet } from 'react-router-dom';
+import { View } from '@/rn';
+import { useAppTheme } from '@/theme/theme-context';
+import { usePreferences } from '@/context/preferences-context';
+import { NotificationProvider } from '@/context/notification-context';
+import { PushProvider } from '@/context/push-context';
+import { SoundProvider } from '@/context/sound-context';
+import { InstallPrompt, NotificationToaster } from '@/components/push/prompts';
+import { CustomTabBar } from '@/components/custom-tab-bar';
+import { ReminderModalHost } from '@/components/reminders/reminder-host';
+import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
+import { registerDevice } from '@/services/device.service';
+import { pushSoundConfig } from '@/services/local-notifications';
+
+/** Everything after sign-in: the screen on top, the tab bar underneath, and the things that run while signed in. */
+export default function DashboardLayout() {
+  const theme = useAppTheme();
+  const { prefs } = usePreferences();
+  const { notificationSound, notificationVibrate } = prefs;
+
+  // Time zone + language (and the one-time quiet-hours copy) go to the server so reminders use them.
+  useReminderPrefsSync();
+
+  // Tell the server this browser is signed in, and which sound it uses.
+  useEffect(() => { void registerDevice(pushSoundConfig(notificationSound, notificationVibrate)); }, [notificationSound, notificationVibrate]);
+
+  return (
+    <PushProvider>
+      <NotificationProvider>
+        <SoundProvider>
+          <View style={{ flex: 1, backgroundColor: theme.background }}>
+            <View style={{ flex: 1 }}>
+              <Outlet />
+            </View>
+            <CustomTabBar />
+          </View>
+          <ReminderModalHost />
+          <NotificationToaster />
+          <InstallPrompt />
+        </SoundProvider>
+      </NotificationProvider>
+    </PushProvider>
+  );
+}
