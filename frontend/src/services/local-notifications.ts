@@ -1,3 +1,4 @@
+import { LOGO_ICON } from '@/brand';
 import { NOTIFICATION_SOUNDS, SOUND_FILE, type NotificationSound } from '@/lib/sounds';
 
 export { NOTIFICATION_SOUNDS };
@@ -50,7 +51,7 @@ export async function scheduleLocalNotification(opts: {
   const id = `local-${Date.now()}`;
   setTimeout(() => {
     try {
-      new Notification(opts.title, { body: opts.body, icon: '/images/logo/rabbit-icon.png', silent: true, tag: id });
+      new Notification(opts.title, { body: opts.body, icon: LOGO_ICON, silent: true, tag: id });
       if (opts.vibrate) navigator.vibrate?.([0, 250, 150, 250]);
     } catch { /* blocked */ }
     void playNotificationSound(opts.sound);

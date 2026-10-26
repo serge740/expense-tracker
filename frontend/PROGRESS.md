@@ -1,4 +1,4 @@
-# Rabbit Tracker — web app progress
+# AbyExpense — web app progress
 
 A hand-ported copy of `expo_app`: same screens, same design, same logic. React + Vite + TypeScript.
 No automatic converter (no react-native-web, no Expo web export). A small conversion script of my own

@@ -66,7 +66,7 @@ try {
   const manifest = await page.send('Page.getAppManifest');
   const parsed = manifest.data ? JSON.parse(manifest.data) : {};
   check('the manifest loads without errors', !manifest.errors?.length && !!manifest.data, (manifest.errors ?? []).map(e => e.message).join('; '));
-  check('it has a name, a start address and standalone display', parsed.name === 'Rabbit Tracker' && parsed.start_url === '/app' && parsed.display === 'standalone');
+  check('it has a name, a start address and standalone display', parsed.name === 'AbyExpense' && parsed.start_url === '/app' && parsed.display === 'standalone');
   const purposes = (parsed.icons ?? []).map(i => `${i.sizes}:${i.purpose}`);
   check('it has 192 and 512 icons and a maskable one', ['192x192:any', '512x512:any', '512x512:maskable'].every(p => purposes.includes(p)), purposes.join(', '));
   const install = await page.send('Page.getInstallabilityErrors');

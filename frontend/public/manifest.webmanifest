@@ -1,13 +1,13 @@
 {
   "id": "/",
-  "name": "Rabbit Tracker",
-  "short_name": "Rabbit",
+  "name": "AbyExpense",
+  "short_name": "AbyExpense",
   "description": "Track expenses, wallets, debts and budgets, with reminders that find you.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#EEF7FA",
+  "background_color": "#FFFFFF",
   "theme_color": "#00627F",
   "categories": ["finance", "productivity"],
   "icons": [

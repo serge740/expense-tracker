@@ -267,7 +267,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
 
             <Text style={[s.footer, { color: theme.textMuted }]}>
-              Rabbit Tracker v1.0.0
+              AbyExpense v1.0.0
             </Text>
           </FadeInView>
         </View>

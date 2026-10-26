@@ -4,7 +4,7 @@ import {
   ActivityIndicator, Modal, FlatList, SafeAreaView, MaterialIcons, Clipboard, type TextInputProps,
 } from '@/rn';
 import { router } from '@/router/router';
-import { RabbitLogo } from '@/components/rabbit-logo';
+import { BrandLogo } from '@/components/brand-logo';
 import { COUNTRIES, flagOf, type Country } from '@/lib/countries';
 import { preloadGoogle } from '@/services/social-auth';
 
@@ -36,7 +36,7 @@ export function AuthScreen({ title, subtitle, back, children }: { title: string;
         <KeyboardAvoidingView style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={s.brand}>
-              <RabbitLogo size={56} color={AUTH.primary} />
+              <BrandLogo size={56} color={AUTH.primary} />
               <Text style={s.title}>{title}</Text>
               {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
             </View>

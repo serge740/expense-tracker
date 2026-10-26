@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(dashboard)/(settings)/about.tsx
 import React from 'react';
+import { BRAND, LOGO_ICON } from '@/brand';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, Linking } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { useSettingsBack } from '@/hooks/use-settings-back';
@@ -50,12 +51,19 @@ export default function AboutScreen() {
         {/* Logo + version card */}
         <FadeInView delay={60} slideFrom="bottom" distance={20}>
           <View style={[s.brandCard, { backgroundColor: theme.buttonBg }]}>
-            <Image
-              source={'/images/logo/rabbit.png'}
-              style={[s.logoImg, { tintColor: '#FFFFFF' }]}
-              resizeMode="contain"
-            />
-            <Text style={s.appName}>Rabbit Tracker</Text>
+            {BRAND === 'aby' ? (
+              // The AbyExpense mark has a white background, so it sits on a white tile on the teal card.
+              <View style={[s.logoTile]}>
+                <Image source={LOGO_ICON} style={{ width: 84, height: 84 }} resizeMode="contain" />
+              </View>
+            ) : (
+              <Image
+                source={'/images/logo/rabbit.png'}
+                style={[s.logoImg, { tintColor: '#FFFFFF' }]}
+                resizeMode="contain"
+              />
+            )}
+            <Text style={s.appName}>AbyExpense</Text>
             <Text style={s.tagline}>Smart Money Management</Text>
             <View style={[s.versionBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
               <Text style={s.versionText}>v{APP_VERSION} · Build {BUILD_NUMBER}</Text>
@@ -66,10 +74,10 @@ export default function AboutScreen() {
         {/* Description */}
         <FadeInView delay={140} slideFrom="bottom" distance={14}>
           <View style={[s.section, { backgroundColor: theme.surface }]}>
-            <Text style={[s.sectionTitle, { color: theme.text }]}>About Rabbit Tracker</Text>
+            <Text style={[s.sectionTitle, { color: theme.text }]}>About AbyExpense</Text>
             <Text style={[s.body, { color: theme.textSecondary }]}>
-              Rabbit Tracker is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits — all secured with cutting-edge face recognition technology.{'\n\n'}
-              Built with privacy-first principles, Rabbit Tracker never connects to your bank accounts. You stay in full control of your data.
+              AbyExpense is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits — all secured with cutting-edge face recognition technology.{'\n\n'}
+              Built with privacy-first principles, AbyExpense never connects to your bank accounts. You stay in full control of your data.
             </Text>
           </View>
         </FadeInView>
@@ -152,6 +160,7 @@ const s = StyleSheet.create({
 
   brandCard: { alignItems: 'center', marginHorizontal: 20, marginTop: 20, borderRadius: 24, paddingVertical: 32, paddingHorizontal: 24 },
   logoImg:   { width: 80, height: 80, marginBottom: 12 },
+  logoTile:  { width: 96, height: 96, borderRadius: 24, overflow: 'hidden', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
   appName:   { fontSize: 26, fontWeight: '900', color: '#fff', letterSpacing: 1, marginBottom: 4 },
   tagline:   { fontSize: 13, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, marginBottom: 16 },
   versionBadge:{ borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6 },
