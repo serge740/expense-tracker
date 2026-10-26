@@ -28,9 +28,15 @@ export function isWebAppPath(path: string): boolean {
   return WEB_PAGES.has(path) || /^\/app(\/|$)/.test(path);
 }
 
-/** Where the built web app is: FRONTEND_DIST, or ../frontend/dist next to the backend folder. */
+/**
+ * Where the built web app is, in this order: FRONTEND_DIST if set; the copy inside the backend (backend/web, made by
+ * "npm run build:web"); otherwise the frontend's own build output next to the backend folder.
+ */
 export function webAppDir(): string {
-  return resolve(process.env.FRONTEND_DIST || join(process.cwd(), '..', 'frontend', 'dist'));
+  if (process.env.FRONTEND_DIST) return resolve(process.env.FRONTEND_DIST);
+  const own = join(process.cwd(), 'web');
+  if (existsSync(join(own, 'index.html'))) return own;
+  return resolve(process.cwd(), '..', 'frontend', 'dist');
 }
 
 /**
