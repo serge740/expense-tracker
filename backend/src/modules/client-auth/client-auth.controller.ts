@@ -19,6 +19,7 @@ import { Response } from 'express';
 import { ClientAuthService } from './client-auth.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
+import { GoogleCodeDto } from './dto/google-code.dto';
 import { AppleAuthDto } from './dto/apple-auth.dto';
 import { FacebookAuthDto } from './dto/facebook-auth.dto';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
@@ -73,6 +74,17 @@ export class ClientAuthController {
   async googleAuth(@Body() dto: GoogleAuthDto, @Res() res: Response) {
     try {
       const result = await this.clientAuthService.googleAuth(dto);
+      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
+      return res.json(result);
+    } catch (error: any) {
+      throw new HttpException(error.message || 'Google auth failed', error.status || 400);
+    }
+  }
+
+  @Post('google-code')
+  async googleCode(@Body() dto: GoogleCodeDto, @Res() res: Response) {
+    try {
+      const result = await this.clientAuthService.googleCodeAuth(dto);
       res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
       return res.json(result);
     } catch (error: any) {

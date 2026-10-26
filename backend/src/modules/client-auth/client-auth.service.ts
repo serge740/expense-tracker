@@ -18,6 +18,7 @@ import { EmailService } from '../../global/email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterClientDto } from './dto/register-client.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
+import { GoogleCodeDto } from './dto/google-code.dto';
 import { AppleAuthDto } from './dto/apple-auth.dto';
 import { FacebookAuthDto } from './dto/facebook-auth.dto';
 
@@ -326,6 +327,20 @@ export class ClientAuthService implements OnModuleInit {
     }
 
     return this.issueTokenPair(client);
+  }
+
+  /**
+   * Google sign-in on the web: the popup gives a one-time code, which only this server (it holds the client secret)
+   * can exchange for the person's Google ID token. From there it is the same as the phone sign-in.
+   */
+  async googleCodeAuth(dto: GoogleCodeDto): Promise<AuthResult> {
+    const secret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!process.env.GOOGLE_CLIENT_ID || !secret) throw new BadRequestException('Google sign-in is not set up on the server');
+    // "postmessage" is the redirect address Google uses for its own popup.
+    const exchange = new OAuth2Client(process.env.GOOGLE_CLIENT_ID, secret, 'postmessage');
+    const { tokens } = await exchange.getToken(dto.code).catch(() => { throw new UnauthorizedException('Google sign-in expired. Please try again.'); });
+    if (!tokens.id_token) throw new UnauthorizedException('Google did not return an identity token');
+    return this.googleAuth({ idToken: tokens.id_token, phone: dto.phone });
   }
 
   // ── Refresh Token (rotate) ────────────────────────────────────────────────
