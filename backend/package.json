@@ -8,6 +8,7 @@
   "scripts": {
     "build": "nest build",
     "build:web": "node scripts/build-web.mjs",
+    "check:boot": "ts-node scripts/boot-check.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest dist/main.js",
     "start:dev": "nest start --watch",

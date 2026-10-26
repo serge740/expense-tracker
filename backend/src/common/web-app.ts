@@ -30,13 +30,17 @@ export function isWebAppPath(path: string): boolean {
 
 /**
  * Where the built web app is, in this order: FRONTEND_DIST if set; the copy inside the backend (backend/web, made by
- * "npm run build:web"); otherwise the frontend's own build output next to the backend folder.
+ * "npm run build:web") found relative to this file, so it does not matter which folder the server was started from;
+ * the same folder relative to the start folder; otherwise the frontend's own build output next to the backend folder.
+ * The inputs are parameters only so tests can try each case.
  */
-export function webAppDir(): string {
-  if (process.env.FRONTEND_DIST) return resolve(process.env.FRONTEND_DIST);
-  const own = join(process.cwd(), 'web');
-  if (existsSync(join(own, 'index.html'))) return own;
-  return resolve(process.cwd(), '..', 'frontend', 'dist');
+export function webAppDir(env: NodeJS.ProcessEnv = process.env, cwd: string = process.cwd(), here: string = __dirname): string {
+  if (env.FRONTEND_DIST) return resolve(env.FRONTEND_DIST);
+  // This file is backend/src/common (running from source) or backend/dist/common (built): either way backend/web is two levels up.
+  for (const dir of [join(here, '..', '..', 'web'), join(cwd, 'web')]) {
+    if (existsSync(join(dir, 'index.html'))) return dir;
+  }
+  return resolve(cwd, '..', 'frontend', 'dist');
 }
 
 /**

@@ -39,46 +39,49 @@ describe('cacheHeaderFor', () => {
   });
 });
 
+
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join as joinPath, resolve as resolvePath } from 'path';
 import { webAppDir } from './web-app';
 
 describe('webAppDir (where the built web app is read from)', () => {
-  const originalCwd = process.cwd();
-  const originalEnv = process.env.FRONTEND_DIST;
   let tmp: string;
+  const site = (...parts: string[]) => {
+    const dir = joinPath(tmp, ...parts);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(joinPath(dir, 'index.html'), '<html>');
+    return dir;
+  };
+  beforeEach(() => { tmp = mkdtempSync(joinPath(tmpdir(), 'webdir-')); });
+  afterEach(() => rmSync(tmp, { recursive: true, force: true }));
 
-  beforeEach(() => {
-    delete process.env.FRONTEND_DIST;
-    tmp = mkdtempSync(joinPath(tmpdir(), 'webdir-'));
-    process.chdir(tmp);
-  });
-  afterEach(() => {
-    process.chdir(originalCwd);
-    if (originalEnv === undefined) delete process.env.FRONTEND_DIST; else process.env.FRONTEND_DIST = originalEnv;
-    rmSync(tmp, { recursive: true, force: true });
-  });
+  // A pretend backend: <tmp>/backend/dist/common is "this file", <tmp>/backend/web is the built copy.
+  const here = () => { const d = joinPath(tmp, 'backend', 'dist', 'common'); mkdirSync(d, { recursive: true }); return d; };
 
   it('uses FRONTEND_DIST when it is set, over everything else', () => {
-    mkdirSync(joinPath(tmp, 'web'));
-    writeFileSync(joinPath(tmp, 'web', 'index.html'), '<html>');
-    process.env.FRONTEND_DIST = joinPath(tmp, 'elsewhere');
-    expect(webAppDir()).toBe(resolvePath(joinPath(tmp, 'elsewhere')));
+    site('backend', 'web');
+    expect(webAppDir({ FRONTEND_DIST: joinPath(tmp, 'elsewhere') }, joinPath(tmp, 'backend'), here())).toBe(resolvePath(joinPath(tmp, 'elsewhere')));
   });
 
-  it('then uses the copy inside the backend (backend/web) when it has been built', () => {
-    mkdirSync(joinPath(tmp, 'web'));
-    writeFileSync(joinPath(tmp, 'web', 'index.html'), '<html>');
-    expect(webAppDir()).toBe(joinPath(process.cwd(), 'web'));
+  it('finds backend/web next to the code, whichever folder the server was started from', () => {
+    const web = site('backend', 'web');
+    expect(webAppDir({}, tmp /* started from the repository root */, here())).toBe(joinPath(here(), '..', '..', 'web'));
+    expect(webAppDir({}, joinPath(tmp, 'backend'), here())).toBe(joinPath(here(), '..', '..', 'web'));
+    expect(resolvePath(joinPath(here(), '..', '..', 'web'))).toBe(resolvePath(web));
   });
 
-  it('falls back to the frontend folder\'s own build when there is no copy', () => {
-    expect(webAppDir()).toBe(resolvePath(process.cwd(), '..', 'frontend', 'dist'));
+  it('also finds backend/web in the start folder when the code is somewhere else', () => {
+    const web = site('start', 'web');
+    expect(webAppDir({}, joinPath(tmp, 'start'), joinPath(tmp, 'nowhere', 'a'))).toBe(web);
+  });
+
+  it('falls back to the frontend build next to the backend when there is no copy', () => {
+    expect(webAppDir({}, joinPath(tmp, 'backend'), here())).toBe(resolvePath(tmp, 'frontend', 'dist'));
   });
 
   it('ignores an empty web folder (no index.html)', () => {
-    mkdirSync(joinPath(tmp, 'web'));
-    expect(webAppDir()).toBe(resolvePath(process.cwd(), '..', 'frontend', 'dist'));
+    mkdirSync(joinPath(tmp, 'backend', 'web'), { recursive: true });
+    expect(webAppDir({}, joinPath(tmp, 'backend'), here())).toBe(resolvePath(tmp, 'frontend', 'dist'));
   });
 });

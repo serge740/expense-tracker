@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
-import { ClientAuthModule } from '../client-auth/client-auth.module';
+import { JwtModule } from '@nestjs/jwt';
 import { WebPushController } from './web-push.controller';
 import { WebPushService } from './web-push.service';
 
+// JwtModule (what the sign-in guard needs) is imported directly, NOT ClientAuthModule: ClientAuthModule reaches this
+// module through NotificationsModule, so importing it here would make the two import each other and crash the server on start-up.
 @Module({
-  imports: [ClientAuthModule],
+  imports: [JwtModule.register({})],
   controllers: [WebPushController],
   providers: [WebPushService],
   exports: [WebPushService],
