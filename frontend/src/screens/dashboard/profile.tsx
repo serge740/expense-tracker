@@ -19,6 +19,7 @@ import { useCurrency } from '@/context/currency-context';
 import { usePreferences } from '@/context/preferences-context';
 import { useI18n } from '@/context/language-context';
 import { usePwaInstall } from '@/context/pwa-install-context';
+import { useAppUpdate } from '@/context/app-update-context';
 import { LANGUAGES } from '@/i18n/strings';
 import { Section, Row, toneColors } from '@/components/settings/ui';
 
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const { prefs, formatTime } = usePreferences();
   const { t, language, formatDate } = useI18n();
   const { canInstall, isInstalled, isIos, install } = usePwaInstall();
+  const { available: updateAvailable } = useAppUpdate();
 
   const [profile, setProfile]       = useState<ClientProfile | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -240,6 +242,9 @@ export default function ProfileScreen() {
                    value={languageLabel ? `${languageLabel.flag} ${languageLabel.native}` : ''}
                    onPress={go('/(dashboard)/(settings)/appearance')} />
               <Row icon="devices" title={t('row.devices')} sub={t('row.devicesSub')} onPress={go('/(dashboard)/(settings)/devices')} />
+              <Row icon="system-update" title={t('upd.title')} sub={t('upd.rowSub')}
+                   badge={updateAvailable ? { label: t('upd.badge'), tone: 'info' } : undefined}
+                   onPress={go('/(dashboard)/(settings)/app-updates')} />
               {!isInstalled && (
                 <Row icon="install-mobile" title={t('pwa.installBtn')} sub={t('pwa.installHint')}
                      onPress={() => {

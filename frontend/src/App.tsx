@@ -12,6 +12,7 @@ import { CurrencyProvider } from '@/context/currency-context';
 import { PreferencesProvider } from '@/context/preferences-context';
 import { LanguageProvider } from '@/context/language-context';
 import { PwaInstallProvider } from '@/context/pwa-install-context';
+import { AppUpdateProvider } from '@/context/app-update-context';
 
 function Shell() {
   const theme = useAppTheme();
@@ -52,7 +53,9 @@ export default function App() {
         <PreferencesProvider>
           <LanguageProvider>
             <PwaInstallProvider>
-              <Shell />
+              <AppUpdateProvider>
+                <Shell />
+              </AppUpdateProvider>
             </PwaInstallProvider>
           </LanguageProvider>
         </PreferencesProvider>

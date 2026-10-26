@@ -26,6 +26,7 @@ import Budget from '@/screens/dashboard/budget';
 import TransactionDetail from '@/screens/dashboard/transaction-detail';
 
 import About from '@/screens/settings/about';
+import AppUpdates from '@/screens/settings/app-updates';
 import Appearance from '@/screens/settings/appearance';
 import Currency from '@/screens/settings/currency';
 import DateTime from '@/screens/settings/date-time';
@@ -67,6 +68,7 @@ const dashboardScreens: RouteObject[] = [
   { path: 'transaction-detail', element: <TransactionDetail /> },
   // Settings
   { path: 'about', element: <About /> },
+  { path: 'app-updates', element: <AppUpdates /> },
   { path: 'appearance', element: <Appearance /> },
   { path: 'currency', element: <Currency /> },
   { path: 'date-time', element: <DateTime /> },

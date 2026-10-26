@@ -8,6 +8,7 @@ import { PushProvider } from '@/context/push-context';
 import { SoundProvider } from '@/context/sound-context';
 import { InstallPrompt, NotificationToaster } from '@/components/push/prompts';
 import { CustomTabBar } from '@/components/custom-tab-bar';
+import { UpdateBanner } from '@/components/update-banner';
 import { ReminderModalHost } from '@/components/reminders/reminder-host';
 import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
 import { registerDevice } from '@/services/device.service';
@@ -38,6 +39,7 @@ export default function DashboardLayout() {
           <ReminderModalHost />
           <NotificationToaster />
           <InstallPrompt />
+          <UpdateBanner />
         </SoundProvider>
       </NotificationProvider>
     </PushProvider>

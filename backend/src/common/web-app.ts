@@ -4,13 +4,13 @@ import * as express from 'express';
 import type { INestApplication } from '@nestjs/common';
 
 /**
- * Caching rules for the built files. The service worker and the manifest must never be cached, or an update
+ * Caching rules for the built files. The service worker, the manifest and version.json (what the app asks to learn that a new version exists) must never be cached, or an update
  * would not reach people; the numbered files in /assets never change, so they can be kept for a year.
  */
 export function cacheHeaderFor(path: string): string {
   const parts = path.split(/[\\/]/);
   const name = parts[parts.length - 1];
-  if (name === 'sw.js' || name === 'manifest.webmanifest') return 'no-cache';
+  if (name === 'sw.js' || name === 'manifest.webmanifest' || name === 'version.json') return 'no-cache';
   if (parts.includes('assets')) return 'public, max-age=31536000, immutable';
   return 'public, max-age=3600';
 }

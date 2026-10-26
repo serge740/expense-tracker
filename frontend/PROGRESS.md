@@ -68,6 +68,11 @@ currency, preferences, notifications), the passkey flow (browser WebAuthn), live
   subscribes through Microsoft's push service, a push delivered to the worker shows a notification) — all pass; service worker unit tests;
   server tests; `backend/scripts/web-app-check.ts` (headers, icons).
 
+## App updates (Settings → App updates)
+- Every build is stamped (`version` from package.json + build time) in the app and in `/version.json` (written by the "version-file" plugin in vite.config.ts, never cached by the backend). The app compares the two: shortly after opening, when you come back to it, and every 30 minutes (can be switched off). A different stamp = update waiting: a banner above the tab bar, a "New" badge on the Settings row, and the page has Check / Update now.
+- Update now = ask the service worker to update, then reload the page (pages are never cached, so it comes back new). The page is src/screens/settings/app-updates.tsx; the logic is src/lib/app-update.ts and src/context/app-update-context.tsx.
+- An installed app keeps the icon and name it was installed with (the phone stores them at install time): Android refreshes them by itself within a day or two, iPhone never does, desktop Chrome/Edge may ask. The page says so for the platform it is on.
+
 ### To switch it on for real
 1. Apply the database migrations (the newest is `20261027090000_web_push`): `npx prisma migrate deploy` in `backend`. Back up the hosted database first.
 2. Restart the backend. `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` are already in `backend/.env`; **put the same two values in Render's

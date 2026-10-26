@@ -29,6 +29,7 @@ describe('cacheHeaderFor', () => {
   it('never caches the service worker or the manifest, so updates reach people', () => {
     expect(cacheHeaderFor('D:\\site\\dist\\sw.js')).toBe('no-cache');
     expect(cacheHeaderFor('/site/dist/manifest.webmanifest')).toBe('no-cache');
+    expect(cacheHeaderFor('/site/dist/version.json')).toBe('no-cache');
   });
   it('keeps the numbered build files for a year', () => {
     expect(cacheHeaderFor('/site/dist/assets/index-AbC123.js')).toContain('immutable');
