@@ -1,32 +1,34 @@
 /**
- * An expo-router look-alike on top of react-router: the same `router.push('/(dashboard)/wallets')` calls,
- * `useLocalSearchParams`, `useFocusEffect` and `Redirect`, so ported screens need no changes to navigate.
+ * Navigation for the ported screens, built on react-router-dom's own hooks. The router itself is the standard
+ * <BrowserRouter> (see App.tsx); nothing here creates one. Screens that call `router.push('/(dashboard)/wallets')`
+ * (as they did on the phone) use the very same `navigate` function that react-router gives to components.
  */
-import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useParams, type NavigateFunction } from 'react-router-dom';
 import { useEffect, useMemo, type ReactElement } from 'react';
 import { toWebPath, type Href } from './paths';
 
-type RouteObjects = Parameters<typeof createBrowserRouter>[0];
+let navigateFn: NavigateFunction | null = null;
 
-let instance: ReturnType<typeof createBrowserRouter> | null = null;
-
-export function createAppRouter(routes: RouteObjects) {
-  instance = createBrowserRouter(routes);
-  return instance;
+/** Mount once, inside <BrowserRouter>: hands react-router's `navigate` to the `router` object below. */
+export function NavigationBridge(): null {
+  navigateFn = useNavigate();
+  return null;
 }
 
-const nav = () => {
-  if (!instance) throw new Error('The router has not been created yet');
-  return instance;
+/** Before the router has mounted (it should not happen), fall back to a normal page load. */
+const go = (to: string, replace: boolean) => {
+  if (navigateFn) navigateFn(to, { replace });
+  else if (replace) window.location.replace(to);
+  else window.location.assign(to);
 };
 
 export const router = {
-  push: (href: Href) => { void nav().navigate(toWebPath(href)); },
-  navigate: (href: Href) => { void nav().navigate(toWebPath(href)); },
-  replace: (href: Href) => { void nav().navigate(toWebPath(href), { replace: true }); },
-  back: () => { void nav().navigate(-1); },
+  push: (href: Href) => go(toWebPath(href), false),
+  navigate: (href: Href) => go(toWebPath(href), false),
+  replace: (href: Href) => go(toWebPath(href), true),
+  back: () => { if (navigateFn) navigateFn(-1); else window.history.back(); },
   canGoBack: () => (window.history.state?.idx ?? 0) > 0,
-  dismiss: () => { void nav().navigate(-1); },
+  dismiss: () => { if (navigateFn) navigateFn(-1); else window.history.back(); },
 };
 
 export const useRouter = () => router;

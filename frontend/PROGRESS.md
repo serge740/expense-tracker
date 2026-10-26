@@ -10,12 +10,21 @@ Run: `npm run dev` · `npm run build` · `npm test` · `npm run typecheck`
 - `src/rn/` — my own View, Text, TouchableOpacity, ScrollView, FlatList, TextInput, Switch, Modal, Alert, Image,
   SafeAreaView, `Animated`/`Easing`, LinearGradient, SVG, and `style.ts`, which turns React Native styles into CSS.
   A screen is ported by changing its imports to `@/rn`; its StyleSheet values stay as they were.
-- `src/router/` — `router.push('/(dashboard)/wallets')` still works; addresses are translated (`/app/wallets`).
+- `src/router/` — the router is react-router-dom's standard `<BrowserRouter>` + `useRoutes` (App.tsx, routes.tsx); the app creates no router of
+  its own. `router.push('/(dashboard)/wallets')` in the screens calls that router's own `navigate` (through `NavigationBridge`); addresses are
+  translated (`/app/wallets`). `npm run check:nav` clicks through the app in the development server and checks the address AND the screen change
+  (it exists because navigation once broke only in development, where React runs everything twice).
 - `src/lib/shims/` — browser versions of the phone's image picker, document picker, camera, storage.
 - Icons: the Material Icons font, so every icon name from the phone app works unchanged. Fonts: Poppins.
 - The app is a phone-width column (max 430px), centred on wider screens.
-- One address for web app and API: the Vite dev server forwards API paths to the backend; in production the backend
-  serves `frontend/dist`. (Passkeys need that. `RP_ID` and `ORIGIN` live only in `backend/.env`, never in the frontend.)
+- One address for web app and API: the Vite dev server forwards API paths to the backend; in production the backend serves the web app
+  itself. (Passkeys need that. `RP_ID` and `ORIGIN` live only in `backend/.env`, never in the frontend.)
+- **Putting the web app in the backend:** run `npm run build:web` in `backend`. It builds the web app and copies it into `backend/web`
+  (ignored by git); the backend serves that folder. Lookup order: `FRONTEND_DIST` if set, then `backend/web`, then `../frontend/dist`.
+  **Chosen setup for Render: Root Directory stays `backend`, and the built `backend/web` folder is COMMITTED** (Render cannot see files outside
+  its root directory: https://render.com/docs/monorepo-support). Render's build command stays the normal `npm install && npm run build`; its
+  start command stays `npm run start:prod`. After ANY change to the web app, do this before pushing:
+  `cd backend && npm run build:web`, then commit `backend/web` together with the change. (Forgetting it means the hosted site shows the old app.)
 
 ## Screens: all 37 ported
 | Area | Screens |

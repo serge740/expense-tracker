@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "build:mock": "vite build --mode development --outDir dist-mock"
+    "build:mock": "vite build --mode development --outDir dist-mock",
+    "check:nav": "node scripts/nav-check.mjs",
+    "check:pwa": "node scripts/pwa-check.mjs"
   },
   "dependencies": {
     "axios": "^1.20.0",

@@ -1,4 +1,5 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { useMemo } from 'react';
+import { Navigate, Outlet, useRoutes } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { getToken } from '@/services/client-auth.service';
 import Welcome from '@/screens/Welcome';
@@ -92,4 +93,10 @@ export function createRoutes(): RouteObject[] {
     { element: <RequireAuth />, children: [{ path: '/app', element: <DashboardLayout />, children: dashboardScreens }] },
     { path: '*', element: <NotFound /> },
   ];
+}
+
+/** The screens, drawn by react-router-dom's own <Routes> machinery inside the <BrowserRouter> in App.tsx. */
+export function AppRoutes() {
+  const routes = useMemo(createRoutes, []);
+  return useRoutes(routes);
 }
