@@ -5,6 +5,7 @@ import { useI18n } from '@/context/language-context';
 import { usePush } from '@/context/push-context';
 import { usePwaInstall } from '@/context/pwa-install-context';
 import type { PushDevice } from '@/lib/push';
+import { isIosDevice } from '@/lib/platform';
 
 type Tone = 'neutral' | 'ok' | 'warn';
 
@@ -38,7 +39,7 @@ export function PushPanel() {
   const { status, devices, enable, attach, turnOff, test, refresh } = usePush();
   const [label, setLabel] = useState('');
   const [busy, setBusy] = useState(false);
-  const isIos = /iPhone|iPad/.test(navigator.userAgent);
+  const isIos = isIosDevice();
   const mine = devices.find(d => d.endpointHash === status.thisHash);
 
   const run = async (work: () => Promise<unknown>) => { setBusy(true); try { await work(); } finally { setBusy(false); } };
@@ -177,7 +178,7 @@ export function DeviceList() {
 export function InstallPanel() {
   const theme = useAppTheme();
   const { t } = useI18n();
-  const { canInstall, isInstalled, isIos, install } = usePwaInstall();
+  const { canInstall, isInstalled, isIos, isInAppBrowser, install } = usePwaInstall();
   const [busy, setBusy] = useState(false);
   const text = (v: string, strong = false) => <Text style={{ fontSize: 13, color: strong ? theme.text : theme.textSecondary, fontWeight: strong ? '700' : '400', lineHeight: 19 }}>{v}</Text>;
 
@@ -201,7 +202,7 @@ export function InstallPanel() {
       </Panel>
     );
   }
-  if (isIos()) return <Panel>{text(t('pwa.iosTitle'), true)}<View style={{ marginTop: 4 }}>{text(t('pwa.iosText'))}</View></Panel>;
+  if (isIos()) return <Panel>{text(t('pwa.iosTitle'), true)}<View style={{ marginTop: 4 }}>{text(t(isInAppBrowser() ? 'pwa.iosInApp' : 'pwa.iosText'))}</View></Panel>;
   return <Panel>{text(t('pwa.notYet'))}</Panel>;
 }
 

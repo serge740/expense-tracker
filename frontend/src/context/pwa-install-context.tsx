@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { isInAppBrowser, isIosDevice } from '@/lib/platform';
 
 interface InstallEvent extends Event {
   prompt: () => Promise<void>;
@@ -9,6 +10,8 @@ interface PwaInstallValue {
   canInstall: boolean;
   isInstalled: boolean;
   isIos: () => boolean;
+  /** iPhone/iPad inside another app (Instagram, Facebook...): it has to be opened in Safari first. */
+  isInAppBrowser: () => boolean;
   install: () => Promise<'accepted' | 'dismissed' | null>;
 }
 
@@ -44,7 +47,7 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
     return (await event.userChoice).outcome;
   };
 
-  const value: PwaInstallValue = { canInstall, isInstalled, isIos: () => /iPhone|iPad/.test(navigator.userAgent), install };
+  const value: PwaInstallValue = { canInstall, isInstalled, isIos: () => isIosDevice(), isInAppBrowser: () => isInAppBrowser(), install };
   return <PwaInstallContext.Provider value={value}>{children}</PwaInstallContext.Provider>;
 }
 

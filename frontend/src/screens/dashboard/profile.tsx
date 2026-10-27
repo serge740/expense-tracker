@@ -35,7 +35,7 @@ export default function ProfileScreen() {
   const { currency } = useCurrency();
   const { prefs, formatTime } = usePreferences();
   const { t, language, formatDate } = useI18n();
-  const { canInstall, isInstalled, isIos, install } = usePwaInstall();
+  const { canInstall, isInstalled, isIos, isInAppBrowser, install } = usePwaInstall();
   const { available: updateAvailable } = useAppUpdate();
 
   const [profile, setProfile]       = useState<ClientProfile | null>(null);
@@ -250,7 +250,7 @@ export default function ProfileScreen() {
                      onPress={() => {
                        // One tap where the browser offers it; otherwise say where to find it (iPhone has no one-tap install).
                        if (canInstall) void install();
-                       else if (isIos()) Alert.alert(t('pwa.iosTitle'), t('pwa.iosText'));
+                       else if (isIos()) Alert.alert(t('pwa.iosTitle'), t(isInAppBrowser() ? 'pwa.iosInApp' : 'pwa.iosText'));
                        else Alert.alert(t('pwa.title'), t('pwa.notYet'));
                      }} />
               )}
