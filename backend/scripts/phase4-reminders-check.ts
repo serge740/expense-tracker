@@ -9,6 +9,7 @@
 import { PrismaService } from '../src/prisma/prisma.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DebtsService } from '../src/modules/debts/debts.service';
+import { DebtPlanService } from '../src/modules/debts/debt-plan.service';
 import { RemindersTickController } from '../src/modules/reminders/reminders.controller';
 import { buildLadder, zonedToUtc } from '../src/modules/reminders/reminder-policy';
 import { makeReminders } from './_fakes';
@@ -37,7 +38,7 @@ async function main() {
   const notifications = new NotificationsService(prisma);
   notifications.notify = () => undefined;
   const { reminders, push, email } = makeReminders(prisma);
-  const debts = new DebtsService(prisma, notifications, reminders);
+  const debts = new DebtsService(prisma, notifications, reminders, new DebtPlanService(prisma));
 
   // The tick is global, so start from an empty reminder table (scratch database only, guarded above).
   await prisma.reminder.deleteMany({});

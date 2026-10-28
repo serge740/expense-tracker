@@ -1,6 +1,13 @@
 import { DebtRole, DebtStatus } from '../../../generated/prisma';
 
 export type DebtKindName = 'BORROWED' | 'LENT';
+
+/**
+ * What people call each kind: money they borrowed is a "loan", money other people owe them is a "debt".
+ * The stored values stay BORROWED and LENT; only the words in messages use these.
+ */
+export const nounOf = (kind: DebtKindName | string): 'loan' | 'debt' => (kind === 'LENT' ? 'debt' : 'loan');
+export const capitalNoun = (kind: DebtKindName | string): 'Loan' | 'Debt' => (kind === 'LENT' ? 'Debt' : 'Loan');
 export type DebtEvent = 'principal' | 'payment';
 
 export const round2 = (n: number) => Math.round(n * 100) / 100;

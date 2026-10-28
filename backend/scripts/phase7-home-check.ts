@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { TransactionService } from '../src/modules/transaction/transaction.service';
 import { DebtsService } from '../src/modules/debts/debts.service';
+import { DebtPlanService } from '../src/modules/debts/debt-plan.service';
 import { ScheduledService } from '../src/modules/scheduled/scheduled.service';
 import { HomeService } from '../src/modules/home/home.service';
 import { blankRule } from '../src/modules/scheduled/recurrence';
@@ -33,7 +34,7 @@ async function main() {
   notifications.notify = () => undefined;
   const { reminders } = makeReminders(prisma);
   const transactions = new TransactionService(prisma, notifications);
-  const debts = new DebtsService(prisma, notifications, reminders);
+  const debts = new DebtsService(prisma, notifications, reminders, new DebtPlanService(prisma));
   const scheduled = new ScheduledService(prisma, transactions, notifications, reminders);
   const home = new HomeService(prisma, debts, scheduled);
 

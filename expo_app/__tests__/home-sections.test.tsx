@@ -23,17 +23,17 @@ describe('LoansBar', () => {
   const loans = { out: 170000, in: 40000, borrowed: 200000 };
   test('with loans on, says what is in the figures and that borrowed money is not income', async () => {
     await wrap(<LoansBar loans={loans} includeLoans onToggle={() => {}} />);
-    expect(screen.getByText('Loans in these figures: spent 170,000 · received 40,000')).toBeTruthy();
+    expect(screen.getByText('Loans & debts in these figures: spent 170,000 · received 40,000')).toBeTruthy();
     expect(screen.getByText('Borrowed 200,000 is never income')).toBeTruthy();
   });
   test('with loans off, says what was left out', async () => {
     await wrap(<LoansBar loans={loans} includeLoans={false} onToggle={() => {}} />);
-    expect(screen.getByText('Loans left out: 170,000 out · 40,000 in')).toBeTruthy();
+    expect(screen.getByText('Loans & debts left out: 170,000 out · 40,000 in')).toBeTruthy();
   });
   test('says nothing about loans when there were none this month, but the switch is still there', async () => {
     await wrap(<LoansBar loans={{ out: 0, in: 0, borrowed: 0 }} includeLoans onToggle={() => {}} />);
-    expect(screen.queryByText(/Loans in these figures/)).toBeNull();
-    expect(screen.getByLabelText('Include loans')).toBeTruthy();
+    expect(screen.queryByText(/Loans & debts in these figures/)).toBeNull();
+    expect(screen.getByLabelText('Include loans & debts')).toBeTruthy();
   });
   test('no "borrowed" note when nothing was borrowed', async () => {
     await wrap(<LoansBar loans={{ out: 100, in: 0, borrowed: 0 }} includeLoans onToggle={() => {}} />);
@@ -42,7 +42,7 @@ describe('LoansBar', () => {
   test('the switch reports its new value', async () => {
     const onToggle = jest.fn();
     await wrap(<LoansBar loans={loans} includeLoans onToggle={onToggle} />);
-    await fireEvent(screen.getByLabelText('Include loans'), 'valueChange', false);
+    await fireEvent(screen.getByLabelText('Include loans & debts'), 'valueChange', false);
     expect(onToggle).toHaveBeenCalledWith(false);
   });
 });
@@ -160,14 +160,14 @@ describe('NetWorthRows', () => {
 describe('FeedChips', () => {
   test('six chips, the chosen one is marked', async () => {
     await wrap(<FeedChips value="debt" onChange={() => {}} />);
-    for (const l of ['All', 'Income', 'Expense', 'Debt', 'Credit', 'Scheduled']) expect(screen.getByText(l)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Debt', selected: true })).toBeTruthy();
+    for (const l of ['All', 'Income', 'Expense', 'Loan', 'Debt', 'Scheduled']) expect(screen.getByText(l)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Loan', selected: true })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'All', selected: true })).toBeNull();
   });
   test('tapping a chip reports it', async () => {
     const onChange = jest.fn();
     await wrap(<FeedChips value="all" onChange={onChange} />);
-    await fireEvent.press(screen.getByText('Credit'));
+    await fireEvent.press(screen.getByText('Debt'));
     await fireEvent.press(screen.getByText('Scheduled'));
     expect(onChange.mock.calls).toEqual([['credit'], ['scheduled']]);
   });

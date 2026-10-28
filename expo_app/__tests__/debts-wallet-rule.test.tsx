@@ -64,11 +64,11 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('New debt or credit: the wallet choice', () => {
+describe('New loan or debt: the wallet choice', () => {
   const open = async () => {
     await mount();
     await screen.findByText('John');
-    await fireEvent.press(screen.getByLabelText('New debt or credit'));
+    await fireEvent.press(screen.getByLabelText('New loan or debt'));
     await screen.findByText('Borrowed from');
   };
 
@@ -93,7 +93,7 @@ describe('New debt or credit: the wallet choice', () => {
 
   test('a CREDIT keeps the wallet choice, starting on the default wallet', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Credit · I lent'));
+    await fireEvent.press(screen.getByText('Debt · I lent'));
     expect(await screen.findByText(/Money came from/)).toBeTruthy();
     expect(screen.getByText('Bank')).toBeTruthy();
     await fireEvent.changeText(screen.getByPlaceholderText('Name'), 'Cara');
@@ -105,7 +105,7 @@ describe('New debt or credit: the wallet choice', () => {
 
   test('a credit can pick another wallet, or none', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Credit · I lent'));
+    await fireEvent.press(screen.getByText('Debt · I lent'));
     await fireEvent.press(await screen.findByText('MoMo'));
     await fireEvent.changeText(screen.getByPlaceholderText('Name'), 'Cara');
     await fireEvent.changeText(screen.getByPlaceholderText('0'), '4000');
@@ -116,7 +116,7 @@ describe('New debt or credit: the wallet choice', () => {
 
   test('a credit with "None" chosen sends no wallet (it is still recorded by the server)', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Credit · I lent'));
+    await fireEvent.press(screen.getByText('Debt · I lent'));
     await fireEvent.press(await screen.findByText('None'));
     await fireEvent.changeText(screen.getByPlaceholderText('Name'), 'Cara');
     await fireEvent.changeText(screen.getByPlaceholderText('0'), '4000');
@@ -127,9 +127,9 @@ describe('New debt or credit: the wallet choice', () => {
 
   test('switching back from credit to debt hides the wallet choice again and sends none', async () => {
     await open();
-    await fireEvent.press(screen.getByText('Credit · I lent'));
+    await fireEvent.press(screen.getByText('Debt · I lent'));
     expect(await screen.findByText(/Money came from/)).toBeTruthy();
-    await fireEvent.press(screen.getByText('Debt · I borrowed'));
+    await fireEvent.press(screen.getByText('Loan · I borrowed'));
     expect(screen.queryByText(/Money came from/)).toBeNull();
     await fireEvent.changeText(screen.getByPlaceholderText('Name'), 'Aline');
     await fireEvent.changeText(screen.getByPlaceholderText('0'), '5000');
@@ -155,7 +155,7 @@ describe('Debt screen: recording a payment', () => {
   test('a credit keeps "Into wallet", starting on the default wallet', async () => {
     await mount();
     await screen.findByText('John');
-    await fireEvent.press(screen.getByText('Credit'));
+    await fireEvent.press(screen.getByText('Debt'));
     await fireEvent.press(await screen.findByText('Eric'));
     expect(await screen.findByText(/Into wallet/)).toBeTruthy();
     await fireEvent.changeText(screen.getByPlaceholderText('0'), '40,000');

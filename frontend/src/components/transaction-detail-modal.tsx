@@ -6,7 +6,7 @@ import { MaterialIcons } from '@/rn';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Transaction, CATEGORY_ICON, deleteTransaction } from '@/services/transaction.service';
 import { useI18n } from '@/context/language-context';
-import { categoryOf } from '@/constants/categories';
+import { categoryOf, categoryLabelKey } from '@/constants/categories';
 import { useCurrency } from '@/context/currency-context';
 import { router } from '@/router/router';
 
@@ -32,7 +32,7 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
   // Entries created by Debts & loans are changed from the Debts tab only.
   const locked = transaction.category === 'loan';
   const icon  = CATEGORY_ICON[transaction.category] ?? 'receipt';
-  const label = t(`cat.${catDef.id}` as any);
+  const label = t(categoryLabelKey(transaction.category, transaction.type) as any);
   const isPos = transaction.amount >= 0;
 
   const date    = new Date(transaction.date);

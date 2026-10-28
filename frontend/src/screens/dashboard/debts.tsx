@@ -18,6 +18,10 @@ import { WalletChips } from '@/components/wallet/wallet-chips';
 import { CurrencyPicker } from '@/components/wallet/currency-picker';
 import { DateTimeSheet } from '@/components/datetime-sheet';
 import { PayDates } from '@/components/debt/pay-dates';
+import { LoanPlanCard, PlanFields } from '@/components/debt/loan-plan';
+import { RepeatRule } from '@/utils/recurrence';
+import { planAmountError } from '@/utils/debt-plan';
+import { deviceTimeZone } from '@/utils/reminders';
 import { DebtInfo } from '@/components/debt/debt-info';
 import { ReminderRow, RemindSwitch } from '@/components/reminders/reminder-row';
 import { ToneChip } from '@/components/debt/tone-chip';
@@ -399,7 +403,8 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
             </>
           )}
 
-          {/* Pay dates (history kept) */}
+          {/* The estimated payment (loans only) and the pay dates it makes (history kept) */}
+          <LoanPlanCard debt={debt} hidden={hidden} onChanged={onChanged} />
           <PayDates debt={debt} hidden={hidden} onChanged={onChanged} />
 
           {/* Payments */}
@@ -463,6 +468,9 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
   const tomorrowEvening = () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(18, 0, 0, 0); return d; };
   const [dueDate, setDueDate]   = useState<Date | null>(() => (initialKind === 'BORROWED' ? tomorrowEvening() : null));
   const [dateTouched, setDateTouched] = useState(false);
+  // A loan may also say how much you expect to pay each time, and how often, until it is paid off.
+  const [planAmount, setPlanAmount] = useState('');
+  const [planRule, setPlanRule] = useState<RepeatRule | null>(null);
   const [remind, setRemind] = useState(initialKind === 'BORROWED');
   const [remindTouched, setRemindTouched] = useState(false);
   const [note, setNote]         = useState('');
@@ -479,12 +487,16 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
     if (!person.trim()) return Alert.alert(t(kind === 'BORROWED' ? 'add.borrowedFrom' : 'add.lentTo'), t('add.errPerson'));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
     if (kind === 'BORROWED' && !dueDate) return Alert.alert(t('debt2.firstDate'), t('debt2.errPayDate'));
+    const wantsPlan = kind === 'BORROWED' && planAmount.trim().length > 0;
+    if (wantsPlan && planAmountError(planAmount, value)) return Alert.alert(t('plan.cardTitle'), t('plan.errAmount'));
+    if (wantsPlan && !planRule) return Alert.alert(t('plan.cardTitle'), t('plan.errRepeat'));
     setSaving(true);
     try {
       await createDebt({
         kind, person: person.trim(), phone: phone.trim() || undefined, amount: value, currency: cur,
         walletId: kind === 'LENT' ? walletId ?? undefined : undefined, dueDate: dueDate?.toISOString(), note: note.trim() || undefined,
         remind: remind && !!dueDate,
+        ...(wantsPlan ? { planAmount: parseFloat(planAmount.replace(/,/g, '')), planRepeat: planRule!, planTimezone: deviceTimeZone() } : {}),
       });
       onCreated();
     } catch (e: any) {
@@ -570,6 +582,11 @@ function NewDebtBody({ initialKind, wallets, onClose, onCreated }: {
             )}
           </TouchableOpacity>
           <Text style={[s.flowHint, { color: theme.textMuted }]}>{t(kind === 'BORROWED' ? 'debt2.hintDebt' : 'debt2.hintCredit')}</Text>
+
+          {kind === 'BORROWED' && dueDate && (
+            <PlanFields amount={planAmount} onAmount={setPlanAmount} rule={planRule} onRule={setPlanRule} start={dueDate}
+                        loanAmount={parseFloat(amount.replace(/,/g, '')) || 0} toPay={parseFloat(amount.replace(/,/g, '')) || 0} currency={cur} />
+          )}
 
           <View style={{ marginTop: 12 }}>
             <RemindSwitch value={remind && !!dueDate} disabled={!dueDate} onChange={v => { setRemind(v); setRemindTouched(true); }}

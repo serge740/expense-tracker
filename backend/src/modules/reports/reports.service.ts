@@ -2,14 +2,9 @@ import { Injectable, HttpException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import OpenAI from 'openai';
 import { loanFilter } from '../../common/utils/loan-filter';
+import { CATEGORY_LABELS } from '../../common/utils/categories';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-const CATEGORY_LABELS: Record<string, string> = {
-  food: 'Food', transport: 'Transport', shopping: 'Shopping',
-  health: 'Health', entertainment: 'Entertainment', travel: 'Travel',
-  groceries: 'Groceries', salary: 'Salary', other: 'Other', loan: 'Loans',
-};
 
 export interface AiAdvice {
   verdict: 'good' | 'fair' | 'poor';

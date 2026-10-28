@@ -6,11 +6,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { formatMoney } from '@/context/currency-context';
 import type { ActivityItem } from '@/services/wallet.service';
 import { useI18n } from '@/context/language-context';
-
-const CATEGORY_ICON: Record<string, React.ComponentProps<typeof MaterialIcons>['name']> = {
-  food: 'restaurant', transport: 'directions-bus', shopping: 'shopping-bag', health: 'favorite',
-  entertainment: 'movie', travel: 'flight', groceries: 'local-grocery-store', salary: 'work', other: 'category',
-};
+import { categoryOf } from '@/constants/categories';
 
 /**
  * One activity line. `perspectiveWalletId` decides the sign of a transfer
@@ -27,7 +23,7 @@ export function ActivityRow({ item, hidden, perspectiveWalletId }: { item: Activ
   const currency = (isTransfer && incoming ? item.toWallet?.currency : item.wallet?.currency) ?? item.wallet?.currency ?? '';
   const signed = isTransfer && !perspectiveWalletId ? amount : incoming ? amount : -amount;
 
-  const icon = isDebt ? 'handshake' : isTransfer ? (item.exchangeRate ? 'currency-exchange' : 'swap-horiz') : CATEGORY_ICON[item.category] ?? 'receipt';
+  const icon = isDebt ? 'handshake' : isTransfer ? (item.exchangeRate ? 'currency-exchange' : 'swap-horiz') : (item.category ? categoryOf(item.category).icon : 'receipt');
   const tileBg = isTransfer ? theme.primaryBg : incoming ? 'rgba(34,197,94,0.12)' : theme.isDark ? 'rgba(255,255,255,0.06)' : '#F1F5F7';
   const tileFg = isTransfer ? theme.primary : incoming ? '#16A34A' : theme.textSecondary;
   const amountColor = isTransfer && !perspectiveWalletId ? theme.text : incoming ? '#16A34A' : theme.text;

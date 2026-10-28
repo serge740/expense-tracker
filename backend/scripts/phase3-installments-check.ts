@@ -9,6 +9,7 @@
 import { PrismaService } from '../src/prisma/prisma.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DebtsService } from '../src/modules/debts/debts.service';
+import { DebtPlanService } from '../src/modules/debts/debt-plan.service';
 import { makeReminders } from './_fakes';
 
 let failures = 0;
@@ -37,7 +38,7 @@ async function main() {
   await prisma.$connect();
   const notifications = new NotificationsService(prisma);
   notifications.notify = () => undefined;
-  const debts = new DebtsService(prisma, notifications, makeReminders(prisma).reminders);
+  const debts = new DebtsService(prisma, notifications, makeReminders(prisma).reminders, new DebtPlanService(prisma));
 
   const stamp = Date.now();
   const client = await prisma.client.create({

@@ -456,3 +456,22 @@ The "no wallet" question was answered: every debt and credit event is now always
 - [ ] Reports + budget bar
 - [ ] Debts: create, record payment, delete payment, delete debt, Settled tab
 - [ ] Login, passkey screen, notifications inbox
+
+## Categories v2 (category + subcategory sheet)
+Prototype: `design/category-sheet-prototype.html` (approved). Built in the Expo app, the backend and the web app (`frontend/`, same files ported with scripts/port.mjs; `npm run build:web` rebuilds `backend/web`).
+- **Ten categories** people see (spending): Food, Transport, Bills, Shopping, Personal, Entertainment, Giving, Business, Finance, Other. Income: Salary, Business, Freelance, Investments, Gifts, Refunds, Savings, Other. The stored names are unchanged where they can be: `health` = Personal, `gifts` = Giving, `insurance` = Finance.
+- **Retired:** groceries, fuel, travel, rent, utilities, subscriptions, personal_care, education, family. The migration `20261028090000_categories_v2` moves every transaction and scheduled transaction to the new category (setting the subcategory Groceries / Fuel / Rent / Family support where the old name says it). The server also maps them for older app versions (`backend/src/common/utils/categories.ts`).
+- **Subcategories:** about 340 items in `expo_app/constants/category-catalog.ts` (category > group tab > item). Only the item is stored (`subCategory`). Items are English on purpose; category and group names are translated.
+- **Private list:** table `UserSubCategory` (per account, kept apart for spending and income). Saved when a transaction or schedule is saved with a subcategory; `GET /subcategories`, `DELETE /subcategories/:id`.
+- **Screen:** `expo_app/components/category-sheet.tsx` (two steps, group tabs, search that also knows brand names), used by the Add screen.
+- **Before deploying:** back up the database, `npx prisma migrate deploy`, then run `backend/prisma/verify/categories_v2_assertions.sql` (every query must return no rows).
+- **Not done:** on-device check, native-speaker review of the French/Kinyarwanda/Swahili names.
+
+
+## Loans & debts naming, and the estimated loan payment
+- **Names (screens, all four languages, both apps, and the server's own messages and PDF):** money I borrowed is a **Loan** (it was Debt); money other people owe me is a **Debt** (it was Credit). Stored values stay BORROWED / LENT. French uses Emprunt / Créance ("dette" there means what you owe). The tab is now "Loans", the wallets "Loan wallet" and "Debt wallet".
+- **Estimated payment (loans only):** a loan can say how much you expect to pay each time and how often (the same repeat picker as scheduled transactions). The server keeps pay dates ready until the loan is paid off (`backend/src/modules/debts/debt-plan.ts`, `debt-plan.service.ts`; new columns `Debt.planAmount/planRepeat/planStartAt/planTimezone` and `DebtInstallment.fromPlan`, migration `20261029090000_loan_payment_plan`).
+  - A date that is still ahead and made by the plan is re-worked after every change, so extra payments shorten it and the last date asks only for what is left.
+  - Past dates, dates added by hand, and moved or skipped ones are never rewritten. A missed payment stays owed on its own date. A skipped date pushes the end back by one.
+  - Reminders say how much to pay on that date and how much is left in total. Stopping the plan removes only the dates it made.
+  - An hourly job keeps long plans topped up (36 dates ahead at a time).

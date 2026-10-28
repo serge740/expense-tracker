@@ -12,7 +12,7 @@ import { defineConfig } from 'vitest/config';
  */
 const API_PATHS = [
   'client-auth', 'budget', 'debts', 'devices', 'health', 'home', 'notifications', 'receipts',
-  'reminders', 'reports', 'push-notifications', 'scheduled', 'transactions', 'wallets', 'uploads', '.well-known', 'socket.io',
+  'reminders', 'reports', 'push-notifications', 'scheduled', 'subcategories', 'transactions', 'wallets', 'uploads', '.well-known', 'socket.io',
 ];
 
 /**

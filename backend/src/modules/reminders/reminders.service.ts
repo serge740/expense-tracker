@@ -185,6 +185,7 @@ export class RemindersService {
       where: { id: { in: claimed }, status: { in: ['ACTIVE', 'SNOOZED'] } },
       include: {
         debt: true,
+        installment: true,
         occurrence: { include: { schedule: { include: { wallet: { select: { currency: true } } } } } },
         client: { select: { id: true, email: true, firstName: true } },
       },
@@ -226,7 +227,9 @@ export class RemindersService {
       if (r.debt) {
         const debt = r.debt;
         const remaining = remainingOf(Number(debt.amount), Number(debt.paid), Number(debt.writtenOffAmount));
-        const text = reminderMessage({ kind: debt.kind, person: debt.person, remaining, currency: debt.currency, dueAt: r.dueAt, tz: r.timezone, step: step.kind, lang });
+        // The pay date's own amount (an estimated payment, or one the person set), when it has one.
+        const payment = r.installment?.plannedAmount != null ? Number(r.installment.plannedAmount) : null;
+        const text = reminderMessage({ kind: debt.kind, person: debt.person, remaining, payment, currency: debt.currency, dueAt: r.dueAt, tz: r.timezone, step: step.kind, lang });
         return {
           r, ladder, step, remaining, text, label: debt.person as string, currency: debt.currency as string,
           who: debt.kind === 'BORROWED' ? `You pay ${debt.person}` : `Owed by ${debt.person}`,

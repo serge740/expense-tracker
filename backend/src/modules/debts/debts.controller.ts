@@ -21,7 +21,7 @@ export class DebtsController {
     @Query('status') status?: string,
     @Query('archived') archived?: string,
   ) {
-    try { return await this.debts.list(req.client.id, kind, status, archived); } catch (e) { throw fail(e, 'Failed to load debts'); }
+    try { return await this.debts.list(req.client.id, kind, status, archived); } catch (e) { throw fail(e, 'Failed to load loans and debts'); }
   }
 
   @Get('summary')
@@ -49,7 +49,7 @@ export class DebtsController {
 
   @Get(':id')
   async findOne(@Req() req: RequestWithClient, @Param('id') id: string) {
-    try { return await this.debts.findOne(req.client.id, id); } catch (e) { throw fail(e, 'Debt not found'); }
+    try { return await this.debts.findOne(req.client.id, id); } catch (e) { throw fail(e, 'Loan or debt not found'); }
   }
 
   @Get(':id/transactions')
@@ -67,20 +67,21 @@ export class DebtsController {
         writtenOffAmount: d.writtenOffAmount, remaining: d.remaining, spent: d.kind === 'BORROWED' ? d.spent : undefined,
         status: d.status, date: d.date, note: d.note,
         payments: [...d.payments].reverse(), installments: d.installments,
+        plan: d.plan ? { amount: d.plan.amount, finishesAt: d.plan.finishesAt, paymentsLeft: d.plan.paymentsLeft } : null,
       });
       const name = String(d.person).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'statement';
-      return { filename: `${d.kind === 'LENT' ? 'credit' : 'debt'}-${name}.pdf`, base64: pdf.toString('base64') };
+      return { filename: `${d.kind === 'LENT' ? 'debt' : 'loan'}-${name}.pdf`, base64: pdf.toString('base64') };
     } catch (e) { throw fail(e, 'Failed to build the statement'); }
   }
 
   @Post()
   async create(@Req() req: RequestWithClient, @Body() dto: CreateDebtDto) {
-    try { return await this.debts.create(req.client.id, dto); } catch (e) { throw fail(e, 'Could not save debt'); }
+    try { return await this.debts.create(req.client.id, dto); } catch (e) { throw fail(e, 'Could not save the record'); }
   }
 
   @Patch(':id')
   async update(@Req() req: RequestWithClient, @Param('id') id: string, @Body() dto: UpdateDebtDto) {
-    try { return await this.debts.update(req.client.id, id, dto); } catch (e) { throw fail(e, 'Could not update debt'); }
+    try { return await this.debts.update(req.client.id, id, dto); } catch (e) { throw fail(e, 'Could not update the record'); }
   }
 
   @Post(':id/payments')
@@ -140,6 +141,6 @@ export class DebtsController {
 
   @Delete(':id')
   async remove(@Req() req: RequestWithClient, @Param('id') id: string) {
-    try { return await this.debts.remove(req.client.id, id); } catch (e) { throw fail(e, 'Could not delete debt'); }
+    try { return await this.debts.remove(req.client.id, id); } catch (e) { throw fail(e, 'Could not delete the record'); }
   }
 }

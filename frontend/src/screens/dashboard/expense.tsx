@@ -10,13 +10,13 @@ import {
   CATEGORY_ICON, CATEGORY_LABEL, CategorySlug,
 } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
-import { CATEGORIES } from '@/constants/categories';
+import { ALL_CATEGORY_SLUGS, categoryOf } from '@/constants/categories';
 
 type FilterType = 'all' | 'income' | 'expense';
 
 // Colours come from the shared category list (soft tint as background).
 const CATEGORY_COLOR = Object.fromEntries(
-  CATEGORIES.map(c => [c.id, { color: c.color, bg: `${c.color}22` }]),
+  ALL_CATEGORY_SLUGS.map(s => [s, { color: categoryOf(s).color, bg: `${categoryOf(s).color}22` }]),
 ) as Record<CategorySlug, { color: string; bg: string }>;
 
 function fmtSigned(n: number, sym: string) {
@@ -120,20 +120,20 @@ export default function ExpenseScreen() {
           <View style={styles.decorCircle2} />
           <Text style={styles.summaryMonth}>{monthLabel}</Text>
           <View style={styles.summaryRow}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <View style={styles.summaryIconRow}>
                 <View style={styles.summaryIconBg}><MaterialIcons name="arrow-downward" size={14} color="#4ADE80" /></View>
                 <Text style={styles.summaryLabel}>Income</Text>
               </View>
-              <Text style={styles.summaryAmount}>{sym}{totalIncome.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.summaryAmount}>{sym}{totalIncome.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
             </View>
             <View style={styles.summarySeparator} />
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <View style={styles.summaryIconRow}>
                 <View style={styles.summaryIconBg}><MaterialIcons name="arrow-upward" size={14} color="#F87171" /></View>
                 <Text style={styles.summaryLabel}>Spent</Text>
               </View>
-              <Text style={styles.summaryAmount}>{sym}{totalExpense.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.summaryAmount}>{sym}{totalExpense.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</Text>
             </View>
           </View>
         </View>

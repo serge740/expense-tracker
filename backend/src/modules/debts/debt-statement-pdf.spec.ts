@@ -16,6 +16,13 @@ describe('buildDebtStatementPdf', () => {
     expect(pdf.length).toBeGreaterThan(800);
   });
 
+  it('works for a loan with an estimated payment, whether or not the plan reaches the end', async () => {
+    for (const finishesAt of ['2031-02-05T09:00:00Z', null]) {
+      const pdf = await buildDebtStatementPdf({ ...base, plan: { amount: 100000, finishesAt, paymentsLeft: 2 } });
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    }
+  });
+
   it('works for an empty credit, with nothing paid and no dates', async () => {
     const pdf = await buildDebtStatementPdf({ ...base, kind: 'LENT', paid: 0, remaining: 200000 });
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');

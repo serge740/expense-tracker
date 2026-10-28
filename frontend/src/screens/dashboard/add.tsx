@@ -1,6 +1,6 @@
 // Ported from expo_app/app/(dashboard)/add.tsx
 import React, { useCallback, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, TextInput, Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from '@/rn';
+import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { MaterialIcons } from '@/rn';
 import * as ImagePicker from '@/lib/shims/expo-image-picker';
@@ -13,7 +13,9 @@ import { useCurrency, currencyByCode } from '@/context/currency-context';
 import { createTransaction } from '@/services/transaction.service';
 import { processReceipt } from '@/services/receipts.service';
 import { getWallets, Wallet } from '@/services/wallet.service';
-import { CATEGORIES, CategorySlug, categoryOf } from '@/constants/categories';
+import { CategorySlug, canonicalCategory, categoryOf, categoryLabelKey } from '@/constants/categories';
+import { CategorySheet } from '@/components/category-sheet';
+import { useMySubCategories } from '@/hooks/use-my-subcategories';
 import { DatePickerModal } from '@/components/date-picker-modal';
 import { RepeatSheet } from '@/components/repeat-sheet';
 import { ModeChoice, RepeatRow } from '@/components/schedule/schedule-fields';
@@ -21,7 +23,8 @@ import { createScheduled, ScheduleMode } from '@/services/scheduled.service';
 import { RepeatRule } from '@/utils/recurrence';
 import { deviceTimeZone } from '@/utils/reminders';
 import { isScheduledForm, scheduledPayload, scheduleSaveLabel, scheduleStartError } from '@/utils/schedule-form';
-import { WalletChips } from '@/components/wallet/wallet-chips';
+import { PayFromField } from '@/components/add/pay-from';
+import { ReceiptField } from '@/components/add/receipt-field';
 import { getDebts, Debt } from '@/services/debt.service';
 import ENV from '@/env';
 
@@ -30,7 +33,6 @@ const KINDS: { id: Kind; icon: string; label: 'add.expense' | 'add.income' }[] =
   { id: 'EXPENSE', icon: 'arrow-upward',   label: 'add.expense' },
   { id: 'INCOME',  icon: 'arrow-downward', label: 'add.income' },
 ];
-const COLLAPSED = 8;
 
 export default function AddTransactionScreen() {
   const theme = useAppTheme();
@@ -44,7 +46,9 @@ export default function AddTransactionScreen() {
   const [kind, setKind]           = useState<Kind>('EXPENSE');
   const [amount, setAmount]       = useState('');
   const [category, setCategory]   = useState<CategorySlug>('food');
-  const [showAllCats, setShowAllCats] = useState(false);
+  const [subCategory, setSubCategory] = useState<string | null>(null);
+  const [catOpen, setCatOpen]     = useState(false);
+  const { mine, reload: reloadMine, forget } = useMySubCategories();
   const [description, setDescription] = useState('');
   const [wallets, setWallets]     = useState<Wallet[]>([]);
   const [walletId, setWalletId]   = useState<string | null>(null);
@@ -66,15 +70,18 @@ export default function AddTransactionScreen() {
   // The screen stays mounted as a hidden tab: reset from params on every visit.
   useFocusEffect(useCallback(() => {
     const k: Kind = params.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+    reloadMine();
     getDebts().then(ds => setPots(ds.filter(d => d.kind === 'BORROWED' && d.status === 'OPEN' && !d.archived && (d.unspent ?? 0) > 0))).catch(() => setPots([]));
     getWallets().then(list => {
       const usable = list.filter(w => !w.archived);
       setWallets(usable);
       setKind(k);
       setAmount(params.amount ?? '');
-      const preset = CATEGORIES.find(c => c.id === params.category && !c.system);
-      setCategory(preset ? preset.id : k === 'INCOME' ? 'salary' : 'food');
-      setShowAllCats(false);
+      // A category sent in from another screen (the scanner, an older link) may be a retired name: it becomes its new home.
+      const preset = params.category ? canonicalCategory(params.category) : null;
+      const presetCat = preset && categoryOf(preset.id).for.includes(k) && preset.id !== 'loan' ? preset : null;
+      setCategory(presetCat ? presetCat.id : k === 'INCOME' ? 'salary' : 'food');
+      setSubCategory(presetCat?.sub ?? null);
       setDescription(params.description || params.merchant || '');
       const d = params.date ? new Date(params.date) : new Date();
       setDate(isNaN(d.getTime()) ? new Date() : d);
@@ -85,22 +92,23 @@ export default function AddTransactionScreen() {
       const pre = usable.find(w => w.id === params.walletId) ?? usable.find(w => w.isDefault) ?? usable[0];
       setWalletId(pre?.id ?? null);
     }).catch(() => {});
-  }, [params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl]));
+  }, [reloadMine, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl]));
 
   const wallet = wallets.find(w => w.id === walletId) ?? null;
   const currency = wallet?.currency ?? mainCurrency.code;
-  const cats = CATEGORIES.filter(c => !c.system && c.for.includes(kind));
-  const visibleCats = showAllCats ? cats : (() => {
-    const head = cats.slice(0, COLLAPSED);
-    const sel = cats.find(c => c.id === category);
-    return sel && !head.includes(sel) ? [...head.slice(0, COLLAPSED - 1), sel] : head;
-  })();
+  const catDef = categoryOf(category);
+  const catName = t(categoryLabelKey(category, kind) as any);
   const accent = kind === 'INCOME' ? '#16A34A' : theme.primary;
   const scheduled = isScheduledForm(date, rule);
 
+  React.useEffect(() => {
+    if (potId && (kind !== 'EXPENSE' || scheduled)) setPotId(null);
+  }, [potId, kind, scheduled]);
+
   const switchKind = (k: Kind) => {
     setKind(k);
-    if (!categoryOf(category).for.includes(k)) setCategory(k === 'INCOME' ? 'salary' : 'food');
+    // Spending and income have different categories, so a change starts again from the first one.
+    if (k !== kind) { setCategory(k === 'INCOME' ? 'salary' : 'food'); setSubCategory(null); }
   };
 
   const leave = () => {
@@ -124,9 +132,12 @@ export default function AddTransactionScreen() {
         const d = new Date(result.date);
         if (!isNaN(d.getTime())) setDate(d);
       }
-      if (result.category) {
-        const preset = CATEGORIES.find(c => c.id === result.category && !c.system);
-        if (preset) setCategory(preset.id);
+      if (result.category && kind === 'EXPENSE') {
+        const preset = canonicalCategory(result.category);
+        if (categoryOf(preset.id).for.includes('EXPENSE') && preset.id !== 'loan') {
+          setCategory(preset.id);
+          setSubCategory(preset.sub ?? null);
+        }
       }
     } catch (e: any) {
       Alert.alert(t('add.receipt'), e?.response?.data?.message || e?.message || t('add.uploadFailed'));
@@ -169,7 +180,7 @@ export default function AddTransactionScreen() {
     setSaving(true);
     try {
       const created = await createScheduled(scheduledPayload({
-        kind, category, title: description.trim() || t(`cat.${category}` as any), description: description.trim(),
+        kind, category, subCategory, title: description.trim() || subCategory || catName, description: description.trim(),
         amount: value, walletId, date, rule, mode, timezone: deviceTimeZone(),
       }));
       const first = created.waiting[0]?.dueAt ?? created.nextDueAt ?? date.toISOString();
@@ -204,7 +215,8 @@ export default function AddTransactionScreen() {
       await createTransaction({
         type: kind,
         category,
-        title: description.trim() || t(`cat.${category}` as any),
+        subCategory: subCategory ?? undefined,
+        title: description.trim() || subCategory || catName,
         description: description.trim() || undefined,
         amount: value,
         date: date.toISOString(),
@@ -236,6 +248,13 @@ export default function AddTransactionScreen() {
         showTime
         onClose={() => setPickDate(false)}
         onConfirm={d => { setDate(d); setPickDate(false); }}
+      />
+
+      <CategorySheet
+        visible={catOpen} kind={kind} category={category} subCategory={subCategory} mine={mine} startOnSub={!!subCategory}
+        onClose={() => setCatOpen(false)}
+        onSelect={(c, sub) => { setCategory(c); setSubCategory(sub); setCatOpen(false); }}
+        onForget={forget}
       />
 
       <RepeatSheet visible={pickRepeat} start={date} value={rule} onClose={() => setPickRepeat(false)}
@@ -280,30 +299,21 @@ export default function AddTransactionScreen() {
             <Text style={[s.amountCode, { color: theme.textMuted }]}>{currency}</Text>
           </View>
 
-          {/* Category */}
+          {/* Category: one field; the sheet does the choosing (category first, then what it was) */}
           <Label text={t('add.category')} />
-          <View style={s.catGrid}>
-            {visibleCats.map(c => {
-              const on = c.id === category;
-              return (
-                <TouchableOpacity key={c.id} onPress={() => setCategory(c.id)} activeOpacity={0.8}
-                                  style={[s.cat, { borderColor: on ? c.color : theme.border, backgroundColor: on ? `${c.color}1A` : theme.surface }]}>
-                  <MaterialIcons name={c.icon} size={15} color={c.color} />
-                  <Text style={[s.catText, { color: on ? theme.text : theme.textSecondary, fontWeight: on ? '700' : '500' }]} numberOfLines={1}>
-                    {t(`cat.${c.id}` as any)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            {cats.length > COLLAPSED && (
-              <TouchableOpacity onPress={() => setShowAllCats(v => !v)} activeOpacity={0.8}
-                                style={[s.cat, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-                <MaterialIcons name={showAllCats ? 'expand-less' : 'apps'} size={15} color={theme.primary} />
-                <Text style={[s.catText, { color: theme.primary, fontWeight: '700' }]}>{showAllCats ? '−' : `+${cats.length - visibleCats.length}`}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
+          <TouchableOpacity onPress={() => setCatOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('add.category')}
+                            style={[s.catField, { borderColor: theme.border, backgroundColor: theme.inputBg }]}>
+            <View style={[s.catTile, { backgroundColor: `${catDef.color}22` }]}>
+              <MaterialIcons name={catDef.icon} size={19} color={catDef.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.catValue, { color: theme.text }]} numberOfLines={1}>
+                {catName}{subCategory ? <Text style={{ color: theme.textMuted }}>{'  ›  '}</Text> : null}{subCategory ?? ''}
+              </Text>
+              <Text style={[s.catHint, { color: theme.textSecondary }]}>{subCategory ? t('catsheet.tapChange') : t('catsheet.addOptional')}</Text>
+            </View>
+            <MaterialIcons name="expand-more" size={22} color={theme.textMuted} />
+          </TouchableOpacity>
           {/* Description */}
           <Label text={t('add.description')} />
           <View style={[s.input, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
@@ -312,26 +322,10 @@ export default function AddTransactionScreen() {
                        placeholderTextColor={theme.textMuted} style={[s.inputText, { color: theme.text, flex: 1 }]} />
           </View>
 
-          {/* Wallet */}
+          {/* Wallet: one field; its sheet lists the wallets and, for an expense, the loans to spend borrowed money from */}
           <Label text={t('add.wallet')} />
-          <WalletChips wallets={wallets} value={potId ? null : walletId} onChange={id => { setPotId(null); setWalletId(id); }} noneLabel={wallets.length ? undefined : t('add.noWallet')} />
-          {kind === 'EXPENSE' && !rule && pots.length > 0 && (
-            <>
-              <Label text={t('debt2.paidFrom')} />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                {pots.map(p => {
-                  const on = p.id === potId;
-                  return (
-                    <TouchableOpacity key={p.id} testID="pot-chip" onPress={() => setPotId(on ? null : p.id)} activeOpacity={0.8}
-                      style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 1, borderColor: on ? theme.primary : theme.border, backgroundColor: on ? theme.primaryBg : theme.surface }}>
-                      <Text style={{ color: theme.text, fontWeight: '600' }}>{p.person}</Text>
-                      <Text style={{ color: theme.textMuted, fontSize: 12 }}>{(p.unspent ?? 0).toLocaleString('en-US')} {p.currency} {t('debt2.unspentLeft')}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </>
-          )}
+          <PayFromField wallets={wallets} loans={kind === 'EXPENSE' && !scheduled ? pots : []} walletId={walletId} loanId={potId}
+                        onWallet={id => { setPotId(null); setWalletId(id); }} onLoan={id => setPotId(id)} />
 
           {/* Date */}
           <Label text={t('add.date')} />
@@ -354,65 +348,10 @@ export default function AddTransactionScreen() {
             </>
           )}
 
-          {/* Receipt */}
+          {/* Receipt: one field; its sheet has scan, photo and file (and remove when there is one) */}
           <Label text={`${t('add.receipt')} (${t('add.optional')})`} />
-          {analyzingReceipt && (
-            <View style={[s.analyzingRow, { backgroundColor: theme.inputBg }]}>
-              <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={[s.analyzingText, { color: theme.textSecondary }]}>{t('add.analyzing')}</Text>
-            </View>
-          )}
-          {receiptUrl ? (
-            <View style={[s.receipt, { borderColor: theme.border, backgroundColor: theme.surface }]}>
-              {receiptIsImage ? (
-                <Image source={{ uri: receiptPreview! }} style={s.receiptImg} />
-              ) : (
-                <View style={[s.receiptFileIcon, { backgroundColor: theme.inputBg }]}>
-                  <MaterialIcons name="description" size={26} color={theme.primary} />
-                </View>
-              )}
-              <View style={{ flex: 1, gap: 6 }}>
-                {!receiptIsImage && receiptName && (
-                  <Text style={[s.receiptFileName, { color: theme.text }]} numberOfLines={1}>{receiptName}</Text>
-                )}
-                <TouchableOpacity onPress={() => pickReceipt('camera')} style={s.receiptAction} disabled={analyzingReceipt}>
-                  <MaterialIcons name="photo-camera" size={15} color={theme.primary} />
-                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.takePhoto')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => pickReceipt('file')} style={s.receiptAction} disabled={analyzingReceipt}>
-                  <MaterialIcons name="insert-drive-file" size={15} color={theme.primary} />
-                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.chooseFile')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => router.push('/(dashboard)/scan')} style={s.receiptAction} disabled={analyzingReceipt}>
-                  <MaterialIcons name="document-scanner" size={15} color={theme.primary} />
-                  <Text style={[s.receiptActionText, { color: theme.primary }]}>{t('add.scanReceipt')}</Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity onPress={removeReceipt} hitSlop={8} style={[s.removeBtn, { backgroundColor: theme.inputBg }]} disabled={analyzingReceipt}>
-                <MaterialIcons name="delete-outline" size={17} color="#DC2626" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <TouchableOpacity onPress={() => router.push('/(dashboard)/scan')} activeOpacity={0.85} disabled={analyzingReceipt}
-                                style={[s.scanBtn, { backgroundColor: theme.primary, opacity: analyzingReceipt ? 0.6 : 1 }]}>
-                <MaterialIcons name="document-scanner" size={18} color="#fff" />
-                <Text style={s.scanBtnText}>{t('add.scanReceipt')}</Text>
-              </TouchableOpacity>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity onPress={() => pickReceipt('camera')} activeOpacity={0.8} disabled={analyzingReceipt}
-                                  style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: analyzingReceipt ? 0.6 : 1 }]}>
-                  <MaterialIcons name="photo-camera" size={18} color={theme.primary} />
-                  <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.takePhoto')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => pickReceipt('file')} activeOpacity={0.8} disabled={analyzingReceipt}
-                                  style={[s.receiptBtn, { borderColor: theme.border, backgroundColor: theme.surface, opacity: analyzingReceipt ? 0.6 : 1 }]}>
-                  <MaterialIcons name="insert-drive-file" size={18} color={theme.primary} />
-                  <Text style={[s.receiptBtnText, { color: theme.text }]}>{t('add.chooseFile')}</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+          <ReceiptField attached={!!receiptUrl} previewUri={receiptPreview} isImage={receiptIsImage} fileName={receiptName} analyzing={analyzingReceipt}
+                        onScan={() => router.push('/(dashboard)/scan')} onCamera={() => pickReceipt('camera')} onFile={() => pickReceipt('file')} onRemove={removeReceipt} />
         </ScrollView>
 
         <View style={[s.footer, { borderTopColor: theme.border, backgroundColor: theme.background }]}>
@@ -448,28 +387,16 @@ const s = StyleSheet.create({
 
   label: { fontSize: 11, fontWeight: '600', marginTop: 12, marginBottom: 5, marginLeft: 2 },
 
-  catGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  cat:     { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, height: 32, borderRadius: 12, borderWidth: 1, maxWidth: '48%' },
-  catText: { fontSize: 11 },
+  catField: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8 },
+  catTile:  { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  catValue: { fontSize: 14, fontWeight: '600' },
+  catHint:  { fontSize: 11, marginTop: 1 },
 
   input:     { flexDirection: 'row', alignItems: 'center', gap: 8, height: 42, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12 },
   inputText: { fontSize: 13, fontFamily: 'Poppins_400Regular', paddingVertical: 0 },
 
-  scanBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 44, borderRadius: 12, marginBottom: 8 },
-  scanBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
-  analyzingRow:  { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 8 },
-  analyzingText: { fontSize: 12, fontWeight: '600' },
 
-  receipt:    { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 8 },
-  receiptImg: { width: 64, height: 64, borderRadius: 10 },
-  receiptFileIcon: { width: 64, height: 64, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  receiptFileName: { fontSize: 12, fontWeight: '700' },
-  receiptAction:     { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  receiptActionText: { fontSize: 12, fontWeight: '600' },
-  removeBtn:  { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  receiptBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed' },
-  receiptBtnText: { fontSize: 12, fontWeight: '600' },
 
   footer:   { borderTopWidth: 1, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12 },
   save:     { height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },

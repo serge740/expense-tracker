@@ -171,7 +171,7 @@ export default function HomeScreen() {
                 const decPart = netAbs.split('.')[1];
                 const sign    = net >= 0 ? `+${sym}` : `-${sym}`;
                 return (
-                  <Text style={[s.balAmount, { color: net >= 0 ? '#fff' : '#FDA4A4' }]}>
+                  <Text numberOfLines={1} adjustsFontSizeToFit style={[s.balAmount, { color: net >= 0 ? '#fff' : '#FDA4A4' }]}>
                     {sign}{parseInt(intPart, 10).toLocaleString()}
                     <Text style={s.balCents}>.{decPart}</Text>
                   </Text>

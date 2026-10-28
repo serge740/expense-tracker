@@ -1,3 +1,5 @@
+import type { RepeatRule } from '../../scheduled/recurrence';
+
 export class CreateDebtDto {
   kind: 'BORROWED' | 'LENT';
   person: string;
@@ -10,8 +12,13 @@ export class CreateDebtDto {
   date?: string;
   dueDate?: string;
   note?: string;
-  /** Remind me about the pay dates. Defaults to on for a debt, off for a credit. */
+  /** Remind me about the pay dates. Defaults to on for a loan, off for a debt owed to me. */
   remind?: boolean;
+  /** Loans only: the estimated payment, kept up on every repeat until the loan is paid off. The first pay date (dueDate) is where it starts. */
+  planAmount?: number;
+  planRepeat?: RepeatRule;
+  /** The person's time zone, so "every month at 6pm" stays 6pm. */
+  planTimezone?: string;
 }
 
 export class UpdateDebtDto {
@@ -21,6 +28,12 @@ export class UpdateDebtDto {
   dueDate?: string | null;
   note?: string;
   remindersOn?: boolean;
+  /** Set or change the estimated payment (loans only). Send null for either to stop it. */
+  planAmount?: number | null;
+  planRepeat?: RepeatRule | null;
+  /** Where the plan starts; defaults to the next unpaid pay date. */
+  planStartAt?: string;
+  planTimezone?: string;
 }
 
 export class DebtPaymentDto {

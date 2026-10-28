@@ -4,8 +4,11 @@ import { DebtRole, Prisma } from '../../../generated/prisma';
 import { CreateDebtDto, DebtPaymentDto, InstallmentDto, UpdateDebtDto } from './dto/debt.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RemindersService } from '../reminders/reminders.service';
+import { isValidTimeZone } from '../reminders/reminder-policy';
+import { DebtPlanService, planInputOf } from './debt-plan.service';
+import { normalizePlanRule, planChanges, planProblem } from './debt-plan';
 import {
-  buildLedger, CLOSED_STATUSES, DebtKindName, directionFor, remainingOf, roleFor, rolesOf, round2, statusFor,
+  buildLedger, capitalNoun, CLOSED_STATUSES, DebtKindName, directionFor, nounOf, remainingOf, roleFor, rolesOf, round2, statusFor,
 } from './debt-accounting';
 import { deriveInstallments, finalDeadline, InstallmentInput, isOverdue, nextUnpaid } from './debt-installments';
 
@@ -27,6 +30,7 @@ export class DebtsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly reminders: RemindersService,
+    private readonly plans: DebtPlanService,
   ) {}
 
   private serialize(d: any) {
@@ -40,8 +44,22 @@ export class DebtsService {
     const next = d.status === 'OPEN' ? nextUnpaid(rows, derived) : null;
     const live = d.status === 'OPEN' && !d.archivedAt;
     const rem = (d.reminders ?? [])[0];
+    const planInput = planInputOf(d, new Date());
+    const planResult = planInput.plan ? planChanges(planInput) : null;
     return {
       ...d,
+      // The plan is shown as one object (below), not as loose columns.
+      planAmount: undefined, planRepeat: undefined, planStartAt: undefined, planTimezone: undefined,
+      plan: planInput.plan && planResult ? {
+        amount: planInput.plan.amount,
+        repeat: planInput.plan.rule,
+        startAt: planInput.plan.startAt,
+        timezone: planInput.plan.timezone,
+        /** The date of the last payment, or null when the plan stops before the loan is paid off. */
+        finishesAt: planResult.finishesAt,
+        paymentsLeft: planResult.paymentsLeft,
+        shortfall: planResult.shortfall,
+      } : null,
       reminders: undefined,
       reminderId: rem?.id ?? null,
       reminderStatus: rem?.status ?? null,
@@ -66,6 +84,8 @@ export class DebtsService {
 
   /** Every change to a debt ends here: reminders are re-aligned with its pay dates, then the debt is returned. */
   private async finish(clientId: string, id: string) {
+    // The estimated payment plan first (it makes or trims pay dates), then the reminders follow those dates.
+    await this.plans.reconcile(id).catch(() => undefined);
     await this.reminders.syncDebtSafe(id);
     return this.findOne(clientId, id);
   }
@@ -77,14 +97,14 @@ export class DebtsService {
 
   private async owned(clientId: string, id: string) {
     const d = await this.prisma.debt.findFirst({ where: { id, clientId }, include: { payments: { orderBy: { date: 'desc' } }, installments: { orderBy: { dueAt: 'asc' } }, reminders: { where: { status: { in: ['ACTIVE', 'SNOOZED'] } } } } });
-    if (!d) throw new NotFoundException('Debt not found');
+    if (!d) throw new NotFoundException('Loan or debt not found');
     return d;
   }
 
   private async wallet(clientId: string, walletId: string, currency: string) {
     const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId } });
     if (!w) throw new NotFoundException('Wallet not found');
-    if (w.currency !== currency) throw new BadRequestException(`Choose a ${currency} wallet for this debt`);
+    if (w.currency !== currency) throw new BadRequestException(`Choose a ${currency} wallet for this record`);
     return w;
   }
 
@@ -147,6 +167,27 @@ export class DebtsService {
     if (rows.length) await prx.debt.update({ where: { id: debtId }, data: { dueDate: deadline } });
   }
 
+  /** The person's time zone for the plan: the one their phone sent, else the one saved with their reminders. */
+  private async planZone(clientId: string, requested?: string): Promise<string> {
+    if (requested && isValidTimeZone(requested)) return requested;
+    const pref = await this.prisma.notificationPreference.findUnique({ where: { clientId } });
+    return pref?.timezone ?? 'UTC';
+  }
+
+  /** The estimated payment as it will be saved, or an error saying what to fix. */
+  private async readPlan(clientId: string, input: { amount?: unknown; rule?: unknown; startAt?: string | Date | null; timezone?: string }, loanAmount: number) {
+    const problem = planProblem({ amount: input.amount, rule: input.rule, loanAmount });
+    if (problem) throw new BadRequestException(problem);
+    const startAt = input.startAt ? new Date(input.startAt) : null;
+    if (!startAt || Number.isNaN(startAt.getTime())) throw new BadRequestException('Choose the first pay date for the estimated payment');
+    return {
+      amount: round2(Number(input.amount)),
+      rule: normalizePlanRule(input.rule as any),
+      startAt,
+      timezone: await this.planZone(clientId, input.timezone),
+    };
+  }
+
   private validDate(value?: string | null) {
     const d = value ? new Date(value) : null;
     if (!d || Number.isNaN(d.getTime())) throw new BadRequestException('Choose a valid pay date');
@@ -154,9 +195,9 @@ export class DebtsService {
   }
 
   /** Pay-date edits only make sense on an open, un-archived debt. */
-  private assertEditable(d: { status: string; archivedAt: Date | null }) {
-    if (d.status !== 'OPEN') throw new BadRequestException('This debt is already closed');
-    if (d.archivedAt) throw new BadRequestException('Restore this debt before changing its pay dates');
+  private assertEditable(d: { kind: string; status: string; archivedAt: Date | null }) {
+    if (d.status !== 'OPEN') throw new BadRequestException(`This ${nounOf(d.kind)} is already closed`);
+    if (d.archivedAt) throw new BadRequestException(`Restore this ${nounOf(d.kind)} before changing its pay dates`);
   }
 
   private mapTx(t: any, debt?: { person: string; currency: string; kind: string }) {
@@ -319,6 +360,9 @@ export class DebtsService {
     if (!currency) throw new BadRequestException('Choose a currency');
     const date = dto.date ? new Date(dto.date) : new Date();
     const person = dto.person.trim();
+    // An estimated payment is only for a loan (money I borrowed). A debt owed to me keeps its single pay dates.
+    const wantsPlan = kind === 'BORROWED' && (dto.planAmount != null || dto.planRepeat != null);
+    const plan = wantsPlan ? await this.readPlan(clientId, { amount: dto.planAmount, rule: dto.planRepeat, startAt: dto.dueDate, timezone: dto.planTimezone }, amount) : null;
 
     const debt = await this.prisma.$transaction(async prx => {
       const d = await prx.debt.create({
@@ -327,10 +371,12 @@ export class DebtsService {
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null, note: dto.note?.trim() || null, walletId: walletId ?? null,
           // A debt (I owe) reminds by default; a credit only when asked.
           remindersOn: dto.remind ?? kind === 'BORROWED',
+          ...(plan ? { planAmount: plan.amount, planRepeat: plan.rule as any, planStartAt: plan.startAt, planTimezone: plan.timezone } : {}),
         },
       });
       if (dto.dueDate) {
-        await prx.debtInstallment.create({ data: { debtId: d.id, dueAt: new Date(dto.dueDate), plannedAmount: null } });
+        // With a plan, the first pay date already says how much: the plan adds the dates after it.
+        await prx.debtInstallment.create({ data: { debtId: d.id, dueAt: new Date(dto.dueDate), plannedAmount: plan ? round2(Math.min(plan.amount, amount)) : null } });
       }
       // Always recorded: borrowing is money in (never counted as income in totals), lending is money out.
       const principalTransactionId = await this.move(prx, clientId, {
@@ -355,7 +401,37 @@ export class DebtsService {
       throw new BadRequestException('Amount cannot be less than what was already paid or written off');
     }
 
+    // Setting, changing or stopping the estimated payment (loans only).
+    const planTouched = dto.planAmount !== undefined || dto.planRepeat !== undefined || dto.planStartAt !== undefined;
+    const stopPlan = dto.planAmount === null || dto.planRepeat === null;
+    let planData: Prisma.DebtUpdateInput = {};
+    let planStartRow: { at: Date; planned: number } | null = null;
+    if (planTouched) {
+      if (d.kind !== 'BORROWED') throw new BadRequestException('An estimated payment is only for a loan you borrowed');
+      if (stopPlan) {
+        planData = { planAmount: null, planRepeat: Prisma.JsonNull, planStartAt: null, planTimezone: null };
+      } else {
+        if (d.status !== 'OPEN' || d.archivedAt) throw new BadRequestException(`This ${nounOf(d.kind)} is closed`);
+        const loanAmount = amount ?? Number(d.amount);
+        const firstOpen = (d.installments ?? []).filter(i => i.status === 'PENDING').sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0];
+        const startAt = dto.planStartAt ?? d.planStartAt ?? firstOpen?.dueAt ?? d.dueDate ?? null;
+        const next = await this.readPlan(clientId, {
+          amount: dto.planAmount ?? (d.planAmount == null ? undefined : Number(d.planAmount)),
+          rule: dto.planRepeat ?? d.planRepeat,
+          startAt, timezone: dto.planTimezone ?? d.planTimezone ?? undefined,
+        }, loanAmount);
+        planData = { planAmount: next.amount, planRepeat: next.rule as any, planStartAt: next.startAt, planTimezone: next.timezone };
+        planStartRow = { at: next.startAt, planned: round2(Math.min(next.amount, remainingOf(loanAmount, paid, writtenOff))) };
+      }
+    }
+
     await this.prisma.$transaction(async prx => {
+      // The plan counts its repeats from a first pay date: make sure that date exists and says how much it asks.
+      if (planStartRow) {
+        const same = (d.installments ?? []).find(i => i.dueAt.getTime() === planStartRow!.at.getTime());
+        if (!same) await prx.debtInstallment.create({ data: { debtId: id, dueAt: planStartRow.at, plannedAmount: planStartRow.planned } });
+        else if (same.status === 'PENDING' && same.plannedAmount == null) await prx.debtInstallment.update({ where: { id: same.id }, data: { plannedAmount: planStartRow.planned } });
+      }
       // Changing the amount also corrects the original cash movement, so debt and wallet never drift.
       if (amount !== undefined && amount !== oldAmount && d.principalTransactionId) {
         const principal = await prx.transaction.findUnique({ where: { id: d.principalTransactionId } });
@@ -383,6 +459,7 @@ export class DebtsService {
           ...(dto.phone !== undefined ? { phone: dto.phone.trim() || null } : {}),
           ...(dto.note !== undefined ? { note: dto.note.trim() || null } : {}),
           ...(dto.remindersOn !== undefined ? { remindersOn: !!dto.remindersOn } : {}),
+          ...planData,
           ...(amount !== undefined
             ? { amount, status: statusFor({ kind: d.kind, amount, paid, writtenOff, current: d.status }) }
             : {}),
@@ -396,7 +473,7 @@ export class DebtsService {
     const d = await this.owned(clientId, id);
     const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
     const amount = round2(Number(dto.amount));
-    if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException('This debt is already closed');
+    if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException(`This ${nounOf(d.kind)} is already closed`);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Enter an amount greater than zero');
     if (amount > remaining) throw new BadRequestException(`Only ${remaining} ${d.currency} is left to pay`);
     // Paying a debt never touches my wallets; a credit repaid to me goes into the wallet I chose (or none).
@@ -419,7 +496,7 @@ export class DebtsService {
     });
 
     if (result.status === 'SETTLED' && result.previous === 'OPEN') {
-      this.notifications.notify(clientId, 'Debt settled',
+      this.notifications.notify(clientId, `${capitalNoun(d.kind)} settled`,
         d.kind === 'BORROWED' ? `You've fully repaid ${d.person}.` : `${d.person} has fully repaid you.`, 'transaction');
     }
     return this.finish(clientId, id);

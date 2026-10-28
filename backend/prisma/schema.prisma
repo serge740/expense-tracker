@@ -46,6 +46,7 @@ model Client {
   refreshTokens          RefreshToken[]
   devices                Device[]
   webPushSubscriptions   WebPushSubscription[]
+  userSubCategories      UserSubCategory[]
   passkeys               Passkey[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
@@ -83,6 +84,24 @@ model Device {
   createdAt    DateTime @default(now())
 
   @@index([clientId])
+}
+
+/// A subcategory this person typed or picked, kept so it is offered to them first next time (separately for spending and
+/// income, since a few categories exist in both). Private to the account:
+/// nobody else ever sees it. The built-in suggestions are not stored here, only what someone has used.
+model UserSubCategory {
+  id         String       @id @default(uuid())
+  clientId   String
+  client     Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kind       TransactionType
+  category   CategorySlug
+  name       String       @db.VarChar(40)
+  usageCount Int          @default(1)
+  lastUsedAt DateTime     @default(now())
+  createdAt  DateTime     @default(now())
+
+  @@unique([clientId, kind, category, name])
+  @@index([clientId, lastUsedAt])
 }
 
 /// A browser (or installed web app) that can receive web push for one account. Re-subscribing the same
@@ -330,6 +349,12 @@ model Debt {
   installments           DebtInstallment[]
   reminders              Reminder[]
   remindersOn            Boolean           @default(false)
+  // An estimated payment kept up until the loan is paid off (loans only): planAmount every time the repeat rule says,
+  // starting at planStartAt. The pay dates it makes are DebtInstallment rows with fromPlan = true.
+  planAmount             Decimal?          @db.Decimal(12, 2)
+  planRepeat             Json?
+  planStartAt            DateTime?
+  planTimezone           String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
 
@@ -353,6 +378,8 @@ model DebtInstallment {
   status        InstallmentStatus @default(PENDING)
   movedFromId   String?
   note          String?
+  // Made by the debt's estimated payment plan (so the plan may change or remove it while it is still ahead).
+  fromPlan      Boolean           @default(false)
   reminder      Reminder?
   createdAt     DateTime          @default(now())
 

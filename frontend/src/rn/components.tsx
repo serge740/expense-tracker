@@ -4,7 +4,7 @@
  * ported by changing its imports. Everything here is plain React + DOM.
  */
 import React, {
-  forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState,
+  forwardRef, useCallback, useEffect, useLayoutEffect, useImperativeHandle, useRef, useState,
   type CSSProperties, type ReactNode,
 } from 'react';
 import { flatten, toCss, type RNStyle } from './style';
@@ -121,11 +121,36 @@ export interface TextProps {
   allowFontScaling?: boolean;
 }
 
-export function Text({ style, children, numberOfLines, onPress, testID, selectable, accessibilityLabel, accessibilityRole }: TextProps) {
+/** adjustsFontSizeToFit: shrink (via --fit) until a one-line text no longer overflows its box, down to half size. */
+function useFitToLine(ref: React.RefObject<HTMLSpanElement | null>, on: boolean) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!on || !el) return;
+    const fit = () => {
+      el.style.removeProperty('--fit');
+      let k = 1;
+      // scrollWidth is a rounded number, so a text a fraction of a pixel too wide would pass; measure the text itself.
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const over = () => range.getBoundingClientRect().width > el.getBoundingClientRect().width + 0.01;
+      while (over() && k > 0.5) { k = Math.round((k - 0.03) * 100) / 100; el.style.setProperty('--fit', String(k)); }
+    };
+    fit();
+    let gone = false;
+    // The web font arrives after the first paint and makes the text wider, so measure again then.
+    void document.fonts?.ready.then(() => { if (!gone) fit(); });
+    document.fonts?.addEventListener('loadingdone', fit);
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    if (el.parentElement) ro?.observe(el.parentElement);
+    return () => { gone = true; ro?.disconnect(); document.fonts?.removeEventListener('loadingdone', fit); };
+  });
+}
+
+export function Text({ style, children, numberOfLines, adjustsFontSizeToFit, onPress, testID, selectable, accessibilityLabel, accessibilityRole }: TextProps) {
   const nested = React.useContext(InsideText);
   const css: CSSProperties = {
     margin: 0, padding: 0, boxSizing: 'border-box', whiteSpace: 'pre-wrap', wordWrap: 'break-word', overflowWrap: 'break-word',
-    textAlign: 'inherit', ...(nested ? {} : { fontFamily: 'Poppins, "Twemoji Country Flags", system-ui, sans-serif', fontSize: 14 }),
+    textAlign: 'inherit', ...(nested ? {} : { fontFamily: 'Poppins, "Twemoji Country Flags", system-ui, sans-serif', fontSize: 'calc(14px * var(--fs, 1) * var(--fit, 1))' }),
     ...toCss(style),
   };
   if (numberOfLines === 1) { css.whiteSpace = 'nowrap'; css.overflow = 'hidden'; css.textOverflow = 'ellipsis'; css.display = css.display ?? 'block'; }
@@ -134,9 +159,11 @@ export function Text({ style, children, numberOfLines, onPress, testID, selectab
   }
   if (selectable === false) css.userSelect = 'none';
   if (onPress) css.cursor = 'pointer';
+  const ref = useRef<HTMLSpanElement>(null);
+  useFitToLine(ref, !!adjustsFontSizeToFit && numberOfLines === 1 && !nested);
   return (
     <span
-      style={css} data-testid={testID} aria-label={accessibilityLabel} role={onPress ? 'button' : accessibilityRole}
+      ref={ref} style={css} data-testid={testID} aria-label={accessibilityLabel} role={onPress ? 'button' : accessibilityRole}
       onClick={onPress ? e => onPress(e) : undefined}
     >
       <InsideText.Provider value>{children}</InsideText.Provider>

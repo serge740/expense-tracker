@@ -311,14 +311,14 @@ export default function BudgetScreen() {
                   <View style={[s.summaryBox, { backgroundColor: 'rgba(74,222,128,0.12)' }]}>
                     <MaterialIcons name="arrow-downward" size={18} color="#4ADE80" />
                     <Text style={[s.summaryLabel, { color: theme.textMuted }]}>INCOME</Text>
-                    <Text style={[s.summaryAmt, { color: '#4ADE80' }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit style={[s.summaryAmt, { color: '#4ADE80' }]}>
                       {fmtMoney(summary?.totalIncome ?? 0, sym)}
                     </Text>
                   </View>
                   <View style={[s.summaryBox, { backgroundColor: 'rgba(248,113,113,0.12)' }]}>
                     <MaterialIcons name="arrow-upward" size={18} color="#F87171" />
                     <Text style={[s.summaryLabel, { color: theme.textMuted }]}>EXPENSES</Text>
-                    <Text style={[s.summaryAmt, { color: '#F87171' }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit style={[s.summaryAmt, { color: '#F87171' }]}>
                       {fmtMoney(summary?.totalExpense ?? 0, sym)}
                     </Text>
                   </View>
@@ -332,7 +332,7 @@ export default function BudgetScreen() {
                       color={(summary?.net ?? 0) >= 0 ? '#4ADE80' : '#F87171'}
                     />
                     <Text style={[s.summaryLabel, { color: theme.textMuted }]}>NET</Text>
-                    <Text style={[s.summaryAmt, { color: (summary?.net ?? 0) >= 0 ? '#4ADE80' : '#F87171' }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit style={[s.summaryAmt, { color: (summary?.net ?? 0) >= 0 ? '#4ADE80' : '#F87171' }]}>
                       {(summary?.net ?? 0) >= 0 ? '+' : '-'}{fmtMoney(summary?.net ?? 0, sym)}
                     </Text>
                   </View>
@@ -566,9 +566,9 @@ const s = StyleSheet.create({
   setBudgetIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 
   summaryRow: { flexDirection: 'row', gap: 10 },
-  summaryBox: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', gap: 6 },
+  summaryBox: { flex: 1, minWidth: 0, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6, alignItems: 'center', gap: 6 },
   summaryLabel: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  summaryAmt: { fontSize: 14, fontWeight: '800' },
+  summaryAmt: { fontSize: 14, fontWeight: '800', alignSelf: 'stretch', textAlign: 'center' },
 
   catRow:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   catIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

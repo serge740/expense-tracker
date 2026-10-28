@@ -56,9 +56,11 @@ const debts = [
     payments: [{ id: 'p1', amount: 50_000, date: iso(-6), walletId: null, note: null }],
     installments: [
       { id: 'i1', dueAt: iso(-6, 9), plannedAmount: 50_000, status: 'PENDING', view: 'PAID', covered: 50_000, movedFromId: null, note: null },
-      { id: 'i2', dueAt: iso(6, 9), plannedAmount: 75_000, status: 'PENDING', view: 'UPCOMING', covered: 0, movedFromId: null, note: null },
-      { id: 'i3', dueAt: iso(20, 9), plannedAmount: 75_000, status: 'PENDING', view: 'UPCOMING', covered: 0, movedFromId: null, note: null },
+      { id: 'i2', dueAt: iso(6, 9), plannedAmount: 75_000, status: 'PENDING', view: 'UPCOMING', covered: 0, movedFromId: null, note: null, fromPlan: true },
+      { id: 'i3', dueAt: iso(20, 9), plannedAmount: 75_000, status: 'PENDING', view: 'UPCOMING', covered: 0, movedFromId: null, note: null, fromPlan: true },
     ],
+    // An estimated payment of 75,000 a month until the loan is paid off
+    plan: { amount: 75_000, repeat: { unit: 'MONTH', every: 1, weekdays: [], monthDays: [], nth: null, months: [], ends: { type: 'never' } }, startAt: iso(-6, 9), timezone: 'UTC', finishesAt: iso(20, 9), paymentsLeft: 2, shortfall: 0 },
   }),
   debtFull({ id: 'd2', kind: 'BORROWED', person: 'Marie Claire', amount: 80_000, paid: 0, remaining: 80_000, spent: 0, unspent: 80_000, currency: 'RWF', date: iso(-12), nextDueAt: iso(-2, 9), overdue: true, dueDate: iso(-2) }),
   debtFull({
@@ -183,6 +185,15 @@ function respond(method: string, url: string, params: Record<string, any> = {}):
   if (path === '/wallets/quote') return { from: params.from, to: params.to, rate: 0.0008, toAmount: Math.round(Number(params.amount) * 0.0008 * 100) / 100, ratesUpdatedAt: now };
   if ((g = path.match(/^\/wallets\/([^/]+)\/history$/))) return { currency: wallets.find(w => w.id === g![1])?.currency ?? 'RWF', points: Array.from({ length: 30 }, (_, i) => ({ date: iso(-(29 - i)).slice(0, 10), balance: 1_000_000 + i * 9_500 + (i % 5) * 7_000 })) };
   if ((g = path.match(/^\/wallets\/([^/]+)$/))) return wallets.find(w => w.id === g![1]) ?? wallets[0];
+
+  // The person's own subcategories (sample data for the category sheet)
+  if (path === '/subcategories') return [
+    { id: 's1', kind: 'EXPENSE', category: 'transport', name: 'Boda to market', usageCount: 6, lastUsedAt: new Date(now).toISOString() },
+    { id: 's2', kind: 'EXPENSE', category: 'transport', name: 'Moto-taxi', usageCount: 9, lastUsedAt: new Date(now).toISOString() },
+    { id: 's3', kind: 'EXPENSE', category: 'food', name: 'Pizza', usageCount: 5, lastUsedAt: new Date(now).toISOString() },
+    { id: 's4', kind: 'EXPENSE', category: 'food', name: 'Mama Ntilie', usageCount: 3, lastUsedAt: new Date(now).toISOString() },
+    { id: 's5', kind: 'EXPENSE', category: 'bills', name: 'Airtime', usageCount: 4, lastUsedAt: new Date(now).toISOString() },
+  ];
 
   if (path === '/transactions/recent') return transactions.slice(0, Number(params.limit) || 3);
   if (path === '/transactions/history') return groupByDay(transactions);

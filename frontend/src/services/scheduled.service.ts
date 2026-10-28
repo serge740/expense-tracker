@@ -60,6 +60,7 @@ export interface WaitingItem {
 export interface CreateScheduledInput {
   type: 'INCOME' | 'EXPENSE';
   category: CategorySlug;
+  subCategory?: string;
   title: string;
   amount: number;
   description?: string;

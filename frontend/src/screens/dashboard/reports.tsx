@@ -214,13 +214,13 @@ export default function ReportsScreen() {
                   <View style={s.donutStat}>
                     <MaterialIcons name="arrow-downward" size={12} color="#4ADE80" />
                     <Text style={s.donutStatLabel}>Income</Text>
-                    <Text style={s.donutStatVal}>{sym}{Math.round(summary.totalIncome).toLocaleString()}</Text>
+                    <Text numberOfLines={1} adjustsFontSizeToFit style={[s.donutStatVal, { alignSelf: "stretch", textAlign: "center" }]}>{sym}{Math.round(summary.totalIncome).toLocaleString()}</Text>
                   </View>
                   <View style={[s.donutStatDiv, { backgroundColor: 'rgba(255,255,255,0.2)' }]} />
                   <View style={s.donutStat}>
                     <MaterialIcons name="trending-up" size={12} color={summary.net >= 0 ? '#4ADE80' : '#F87171'} />
                     <Text style={s.donutStatLabel}>Net</Text>
-                    <Text style={[s.donutStatVal, { color: summary.net >= 0 ? '#4ADE80' : '#F87171' }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit style={[s.donutStatVal, { alignSelf: "stretch", textAlign: "center", color: summary.net >= 0 ? '#4ADE80' : '#F87171' }]}>
                       {summary.net >= 0 ? '+' : '-'}{sym}{Math.abs(Math.round(summary.net)).toLocaleString()}
                     </Text>
                   </View>
@@ -390,8 +390,8 @@ const s = StyleSheet.create({
   donutHole:     { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   donutLabel:    { fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, marginBottom: 3 },
   donutTotal:    { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-  donutStats:    { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 0 },
-  donutStat:     { flex: 1, alignItems: 'center', gap: 3 },
+  donutStats:    { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 0, alignSelf: 'stretch' },
+  donutStat:     { flex: 1, minWidth: 0, alignItems: 'center', gap: 3, paddingHorizontal: 6 },
   donutStatDiv:  { width: 1, height: 32 },
   donutStatLabel:{ fontSize: 10, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
   donutStatVal:  { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },

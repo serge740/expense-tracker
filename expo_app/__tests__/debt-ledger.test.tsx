@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe('Debt wallet screen', () => {
+describe('Loan wallet screen', () => {
   test('shows one card per debt that was created, and only debts (no credits)', async () => {
     await mount();
     expect(await screen.findByText('John')).toBeTruthy();
@@ -114,7 +114,7 @@ describe('Debt wallet screen', () => {
     await mount();
     await screen.findByText('John');
     expect(svc.getLedger).toHaveBeenCalledWith('BORROWED');
-    expect(screen.getByText('Debt wallet')).toBeTruthy();
+    expect(screen.getByText('Loan wallet')).toBeTruthy();
   });
 
   test('says so when there are none', async () => {
@@ -131,7 +131,7 @@ describe('Debt wallet screen', () => {
   });
 });
 
-describe('Credit wallet screen', () => {
+describe('Debt wallet screen', () => {
   beforeEach(() => { mockParams.current = { kind: 'LENT' }; });
 
   test('shows only credits, and says "Received"', async () => {
@@ -140,7 +140,7 @@ describe('Credit wallet screen', () => {
     expect(screen.queryByText('John')).toBeNull();
     expect(screen.getAllByTestId('debt-card')).toHaveLength(1);
     expect(screen.getByText(/^Received .*40,000/)).toBeTruthy();
-    expect(screen.getByText('Credit wallet')).toBeTruthy();
+    expect(screen.getByText('Debt wallet')).toBeTruthy();
     expect(svc.getLedger).toHaveBeenCalledWith('LENT');
   });
 

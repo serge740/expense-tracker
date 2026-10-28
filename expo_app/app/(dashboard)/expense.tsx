@@ -12,13 +12,13 @@ import {
   CATEGORY_ICON, CATEGORY_LABEL, CategorySlug,
 } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
-import { CATEGORIES } from '@/constants/categories';
+import { ALL_CATEGORY_SLUGS, categoryOf } from '@/constants/categories';
 
 type FilterType = 'all' | 'income' | 'expense';
 
 // Colours come from the shared category list (soft tint as background).
 const CATEGORY_COLOR = Object.fromEntries(
-  CATEGORIES.map(c => [c.id, { color: c.color, bg: `${c.color}22` }]),
+  ALL_CATEGORY_SLUGS.map(s => [s, { color: categoryOf(s).color, bg: `${categoryOf(s).color}22` }]),
 ) as Record<CategorySlug, { color: string; bg: string }>;
 
 function fmtSigned(n: number, sym: string) {

@@ -76,17 +76,17 @@ describe('Home dashboard', () => {
     await mount();
     expect(await screen.findByText(/540,000/)).toBeTruthy();
     expect(screen.getByText(/350,000/)).toBeTruthy();
-    expect(screen.getByText('Loans in these figures: spent 170,000 · received 40,000')).toBeTruthy();
+    expect(screen.getByText('Loans & debts in these figures: spent 170,000 · received 40,000')).toBeTruthy();
     expect(screen.getByText('Borrowed 200,000 is never income')).toBeTruthy();
     expect(homeSvc.getHomeSummary).toHaveBeenCalledWith(expect.objectContaining({ includeLoans: true }));
   });
 
-  test('switching "Include loans" off refreshes the figures and the feed, and is remembered', async () => {
+  test('switching "Include loans & debts" off refreshes the figures and the feed, and is remembered', async () => {
     await mount();
     await screen.findByText(/540,000/);
-    await fireEvent(screen.getByLabelText('Include loans'), 'valueChange', false);
+    await fireEvent(screen.getByLabelText('Include loans & debts'), 'valueChange', false);
     expect(await screen.findByText(/320,000/)).toBeTruthy();
-    expect(screen.getByText('Loans left out: 170,000 out · 40,000 in')).toBeTruthy();
+    expect(screen.getByText('Loans & debts left out: 170,000 out · 40,000 in')).toBeTruthy();
     expect(homeSvc.getHomeSummary).toHaveBeenLastCalledWith(expect.objectContaining({ includeLoans: false }));
     expect(txSvc.getRecentTransactions).toHaveBeenLastCalledWith(5, 'all', false);
     await waitFor(async () => expect(JSON.parse((await AsyncStorage.getItem('app_preferences_v1')) ?? '{}').includeLoans).toBe(false));
@@ -97,7 +97,7 @@ describe('Home dashboard', () => {
     await screen.findByText(/540,000/);
     const meBefore = auth.getMe.mock.calls.length;
     const summaryBefore = homeSvc.getHomeSummary.mock.calls.length;
-    await fireEvent.press(screen.getByText('Debt'));
+    await fireEvent.press(screen.getByText('Loan'));
     await waitFor(() => expect(txSvc.getRecentTransactions).toHaveBeenLastCalledWith(5, 'debt', true));
     expect(auth.getMe.mock.calls.length).toBe(meBefore);
     expect(homeSvc.getHomeSummary.mock.calls.length).toBe(summaryBefore);
@@ -106,7 +106,7 @@ describe('Home dashboard', () => {
   test('the chosen chip is remembered for next time', async () => {
     await mount();
     await screen.findByText(/540,000/);
-    await fireEvent.press(screen.getByText('Credit'));
+    await fireEvent.press(screen.getByText('Debt'));
     await waitFor(async () => expect(JSON.parse((await AsyncStorage.getItem('app_preferences_v1')) ?? '{}').homeView).toBe('credit'));
   });
 
@@ -119,14 +119,14 @@ describe('Home dashboard', () => {
   test('the Debt chip with loans off explains why loans are listed', async () => {
     await mount();
     await screen.findByText(/540,000/);
-    await fireEvent(screen.getByLabelText('Include loans'), 'valueChange', false);
-    await fireEvent.press(screen.getByText('Debt'));
+    await fireEvent(screen.getByLabelText('Include loans & debts'), 'valueChange', false);
+    await fireEvent.press(screen.getByText('Loan'));
     expect(await screen.findByText(/These are loans/)).toBeTruthy();
   });
 
   test('shows debts, credits and scheduled cards plus what needs attention', async () => {
     await mount();
-    expect(await screen.findByText('Debts & credits')).toBeTruthy();
+    expect(await screen.findByText('Loans & debts')).toBeTruthy();
     expect(screen.getByText('You owe')).toBeTruthy();
     expect(screen.getByText('Owed to you')).toBeTruthy();
     expect(screen.getByText('1 waiting')).toBeTruthy();
@@ -139,7 +139,7 @@ describe('Home dashboard', () => {
     homeSvc.getHomeSummary.mockResolvedValue(summary({ owe: {}, owed: {}, scheduled: { waiting: 0, next: null }, attention: [], attentionTotal: 0, netWorth: [], loans: { out: 0, in: 0, borrowed: 0 } }));
     await mount();
     await screen.findByText(/540,000/);
-    expect(screen.queryByText('Debts & credits')).toBeNull();
+    expect(screen.queryByText('Loans & debts')).toBeNull();
     expect(screen.queryByText('Needs attention')).toBeNull();
     expect(screen.queryByTestId('net-worth-row')).toBeNull();
   });
@@ -163,8 +163,8 @@ describe('Home dashboard', () => {
   test('"See all" opens History with the same chip and loans choice', async () => {
     await mount();
     await screen.findByText(/540,000/);
-    await fireEvent.press(screen.getByText('Debt'));
-    await fireEvent(screen.getByLabelText('Include loans'), 'valueChange', false);
+    await fireEvent.press(screen.getByText('Loan'));
+    await fireEvent(screen.getByLabelText('Include loans & debts'), 'valueChange', false);
     await fireEvent.press(screen.getByText('See all'));
     expect(router.push).toHaveBeenLastCalledWith({ pathname: '/(dashboard)/history', params: { view: 'debt', includeLoans: 'false' } });
   });
@@ -188,7 +188,7 @@ describe('Home dashboard', () => {
 
   test('the budget card says loans never count against it', async () => {
     await mount();
-    expect(await screen.findByText('Loans never count against your budget.')).toBeTruthy();
+    expect(await screen.findByText('Loans and debts never count against your budget.')).toBeTruthy();
   });
 
   test('a failed load does not crash: the header still renders', async () => {
@@ -196,6 +196,6 @@ describe('Home dashboard', () => {
     txSvc.getRecentTransactions.mockRejectedValue(new Error('Network Error'));
     await mount();
     expect(await screen.findByText('Serge')).toBeTruthy();
-    expect(screen.queryByText('Debts & credits')).toBeNull();
+    expect(screen.queryByText('Loans & debts')).toBeNull();
   });
 });

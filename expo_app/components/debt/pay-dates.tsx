@@ -82,6 +82,7 @@ export function PayDates({ debt, hidden, onChanged }: Props) {
                         {row.plannedAmount ? t('debt2.planned', { amount: formatMoney(row.plannedAmount, debt.currency, { hidden }) }) : t('debt2.noPlanned')}
                         {row.covered > 0 && row.view !== 'PAID' ? ` · ${t('debt2.covered', { amount: formatMoney(row.covered, debt.currency, { hidden }) })}` : ''}
                         {row.movedFromId ? ` · ${t('debt2.movedFrom')}` : ''}
+                        {row.fromPlan && row.view !== 'MOVED' && row.view !== 'SKIPPED' ? ` · ${t('plan.tag')}` : ''}
                       </Text>
                     </View>
                     <ToneChip label={t(style.label)} tone={style.tone} />

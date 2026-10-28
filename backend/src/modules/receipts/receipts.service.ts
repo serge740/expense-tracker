@@ -4,6 +4,7 @@ import * as mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { buildReceiptReportPdf } from './receipt-report-pdf';
+import { LEGACY_CATEGORY, canonicalCategory } from '../../common/utils/categories';
 
 export interface ExtractedInfo {
   amount: number | null;
@@ -22,9 +23,10 @@ export interface ProcessedReceipt extends ExtractedInfo {
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
+// What the model may answer with. Older names are still accepted and mapped (groceries -> Food, and so on).
 const VALID_CATEGORIES = new Set([
-  'food', 'transport', 'shopping', 'health',
-  'entertainment', 'travel', 'groceries', 'salary', 'other',
+  'food', 'transport', 'bills', 'shopping', 'health', 'entertainment', 'gifts', 'business', 'insurance', 'salary', 'other',
+  ...Object.keys(LEGACY_CATEGORY),
 ]);
 
 const VISION_PROMPT = `You are a receipt and expense image analyzer.
@@ -36,7 +38,7 @@ Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with
   "amount": <the total amount paid as a number, or null if not visible>,
   "merchant": <the business or store name as a string, or null>,
   "date": <the date in YYYY-MM-DD format as a string, or null>,
-  "category": <one of exactly: food, transport, shopping, health, entertainment, travel, groceries, salary, other>,
+  "category": <one of exactly: food (groceries, eating out, drinks), transport (fuel, taxis, flights, hotels), bills (rent, electricity, water, internet, airtime, subscriptions), shopping, health (medical, school fees, gym, haircut), entertainment, gifts (gifts, donations, family support), business, insurance (insurance, bank fees, taxes), salary, other>,
   "description": <a single sentence describing what was purchased, or null>
 }
 
@@ -56,7 +58,7 @@ Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with
   "amount": <the total amount paid as a number, or null if not visible>,
   "merchant": <the business or store name as a string, or null>,
   "date": <the date in YYYY-MM-DD format as a string, or null>,
-  "category": <one of exactly: food, transport, shopping, health, entertainment, travel, groceries, salary, other>,
+  "category": <one of exactly: food (groceries, eating out, drinks), transport (fuel, taxis, flights, hotels), bills (rent, electricity, water, internet, airtime, subscriptions), shopping, health (medical, school fees, gym, haircut), entertainment, gifts (gifts, donations, family support), business, insurance (insurance, bank fees, taxes), salary, other>,
   "description": <a single sentence describing what was purchased, or null>
 }
 
@@ -190,7 +192,7 @@ export class ReceiptsService {
       amount:      typeof parsed.amount      === 'number' ? parsed.amount      : null,
       merchant:    typeof parsed.merchant    === 'string' ? parsed.merchant    : null,
       date:        typeof parsed.date        === 'string' ? parsed.date        : null,
-      category:    VALID_CATEGORIES.has(parsed.category) ? parsed.category    : 'other',
+      category:    VALID_CATEGORIES.has(parsed.category) ? canonicalCategory(parsed.category).category : 'other',
       description: typeof parsed.description === 'string' ? parsed.description : null,
       confidence,
       rawText,

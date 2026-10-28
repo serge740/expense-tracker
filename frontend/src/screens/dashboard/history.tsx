@@ -16,12 +16,11 @@ import {
 import { useCurrency } from '@/context/currency-context';
 import { DatePickerModal } from '@/components/date-picker-modal';
 
-const CATS = ['All', 'Food', 'Shopping', 'Transport', 'Health', 'Entertainment', 'Travel', 'Groceries', 'Salary', 'Other'];
+const CATS = ['All', 'Food', 'Transport', 'Bills', 'Shopping', 'Personal', 'Entertainment', 'Giving', 'Salary', 'Other'];
 
 const CAT_SLUG: Record<string, CategorySlug | undefined> = {
-  Food: 'food', Shopping: 'shopping', Transport: 'transport',
-  Health: 'health', Entertainment: 'entertainment', Travel: 'travel',
-  Groceries: 'groceries', Salary: 'salary', Other: 'other',
+  Food: 'food', Transport: 'transport', Bills: 'bills', Shopping: 'shopping',
+  Personal: 'health', Entertainment: 'entertainment', Giving: 'gifts', Salary: 'salary', Other: 'other',
 };
 
 const DATE_FILTERS = ['All', 'Today', 'Week', 'Month', 'Year', 'Custom'] as const;
