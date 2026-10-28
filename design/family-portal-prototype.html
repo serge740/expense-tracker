@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Family Portal — prototype</title>
+<style>
+:root{--teal:#00627F;--teal-bg:#E6F2F6;--fam:#5B3FD0;--fam-bg:#EEEAFB;--ink:#0E2A33;--mut:#6B8791;--line:#DCE8EC;--bg:#EEF7FA;--red:#DC2626;--green:#16A34A;--amber:#D97706}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,sans-serif;color:var(--ink);background:#F4F7F8;display:flex;gap:28px;padding:24px;justify-content:center;flex-wrap:wrap}
+.panel{width:340px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+p.s{font-size:12.5px;color:var(--mut);margin:0 0 8px;line-height:1.45}
+select,button.d{font:inherit;font-size:13px}
+select{width:100%;padding:8px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.jump{display:flex;flex-direction:column;gap:6px}
+button.d{padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:#fff;text-align:left;cursor:pointer}
+button.d:hover{background:var(--teal-bg)}
+.log{font:11.5px/1.5 ui-monospace,Consolas,monospace;max-height:260px;overflow:auto;background:#0E2A33;color:#CDE3EA;border-radius:10px;padding:10px}
+.log .ok{color:#6EE7A0}.log .no{color:#FCA5A5}.log .nt{color:#9CC3CF}
+.chk li{font-size:12.5px;margin:4px 0;color:var(--mut)}
+/* phone */
+.phone{width:372px;height:760px;background:#fff;border-radius:38px;border:10px solid #10242B;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.top{padding:14px 16px 12px;color:#fff;transition:background .25s}
+.top.p{background:var(--teal)}.top.f{background:var(--fam)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.18);border-radius:99px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;border:0;color:#fff}
+.bal{font-size:30px;font-weight:800;margin:8px 0 2px}
+.sub{font-size:12px;opacity:.85}
+.body{flex:1;overflow:auto;background:var(--bg);padding:14px}
+.nav{display:flex;border-top:1px solid var(--line);background:#fff}
+.nav button{flex:1;padding:10px 0;border:0;background:none;font-size:11px;color:var(--mut);cursor:pointer}
+.nav button.on{color:var(--teal);font-weight:800}.nav.f button.on{color:var(--fam)}
+.fab{width:46px;height:46px;border-radius:50%;border:0;color:#fff;font-size:24px;margin:-18px 6px 0;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+.tx{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:12.5px;color:#fff;flex:none}
+.tx b{font-size:13.5px}.tx small{display:block;color:var(--mut);font-size:11.5px}
+.amt{margin-left:auto;font-weight:800;font-size:13.5px}.neg{color:var(--red)}.pos{color:var(--green)}
+.lab{font-size:11px;font-weight:800;color:var(--mut);letter-spacing:.07em;margin:14px 2px 6px}
+.btn{width:100%;padding:12px;border-radius:12px;border:0;font:inherit;font-weight:800;color:#fff;cursor:pointer;margin-top:8px}
+.btn.p{background:var(--teal)}.btn.f{background:var(--fam)}.btn.g{background:#fff;color:var(--ink);border:1px solid var(--line)}.btn.r{background:#fff;color:var(--red);border:1px solid #F3C4C4}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.in{width:100%;padding:11px;border:1px solid var(--line);border-radius:11px;font:inherit;background:#fff;margin-bottom:8px}
+.role{font-size:10.5px;font-weight:800;border-radius:99px;padding:2px 8px;background:var(--fam-bg);color:var(--fam)}
+.role.OWNER{background:#FEF3C7;color:#92400E}.role.VIEWER{background:#E5E7EB;color:#374151}
+.note{font-size:12px;color:var(--mut);background:#fff;border:1px dashed var(--line);border-radius:10px;padding:9px;margin:8px 0;line-height:1.45}
+.warn{background:#FFF7ED;border-color:#FDBA74;color:#9A3412}
+.err{background:#FEF2F2;border-color:#FCA5A5;color:#991B1B}
+.sheet-bg{position:absolute;inset:0;background:rgba(8,20,26,.5);display:flex;align-items:flex-end}
+.sheet{background:#fff;width:100%;border-radius:24px 24px 0 0;padding:16px;max-height:80%;overflow:auto}
+.opt{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:13px;padding:10px;margin-bottom:8px;cursor:pointer;background:#fff;width:100%;text-align:left;font:inherit}
+.opt.on{border-color:var(--fam);background:var(--fam-bg)}.opt.pon{border-color:var(--teal);background:var(--teal-bg)}
+.bar{height:9px;border-radius:5px;background:#E3EDF0;overflow:hidden;margin:4px 0 10px}.bar i{display:block;height:100%;background:var(--fam)}
+.code{font:800 26px ui-monospace,Consolas,monospace;letter-spacing:.25em;text-align:center;background:var(--fam-bg);color:var(--fam);border-radius:12px;padding:12px;margin:8px 0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.chip{padding:6px 11px;border-radius:99px;border:1px solid var(--line);background:#fff;font-size:12px;cursor:pointer}.chip.on{background:var(--fam);color:#fff;border-color:var(--fam)}
+.back{background:none;border:0;font-size:13px;color:var(--teal);font-weight:700;cursor:pointer;padding:0 0 8px}
+.tiny{font-size:11px;color:var(--mut);cursor:pointer;text-decoration:underline;background:none;border:0;padding:0}
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <div class="card">
+    <h1>Family Portal</h1>
+    <p class="s">Clickable prototype of the plan in <b>design/family-portal.md</b>. Nothing here touches the real app. Use the controls to walk through every flow and see what the server would answer.</p>
+    <h2>You are logged in as</h2>
+    <select id="who"></select>
+    <p class="s" style="margin-top:8px" id="whoNote"></p>
+  </div>
+  <div class="card">
+    <h2>Jump to a situation</h2>
+    <div class="jump">
+      <button class="d" data-jump="fresh">1 · Fresh start — Aline, no family yet</button>
+      <button class="d" data-jump="family">2 · A family of 4 already exists (try each role)</button>
+      <button class="d" data-jump="join">3 · Divine joins with a code (invite already sent)</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>What the plan enforces</h2>
+    <ul class="chk" style="padding-left:18px;margin:0">
+      <li>Personal ⇄ Family are two separate piles of data</li>
+      <li>Roles decide the buttons (and the server says 403 anyway)</li>
+      <li>Invites are single-use, expire, can be revoked</li>
+      <li>One family per person in v1</li>
+      <li>Loans, schedules, reminders stay personal</li>
+    </ul>
+  </div>
+</div>
+
+<div>
+  <div class="phone" id="phone"></div>
+</div>
+
+<div class="panel">
+  <div class="card">
+    <h2>What the app sends to the server</h2>
+    <p class="s">Every request in Family scope carries <code>X-Family-Id</code>. No header means Personal.</p>
+    <div class="log" id="log"><span class="nt">— waiting for the first action —</span></div>
+  </div>
+  <div class="card">
+    <h2>Quick facts</h2>
+    <p class="s" id="facts"></p>
+  </div>
+</div>
+
+<script>
+const fmt = n => (n<0?'-':'')+'RWF '+Math.abs(n).toLocaleString('en-US');
+const COLORS = {aline:'#00627F',eric:'#B45309',grace:'#0F766E',kevin:'#7C3AED',divine:'#BE185D'};
+const PEOPLE = {aline:'Aline',eric:'Eric',grace:'Grace',kevin:'Kevin',divine:'Divine'};
+const PERM = { // role -> allowed actions (from §7 of the plan)
+  OWNER: ['view','tx.add','tx.own','tx.other','wallet.manage','wallet.delete','budget','invite','invite.admin','remove.any','role','rename','transfer','delete'],
+  ADMIN: ['view','tx.add','tx.own','tx.other','wallet.manage','budget','invite','remove.member','leave'],
+  MEMBER:['view','tx.add','tx.own','leave'],
+  VIEWER:['view','leave'],
+};
+let S;
+function fresh(){
+  S = {
+    user:'aline', screen:'home', sheet:null, family:null, members:[], invites:[], activity:[],
+    scope:{aline:'personal',eric:'personal',grace:'personal',kevin:'personal',divine:'personal'},
+    personal:{
+      aline:[{t:'Salary',c:'Income',a:950000,d:'Oct 27'},{t:'Moto to town',c:'Transport',a:-2500,d:'Oct 28'},{t:'Phone bundle',c:'Bills',a:-6000,d:'Oct 26'}],
+      eric:[{t:'Freelance job',c:'Income',a:300000,d:'Oct 25'}],grace:[{t:'Lunch',c:'Food',a:-4000,d:'Oct 27'}],kevin:[{t:'Pocket money',c:'Income',a:10000,d:'Oct 20'}],
+      divine:[{t:'Salary',c:'Income',a:420000,d:'Oct 26'},{t:'Rent',c:'Bills',a:-150000,d:'Oct 27'}],
+    },
+    famWallets:[], famTx:[], draft:{kind:'EXPENSE',cat:'Food'}, pick:null, joinCode:'', joinInfo:null, joinErr:'', inviteRole:'MEMBER', created:null, memberSel:null,
+  };
+}
+fresh();
+const me = () => S.members.find(m=>m.id===S.user);
+const role = () => me()?.status==='ACTIVE' ? me().role : null;
+const can = a => !!role() && PERM[role()].includes(a);
+const inFam = () => !!role();
+const scope = () => inFam() ? S.scope[S.user] : 'personal';
+const nm = id => PEOPLE[id] || id;
+function log(method,path,status,note){
+  const el=document.getElementById('log');
+  if(el.firstElementChild?.classList.contains('nt')) el.innerHTML='';
+  const hdr = path.startsWith('/family') || scope()==='personal' ? '' : `  X-Family-Id: ${S.family?.id}`;
+  const cls = status<300?'ok':'no';
+  el.insertAdjacentHTML('afterbegin',`<div><span class="${cls}">${status}</span> ${method} ${path}${hdr}${note?`<br><span class="nt">&nbsp;&nbsp;↳ ${note}</span>`:''}</div>`);
+}
+function act(text){ S.activity.unshift({by:S.user,text,at:'just now'}); }
+function seedFamily(){
+  S.family={id:'fam_7Q2',name:'Mwiza Family',currency:'RWF'};
+  S.members=[{id:'aline',role:'OWNER',status:'ACTIVE'},{id:'eric',role:'ADMIN',status:'ACTIVE'},{id:'grace',role:'MEMBER',status:'ACTIVE'},{id:'kevin',role:'VIEWER',status:'ACTIVE'}];
+  S.famWallets=[{id:'w1',name:'Household',bank:'Bank of Kigali',bal:480000,def:true},{id:'w2',name:'School fees',bank:'MoMo',bal:120000,def:false}];
+  S.famTx=[{by:'grace',t:'Groceries — Simba',c:'Food',a:-42300,d:'Oct 28'},{by:'eric',t:'Electricity',c:'Bills',a:-25000,d:'Oct 27'},{by:'aline',t:'Rent share',c:'Bills',a:300000,d:'Oct 26'},{by:'grace',t:'Market',c:'Food',a:-18000,d:'Oct 25'},{by:'eric',t:'Fuel',c:'Transport',a:-30000,d:'Oct 24'}];
+  S.activity=[{by:'grace',text:'added “Groceries — Simba” −42,300',at:'2h ago'},{by:'eric',text:'invited a new Member',at:'yesterday'},{by:'aline',text:'created the family',at:'3 days ago'}];
+}
+const jumps={
+  fresh(){fresh();},
+  family(){fresh();seedFamily();S.user='grace';S.scope.grace='family';},
+  join(){fresh();seedFamily();S.invites=[{id:'i1',code:'K7M2QX',role:'MEMBER',status:'PENDING',by:'aline'}];S.user='divine';},
+};
+document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>{jumps[b.dataset.jump]();document.getElementById('log').innerHTML='<span class="nt">— waiting for the first action —</span>';render();});
+
+function rand(n){const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:n},()=>a[Math.floor(Math.random()*a.length)]).join('');}
+function avatar(id,sz){return `<div class="av" style="background:${COLORS[id]||'#64748B'};${sz?`width:${sz}px;height:${sz}px`:''}">${nm(id)[0]}</div>`;}
+const accent = () => scope()==='family' ? 'f' : 'p';
+
+function renderWho(){
+  const s=document.getElementById('who');
+  const ids=['aline','eric','grace','kevin','divine'];
+  s.innerHTML=ids.map(id=>{const m=S.members.find(x=>x.id===id&&x.status==='ACTIVE');return `<option value="${id}" ${S.user===id?'selected':''}>${nm(id)} — ${m?m.role.toLowerCase():'not in a family'}</option>`}).join('');
+  s.onchange=()=>{S.user=s.value;S.screen='home';S.sheet=null;S.joinInfo=null;S.joinErr='';S.joinCode='';render();};
+  document.getElementById('whoNote').textContent = inFam()
+    ? `${nm(S.user)} is ${role()} of ${S.family.name}. Buttons below change with the role.`
+    : `${nm(S.user)} has no family. They can create one or join with a code.`;
+}
+function renderFacts(){
+  document.getElementById('facts').innerHTML = S.family
+    ? `Family “${S.family.name}” · ${S.members.filter(m=>m.status==='ACTIVE').length} of 12 members · currency ${S.family.currency}<br>Pending invites: ${S.invites.filter(i=>i.status==='PENDING').length} of 20`
+    : 'No family exists yet.';
+}
+
+/* ───────── screens ───────── */
+function famBalance(){return S.famWallets.reduce((a,w)=>a+w.bal,0);}
+function persBalance(){return S.personal[S.user].reduce((a,t)=>a+t.a,0)+200000;}
+function homeScreen(){
+  const f=scope()==='family';
+  const list = f ? S.famTx : S.personal[S.user].map(t=>({...t,by:S.user}));
+  return `
+  <div class="top ${accent()}">
+    <div class="row"><button class="pill" data-a="scope">${f?'👪 '+S.family.name:'👤 Personal'} ▾</button><span class="sub">${nm(S.user)}${f?' · '+role().toLowerCase():''}</span></div>
+    <div class="sub" style="margin-top:12px">${f?'FAMILY BALANCE':'PERSONAL BALANCE'}</div>
+    <div class="bal">${fmt(f?famBalance():persBalance())}</div>
+    <div class="sub">${f?'Only family wallets and transactions are counted here':'Your private money — the family never sees this'}</div>
+  </div>
+  <div class="body">
+    ${f&&S.famWallets.length===0?'<div class="note warn">The family has no wallet yet. Ask an admin to create one.</div>':''}
+    <div class="lab">RECENT ${f?'· WHO DID WHAT':''}</div>
+    ${list.map(t=>`<div class="tx">${f?avatar(t.by):''}<div><b>${t.t}</b><small>${t.c} · ${t.d}${f?' · '+nm(t.by):''}</small></div><span class="amt ${t.a<0?'neg':'pos'}">${t.a<0?'−':'+'}${Math.abs(t.a).toLocaleString('en-US')}</span></div>`).join('')}
+    ${f&&!can('tx.add')?'<div class="note">You can look at everything here, but only Members and above can add. That is how a Viewer role works.</div>':''}
+    ${!f?'<div class="note">Loans, schedules and reminders live here, in Personal, in this first version.</div>':''}
+  </div>`;
+}
+function reportsScreen(){
+  const f=scope()==='family';
+  if(!f) return `<div class="top p"><div class="bal" style="font-size:22px">Reports</div><div class="sub">Personal</div></div><div class="body"><div class="note">Switch to Family to see who spends what. Personal reports stay exactly as they are today.</div></div>`;
+  const by={};S.famTx.filter(t=>t.a<0).forEach(t=>by[t.by]=(by[t.by]||0)+Math.abs(t.a));
+  const tot=Object.values(by).reduce((a,b)=>a+b,0)||1;
+  const cat={};S.famTx.filter(t=>t.a<0).forEach(t=>cat[t.c]=(cat[t.c]||0)+Math.abs(t.a));
+  return `<div class="top f"><div class="bal" style="font-size:22px">Reports</div><div class="sub">${S.family.name} · October</div></div>
+  <div class="body"><div class="lab" style="margin-top:0">SPENT BY MEMBER</div>
+  ${Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([id,v],i)=>`<div class="row"><span>${avatar(id,24)}</span><b style="flex:1;margin-left:8px;font-size:13px">${nm(id)}${i===0?' · top spender':''}</b><span style="font-size:13px">${fmt(v)}</span></div><div class="bar"><i style="width:${Math.round(v/tot*100)}%"></i></div>`).join('')}
+  <div class="lab">BY CATEGORY</div>
+  ${Object.entries(cat).map(([c,v])=>`<div class="row"><b style="font-size:13px">${c}</b><span style="font-size:13px">${fmt(v)}</span></div><div class="bar"><i style="width:${Math.round(v/tot*100)}%;background:var(--teal)"></i></div>`).join('')}
+  <div class="note">Includes “spending by member”, which only exists in Family scope. Loans are not part of family reports.</div></div>`;
+}
+function hubScreen(){
+  if(!inFam()) return `<div class="top p"><div class="bal" style="font-size:22px">Family</div><div class="sub">Share money with the people you live with</div></div>
+  <div class="body"><div class="note">A family is a separate space with its own wallets, transactions and budget. Your personal money stays private.</div>
+  <button class="btn f" data-a="create">Create a family</button><button class="btn g" data-a="joinScreen">Join with a code</button></div>`;
+  const act=S.members.filter(m=>m.status==='ACTIVE');
+  return `<div class="top f"><div class="bal" style="font-size:22px">${S.family.name}</div><div class="sub">${act.length} members · ${S.family.currency} · you are ${role().toLowerCase()}</div></div>
+  <div class="body"><div class="lab" style="margin-top:0">MEMBERS</div>
+  ${act.map(m=>`<div class="tx" data-a="member" data-id="${m.id}" style="cursor:pointer">${avatar(m.id)}<div><b>${nm(m.id)}${m.id===S.user?' (you)':''}</b><small>joined ${m.id==='aline'?'3 days ago':'recently'}</small></div><span class="amt"><span class="role ${m.role}">${m.role}</span></span></div>`).join('')}
+  ${can('invite')?`<button class="btn f" data-a="invite">+ Invite someone</button>`:'<div class="note">Only the owner and admins can invite.</div>'}
+  ${can('invite')&&S.invites.some(i=>i.status==='PENDING')?`<div class="lab">PENDING INVITES</div>${S.invites.filter(i=>i.status==='PENDING').map(i=>`<div class="tx"><div><b style="font-family:monospace;letter-spacing:.15em">${i.code}</b><small>as ${i.role} · expires in 7 days · <button class="tiny" data-a="expire" data-id="${i.id}">demo: expire it</button></small></div><button class="role" style="border:0;cursor:pointer" data-a="revoke" data-id="${i.id}">Revoke</button></div>`).join('')}`:''}
+  <div class="lab">ACTIVITY</div>
+  ${S.activity.slice(0,6).map(a=>`<div class="tx">${avatar(a.by,28)}<div><b style="font-size:12.5px">${nm(a.by)} ${a.text}</b><small>${a.at}</small></div></div>`).join('')}
+  <div class="lab">YOUR MEMBERSHIP</div>
+  ${role()==='OWNER'?`<button class="btn g" data-a="transfer">Transfer ownership…</button><button class="btn r" data-a="deleteFam">Delete family</button><div class="note">The owner cannot simply leave: transfer ownership first, or delete the family.</div>`:`<button class="btn r" data-a="leave">Leave family</button>`}
+  </div>`;
+}
+function memberScreen(){
+  const m=S.members.find(x=>x.id===S.memberSel);if(!m) {S.screen='hub';return hubScreen();}
+  const mine=m.id===S.user;
+  const canRole=can('role')&&!mine;
+  const canRemove=!mine&&(can('remove.any')||(can('remove.member')&&['MEMBER','VIEWER'].includes(m.role)));
+  return `<div class="top f"><button class="pill" data-a="hub">‹ Back</button><div class="bal" style="font-size:22px">${nm(m.id)}</div><div class="sub"><span class="role ${m.role}">${m.role}</span></div></div>
+  <div class="body">
+  <div class="lab" style="margin-top:0">ROLE</div>
+  ${['ADMIN','MEMBER','VIEWER'].map(r=>`<button class="opt ${m.role===r?'on':''}" data-a="setRole" data-r="${r}" ${canRole?'':'disabled style="opacity:.5;cursor:not-allowed"'}><div><b>${r}</b><br><small style="color:var(--mut)">${{ADMIN:'Manages wallets, budget, invites',MEMBER:'Adds and edits own transactions',VIEWER:'Can only look (good for children)'}[r]}</small></div></button>`).join('')}
+  ${!canRole?`<div class="note">${m.role==='OWNER'?'The owner’s role cannot be changed here.':mine?'Nobody can change their own role.':'Only the owner can change roles.'}</div>`:''}
+  ${canRemove?`<button class="btn r" data-a="remove" data-id="${m.id}">Remove from family</button>`:`<div class="note">${mine?'Use “Leave family” on the Family page.':'You are not allowed to remove this member.'}</div>`}
+  </div>`;
+}
+function addScreen(){
+  const f=scope()==='family';
+  const wallets=f?S.famWallets:[{id:'p1',name:'MoMo',bank:'MTN',bal:200000}];
+  if(f&&!can('tx.add')) return `<div class="top f"><button class="pill" data-a="home">✕ Close</button></div><div class="body"><div class="note err"><b>403 — Viewer</b><br>Viewers can see family money but not add to it. The + button is hidden for Viewers; if someone calls the server anyway, it refuses.</div><button class="btn g" data-a="tryAdd">Try anyway (what the server answers)</button></div>`;
+  if(f&&!wallets.length) return `<div class="top f"><button class="pill" data-a="home">✕ Close</button></div><div class="body"><div class="note warn">The family has no wallet yet. Ask an admin to create one.</div></div>`;
+  const d=S.draft;
+  return `<div class="top ${accent()}"><div class="row"><button class="pill" data-a="home">✕</button><b>New transaction</b><span></span></div></div>
+  <div class="body">
+  <div class="note ${f?'':''}" style="border-color:${f?'var(--fam)':'var(--line)'};color:${f?'var(--fam)':'var(--mut)'}"><b>Adding to: ${f?'👪 '+S.family.name:'👤 Personal'}</b><br>${f?'Only family wallets can be chosen. Everyone in the family will see this.':'Only your own wallets can be chosen.'}</div>
+  <div class="chips"><span class="chip ${d.kind==='EXPENSE'?'on':''}" data-a="kind" data-k="EXPENSE">Expense</span><span class="chip ${d.kind==='INCOME'?'on':''}" data-a="kind" data-k="INCOME">Income</span></div>
+  <input class="in" id="amt" placeholder="Amount (RWF)" inputmode="numeric" value="${d.amt||''}">
+  <input class="in" id="ttl" placeholder="What was it for?" value="${d.t||''}">
+  <div class="chips">${['Food','Transport','Bills','Shopping','Health'].map(c=>`<span class="chip ${d.cat===c?'on':''}" data-a="cat" data-c="${c}">${c}</span>`).join('')}</div>
+  <div class="lab" style="margin-top:4px">WALLET</div>
+  ${wallets.map((w,i)=>`<button class="opt ${(S.pick||wallets[0].id)===w.id?(f?'on':'pon'):''}" data-a="pickW" data-id="${w.id}"><div><b>${w.name}</b><br><small style="color:var(--mut)">${w.bank} · ${fmt(w.bal)}</small></div></button>`).join('')}
+  ${f?'<div class="note">Not available in Family: “pay from a loan” (loans stay personal).</div>':''}
+  <button class="btn ${accent()}" data-a="save">Save</button></div>`;
+}
+function createScreen(){
+  return `<div class="top f"><button class="pill" data-a="home">✕</button><div class="bal" style="font-size:22px">Create a family</div></div>
+  <div class="body"><input class="in" id="fname" placeholder="Family name" value="Mwiza Family"><div class="chips"><span class="chip on">RWF</span><span class="chip">USD</span><span class="chip">EUR</span></div>
+  <input class="in" id="wname" placeholder="First family wallet" value="Household">
+  <div class="note">You become the <b>Owner</b>. You need a verified email or phone to create a family. You can only be in one family.</div>
+  <button class="btn f" data-a="doCreate">Create family</button></div>`;
+}
+function joinScreen(){
+  const i=S.joinInfo;
+  return `<div class="top f"><button class="pill" data-a="home">‹ Back</button><div class="bal" style="font-size:22px">Join a family</div></div>
+  <div class="body">${!i?`<input class="in" id="jcode" placeholder="Enter the 6-character code" maxlength="6" style="text-transform:uppercase;letter-spacing:.3em;text-align:center;font-weight:800" value="${S.joinCode}">
+  ${S.joinErr?`<div class="note err">${S.joinErr}</div>`:''}
+  <button class="btn f" data-a="preview">Continue</button><div class="note">Try: <b>K7M2QX</b> (valid), <b>ZZZZZZ</b> (wrong). Use “demo: expire it” or “Revoke” on the inviter side to see those errors.</div>`
+  :`<div class="tx" style="padding:16px"><div style="font-size:30px">👪</div><div><b style="font-size:16px">${i.name}</b><small>invited by ${nm(i.by)} · you would join as <span class="role">${i.role}</span></small></div></div>
+  <div class="note"><b>Before you join:</b> family members can see the family’s wallets and transactions, including what you add there. They can <b>never</b> see your personal money.</div>
+  <button class="btn f" data-a="doJoin">Join ${i.name}</button><button class="btn g" data-a="joinReset">Cancel</button>`}</div>`;
+}
+function sheetHtml(){
+  if(S.sheet==='scope'){
+    const p=scope()==='personal';
+    return `<div class="sheet"><b style="font-size:16px">Where are you?</b><p class="s">Everything on screen shows only this space.</p>
+    <button class="opt ${p?'pon':''}" data-a="setScope" data-s="personal"><span style="font-size:22px">👤</span><div><b>Personal</b><br><small style="color:var(--mut)">Only you</small></div></button>
+    ${inFam()?`<button class="opt ${!p?'on':''}" data-a="setScope" data-s="family"><span style="font-size:22px">👪</span><div><b>${S.family.name}</b><br><small style="color:var(--mut)">${S.members.filter(m=>m.status==='ACTIVE').length} members · you are ${role().toLowerCase()}</small></div></button>`
+    :`<button class="opt" data-a="create"><span style="font-size:22px">➕</span><div><b>Create a family</b></div></button><button class="opt" data-a="joinScreen"><span style="font-size:22px">🔑</span><div><b>Join with a code</b></div></button>`}
+    <button class="btn g" data-a="closeSheet">Close</button></div>`;
+  }
+  if(S.sheet==='invite'){
+    const created=S.created;
+    return `<div class="sheet"><b style="font-size:16px">Invite someone</b>
+    ${!created?`<p class="s">Choose what they can do.</p>
+    ${['MEMBER','VIEWER','ADMIN'].map(r=>{const dis=r==='ADMIN'&&!can('invite.admin');return `<button class="opt ${S.inviteRole===r?'on':''}" data-a="invRole" data-r="${r}" ${dis?'disabled style="opacity:.45;cursor:not-allowed"':''}><div><b>${r}</b>${dis?' <small>(owner only)</small>':''}<br><small style="color:var(--mut)">${{ADMIN:'Manages wallets and invites',MEMBER:'Adds their own transactions',VIEWER:'Looks only'}[r]}</small></div></button>`}).join('')}
+    <button class="btn f" data-a="makeInvite">Create invite</button>`
+    :`<p class="s">Single-use · expires in 7 days · role ${created.role}</p><div class="code">${created.code}</div>
+    <div class="note" style="word-break:break-all">https://aby-expense.onrender.com/join/${created.token}</div>
+    <button class="btn f" data-a="share">Share (WhatsApp, SMS, copy)</button>`}
+    <button class="btn g" data-a="closeSheet">Close</button></div>`;
+  }
+  return '';
+}
+function render(){
+  const map={home:homeScreen,reports:reportsScreen,hub:hubScreen,member:memberScreen,add:addScreen,create:createScreen,joinScreen:joinScreen};
+  const full=['add','create','joinScreen','member'].includes(S.screen);
+  const f=scope()==='family';
+  document.getElementById('phone').innerHTML = wrap(map[S.screen](),full,f);
+  renderWho();renderFacts();bind();
+}
+function wrap(inner,full,f){
+  return `<div style="display:flex;flex-direction:column;height:100%;min-height:0">${inner.replace('<div class="body">','<div class="body" style="flex:1;min-height:0">')}${full?'':`<div class="nav ${f?'f':''}"><button class="${S.screen==='home'?'on':''}" data-a="home">🏠<br>Home</button><button class="${S.screen==='reports'?'on':''}" data-a="reports">📊<br>Reports</button><button class="${S.screen==='hub'?'on':''}" data-a="hub">👪<br>Family</button></div>`}</div>${full||S.screen!=='home'?'':`<button class="fab" style="position:absolute;bottom:44px;left:50%;margin-left:-29px;background:${f?'var(--fam)':'var(--teal)'};${f&&!can('tx.add')?'display:none':''}" data-a="addScreen">+</button>`}${sheetHtml()?`<div class="sheet-bg" data-a="closeSheet" id="sb">${sheetHtml()}</div>`:''}`;
+}
+
+/* ───────── actions ───────── */
+function bind(){
+  document.querySelectorAll('#phone [data-a]').forEach(el=>el.addEventListener('click',ev=>{
+    if(el.id==='sb'&&ev.target!==el) return;
+    ev.stopPropagation();
+    const a=el.dataset.a, d=el.dataset;
+    if(el.hasAttribute('disabled')) return;
+    handlers[a]?.(d,el);
+  }));
+}
+const go=(s)=>{S.screen=s;S.sheet=null;render();};
+const handlers={
+  home:()=>go('home'),reports:()=>{go('reports');if(scope()==='family')log('GET','/reports/by-member',200,'spending per member');},hub:()=>{go('hub');if(inFam())log('GET','/family/'+S.family.id+'/members',200);},
+  scope:()=>{S.sheet='scope';render();},closeSheet:()=>{S.sheet=null;render();},
+  setScope:(d)=>{S.scope[S.user]=d.s;S.sheet=null;S.screen='home';S.draft={kind:'EXPENSE',cat:'Food'};S.pick=null;
+    if(d.s==='family'){log('GET','/wallets',200,'refetched with the family header; personal rows are not returned');log('GET','/transactions',200);}else{log('GET','/wallets',200,'no header → Personal');log('GET','/transactions',200);}
+    render();},
+  create:()=>{S.sheet=null;S.screen='create';render();},
+  doCreate:()=>{
+    const n=document.getElementById('fname').value.trim()||'My Family',w=document.getElementById('wname').value.trim()||'Household';
+    S.family={id:'fam_'+rand(3),name:n,currency:'RWF'};S.members=[{id:S.user,role:'OWNER',status:'ACTIVE'}];S.famWallets=[{id:'w1',name:w,bank:'Cash',bal:0,def:true}];S.famTx=[];S.activity=[];act('created the family');
+    S.scope[S.user]='family';log('POST','/family',201,`${nm(S.user)} is now OWNER`);go('home');},
+  joinScreen:()=>{S.sheet=null;S.joinInfo=null;S.joinErr='';S.screen='joinScreen';render();},
+  preview:()=>{
+    const code=document.getElementById('jcode').value.trim().toUpperCase();S.joinCode=code;
+    if(inFam()){S.joinErr='You are already in a family. Leave your current family first.';log('GET','/family/invites/preview',409,'one family per person (v1)');return render();}
+    const inv=S.invites.find(i=>i.code===code);
+    if(!inv){S.joinErr='That code does not match any invite.';log('GET','/family/invites/preview?code='+code,404,'rate-limited: 5 wrong tries then a cool-down');return render();}
+    if(inv.status==='EXPIRED'){S.joinErr='This invite expired — ask for a new one.';log('GET','/family/invites/preview',410);return render();}
+    if(inv.status!=='PENDING'){S.joinErr='This invite is no longer valid.';log('GET','/family/invites/preview',410,'revoked or already used — same message on purpose');return render();}
+    S.joinErr='';S.joinInfo={name:S.family.name,by:inv.by,role:inv.role,id:inv.id};log('GET','/family/invites/preview?code='+code,200,'shows who invited you and the role');render();},
+  joinReset:()=>{S.joinInfo=null;render();},
+  doJoin:()=>{
+    const inv=S.invites.find(i=>i.id===S.joinInfo.id);
+    if(inv.status!=='PENDING'){S.joinErr='This invite is no longer valid.';S.joinInfo=null;log('POST','/family/join',409,'two people used the same single-use link: the second loses');return render();}
+    inv.status='ACCEPTED';S.members.push({id:S.user,role:inv.role,status:'ACTIVE'});act('joined the family');
+    S.scope[S.user]='family';log('POST','/family/join',200,`${nm(S.user)} → ${inv.role}; everyone else is notified; invite is now used`);S.joinInfo=null;go('home');},
+  invite:()=>{S.created=null;S.sheet='invite';render();},
+  invRole:(d)=>{S.inviteRole=d.r;render();},
+  makeInvite:()=>{
+    if(S.invites.filter(i=>i.status==='PENDING').length>=20){log('POST','/family/'+S.family.id+'/invites',429,'pending invite cap reached');return;}
+    const inv={id:'i'+(S.invites.length+1),code:rand(6),role:S.inviteRole,status:'PENDING',by:S.user};S.invites.push(inv);
+    S.created={...inv,token:rand(22).toLowerCase()};act('invited a new '+S.inviteRole.toLowerCase());
+    log('POST','/family/'+S.family.id+'/invites',201,'token stored hashed; code shown once; expires in 7 days');render();},
+  share:()=>{log('—','system share sheet',200,'WhatsApp / SMS / copy — no SMS is sent by us');alert('The phone’s share sheet opens here (WhatsApp, SMS, copy link).');},
+  revoke:(d)=>{const i=S.invites.find(x=>x.id===d.id);i.status='REVOKED';log('DELETE','/family/'+S.family.id+'/invites/'+i.id,200,'the link and code stop working at once');render();},
+  expire:(d)=>{const i=S.invites.find(x=>x.id===d.id);i.status='EXPIRED';render();},
+  member:(d)=>{S.memberSel=d.id;go('member');},
+  setRole:(d)=>{const m=S.members.find(x=>x.id===S.memberSel);if(!can('role')||m.id===S.user)return;m.role=d.r;act(`made ${nm(m.id)} ${d.r.toLowerCase()}`);log('PATCH',`/family/${S.family.id}/members/${m.id}`,200,'role changes apply on the very next request');render();},
+  remove:(d)=>{const m=S.members.find(x=>x.id===d.id);m.status='REMOVED';act('removed '+nm(m.id));S.scope[m.id]='personal';log('DELETE',`/family/${S.family.id}/members/${m.id}`,200,`${nm(m.id)}’s live connection to the family is closed; their past transactions stay`);go('hub');},
+  leave:()=>{const m=me();m.status='LEFT';act('left the family');S.scope[S.user]='personal';log('DELETE',`/family/${S.family.id}/members/${S.user}`,200,'they lose access immediately; their past entries stay in the family');go('home');},
+  transfer:()=>{const t=prompt('Transfer ownership to (Eric / Grace / Kevin)?','Eric');const id=Object.keys(PEOPLE).find(k=>PEOPLE[k].toLowerCase()===(t||'').toLowerCase());const m=S.members.find(x=>x.id===id&&x.status==='ACTIVE');if(!m||id===S.user)return;m.role='OWNER';me().role='ADMIN';act('transferred ownership to '+nm(id));log('POST',`/family/${S.family.id}/transfer-ownership`,200,'there is always exactly one owner');render();},
+  deleteFam:()=>{if(!confirm('Delete the family? (The real app asks you to type the family name.) It is archived for 30 days.'))return;log('DELETE','/family/'+S.family.id,200,'archived 30 days; members drop back to Personal; nothing is copied into anyone’s personal data');S.members.forEach(m=>S.scope[m.id]='personal');S.family=null;S.members=[];S.invites=[];S.famTx=[];S.famWallets=[];go('home');},
+  addScreen:()=>{S.pick=null;go('add');},
+  kind:(d)=>{S.draft.kind=d.k;keep();render();},cat:(d)=>{keep();S.draft.cat=d.c;render();},pickW:(d)=>{keep();S.pick=d.id;render();},
+  tryAdd:()=>log('POST','/transactions',403,'Viewer cannot add — refused by the server, not just hidden in the app'),
+  save:()=>{keep();const d=S.draft;const a=parseInt((d.amt||'').replace(/\D/g,''),10);if(!a){alert('Enter an amount');return;}
+    const f=scope()==='family';const signed=d.kind==='EXPENSE'?-a:a;const row={t:d.t||d.cat,c:d.cat,a:signed,d:'Today'};
+    if(f){const w=S.famWallets.find(x=>x.id===(S.pick||S.famWallets[0].id));w.bal+=signed;S.famTx.unshift({...row,by:S.user});act(`added “${row.t}” ${signed<0?'−':'+'}${a.toLocaleString('en-US')}`);
+      log('POST','/transactions',201,`familyId set, author = ${nm(S.user)}; wallet balance changed atomically; others get a push`);
+      const others=S.members.filter(m=>m.status==='ACTIVE'&&m.id!==S.user).map(m=>nm(m.id)).join(', ');log('PUSH','→ '+others,200,`“${nm(S.user)} added ${signed<0?'−':'+'}${a.toLocaleString('en-US')} · ${row.c}” (each in their own language, respecting quiet hours)`);}
+    else{S.personal[S.user].unshift(row);log('POST','/transactions',201,'no header → Personal; nobody else is told');}
+    S.draft={kind:'EXPENSE',cat:'Food'};S.pick=null;go('home');},
+};
+function keep(){const a=document.getElementById('amt'),t=document.getElementById('ttl');if(a)S.draft.amt=a.value;if(t)S.draft.t=t.value;}
+render();
+</script>
+</body>
+</html>

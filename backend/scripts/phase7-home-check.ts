@@ -4,6 +4,7 @@
  *
  *   DATABASE_URL="mysql://root@localhost:3306/expense_p3_test" npx ts-node scripts/phase7-home-check.ts
  */
+import { personalScope } from '../src/modules/family/scope/scope';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { TransactionService } from '../src/modules/transaction/transaction.service';
@@ -56,25 +57,25 @@ async function main() {
     const wUsd = await prisma.wallet.create({ data: { clientId: A, name: 'Dollar', bank: 'T', currency: 'USD', balance: 0, archived: true } });
 
     // ── An empty person sees zeros, not errors ────────────────────────────────
-    const empty = await home.summary(await mk('E'), month, year);
+    const empty = await home.summary(personalScope(await mk('E')), month, year);
     check('empty: zero totals, nothing owed, nothing waiting', [empty.totals, empty.loans, empty.owe, empty.owed, empty.attentionTotal, empty.scheduled.waiting, empty.netWorth],
       [{ income: 0, expense: 0, net: 0 }, { out: 0, in: 0, borrowed: 0 }, {}, {}, 0, 0, []]);
 
     // ── A realistic month ─────────────────────────────────────────────────────
-    await transactions.create(A, { type: 'INCOME', category: 'salary', title: 'Salary', amount: 500000, walletId: wRwf.id });
-    await transactions.create(A, { type: 'EXPENSE', category: 'food', title: 'Groceries', amount: 180000, walletId: wRwf.id });
+    await transactions.create(personalScope(A), { type: 'INCOME', category: 'salary', title: 'Salary', amount: 500000, walletId: wRwf.id });
+    await transactions.create(personalScope(A), { type: 'EXPENSE', category: 'food', title: 'Groceries', amount: 180000, walletId: wRwf.id });
     const john = await debts.create(A, { kind: 'BORROWED', person: 'John', amount: 200000, currency: 'RWF', dueDate: iso(-3) });   // overdue
     await debts.addPayment(A, john.id, { amount: 50000, walletId: wRwf.id });
     const eric = await debts.create(A, { kind: 'LENT', person: 'Eric', amount: 120000, walletId: wRwf.id, dueDate: iso(1, 9) });
     await debts.addPayment(A, eric.id, { amount: 40000, walletId: wRwf.id });
     await debts.create(A, { kind: 'BORROWED', person: 'Dollar Dan', amount: 50, currency: 'USD', dueDate: iso(20) });
 
-    const on = await home.summary(A, month, year, true);
+    const on = await home.summary(personalScope(A), month, year, true);
     check('loans on: income = salary + repayment received (borrowed money is not income)', on.totals.income, 540000);
     check('loans on: expense = groceries + repayment made + money lent', on.totals.expense, 350000);
     check('loans on: net', on.totals.net, 190000);
     check('loans line: out, in, borrowed', on.loans, { out: 170000, in: 40000, borrowed: 200050 });
-    const off = await home.summary(A, month, year, false);
+    const off = await home.summary(personalScope(A), month, year, false);
     check('loans off: only everyday money', [off.totals.income, off.totals.expense, off.totals.net], [500000, 180000, 320000]);
     check('loans off: the loans line still tells the truth', off.loans, { out: 170000, in: 40000, borrowed: 200050 });
     check('the switch is echoed back', [on.includeLoans, off.includeLoans], [true, false]);
@@ -101,26 +102,26 @@ async function main() {
 
     // ── Scheduled ─────────────────────────────────────────────────────────────
     const s1 = await scheduled.create(A, { type: 'EXPENSE', category: 'rent', title: 'Rent', amount: 5000, walletId: wRwf.id, startAt: iso(2), repeat: blankRule('MONTH') } as any);
-    const afterSched = await home.summary(A, month, year);
+    const afterSched = await home.summary(personalScope(A), month, year);
     check('scheduled: nothing waiting yet, the next one is named', [afterSched.scheduled.waiting, afterSched.scheduled.next?.title], [0, 'Rent']);
     const dueNow = await scheduled.create(A, { type: 'INCOME', category: 'salary', title: 'Bonus', amount: 9000, walletId: wRwf.id, startAt: new Date(Date.now() + 60_000).toISOString() } as any);
     await scheduled.processDue(new Date(Date.now() + 5 * 60_000));
-    const waitingNow = await home.summary(A, month, year, true, new Date(Date.now() + 5 * 60_000));
+    const waitingNow = await home.summary(personalScope(A), month, year, true, new Date(Date.now() + 5 * 60_000));
     check('scheduled: a date that is due shows as waiting and in Needs attention', [waitingNow.scheduled.waiting, waitingNow.attention.some(a => (a as any).title === 'Bonus')], [1, true]);
     check('attention: overdue items first, the list is ordered by date', waitingNow.attention.map(a => a.overdue), [true, true, false]);
     void s1; void dueNow;
 
     // ── Other people see none of it ───────────────────────────────────────────
     const B = await mk('B');
-    const other = await home.summary(B, month, year);
+    const other = await home.summary(personalScope(B), month, year);
     check('another person: nothing leaks', [other.totals.income, other.owe, other.owed, other.attentionTotal, other.scheduled.waiting], [0, {}, {}, 0, 0]);
 
     // ── Bad input falls back safely ───────────────────────────────────────────
-    const prev = await home.summary(A, month === 1 ? 12 : month - 1, month === 1 ? year - 1 : year);
+    const prev = await home.summary(personalScope(A), month === 1 ? 12 : month - 1, month === 1 ? year - 1 : year);
     check('a month with nothing in it still returns the current debts', [prev.totals.income, prev.owe.RWF.amount], [0, 150000]);
 
     // ── The feed filters ──────────────────────────────────────────────────────
-    const ids = async (query: Record<string, any>) => (await transactions.findAll(A, { limit: 50, ...query })).data.map((t: any) => t.title).sort();
+    const ids = async (query: Record<string, any>) => (await transactions.findAll(personalScope(A), { limit: 50, ...query })).data.map((t: any) => t.title).sort();
     const everything = await ids({});
     check('all: everything, loans included', everything.length >= 6, true);
     check('all, loans off: no debt-tagged rows', (await ids({ includeLoans: 'false' })).some((t: string) => /John|Eric|Repaid|Repayment|Lent|Borrowed/.test(t)), false);
@@ -137,15 +138,15 @@ async function main() {
     check('an unknown view means all', (await ids({ view: 'rm -rf' })).length, everything.length);
     check('a chip combines with search', await ids({ view: 'debt', search: 'Repaid' }), ['Repaid John']);
     check('a chip combines with the old type filter', await ids({ view: 'debt', type: 'income' }), ['Borrowed from Dollar Dan', 'Borrowed from John']);
-    check('recent honours the chip too', (await transactions.findRecent(A, 10, 'credit')).map((t: any) => t.title).sort(), ['Lent to Eric', 'Repayment from Eric']);
-    check('history groups honour the chip', (await transactions.history(A, { view: 'debt' })).flatMap((g: any) => g.items.map((i: any) => i.title)).sort(), ['Borrowed from Dollar Dan', 'Borrowed from John', 'Repaid John']);
+    check('recent honours the chip too', (await transactions.findRecent(personalScope(A), 10, 'credit')).map((t: any) => t.title).sort(), ['Lent to Eric', 'Repayment from Eric']);
+    check('history groups honour the chip', (await transactions.history(personalScope(A), { view: 'debt' })).flatMap((g: any) => g.items.map((i: any) => i.title)).sort(), ['Borrowed from Dollar Dan', 'Borrowed from John', 'Repaid John']);
 
     // scheduled chip: nothing yet, then what a schedule posted
     check('scheduled: nothing posted yet', (await ids({ view: 'scheduled' })).length, 0);
     const bonus = (await prisma.scheduledOccurrence.findMany({ where: { scheduleId: dueNow.id } }))[0];
     await scheduled.confirm(A, bonus.id);
     check('scheduled: the posted transaction appears', await ids({ view: 'scheduled' }), ['Bonus']);
-    check('another person\'s feed is empty', (await transactions.findAll(B, { view: 'debt' } as any)).data.length, 0);
+    check('another person\'s feed is empty', (await transactions.findAll(personalScope(B), { view: 'debt' } as any)).data.length, 0);
   } finally {
     await prisma.client.deleteMany({ where: { id: { in: made } } });
     await prisma.$disconnect();

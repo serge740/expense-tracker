@@ -1,19 +1,23 @@
 import {
-  Body, Controller, Delete, Get, HttpException, Param, Patch, Post, Query, Req, UseGuards,
+  Body, Controller, Delete, Get, HttpException, Param, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
-import { RequestWithClient } from '../../common/interfaces/client.interface';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionDto } from './dto/query-transaction.dto';
+import { ReqScope, ScopeGuard } from '../family/scope/scope.guard';
+import { Scope } from '../family/scope/scope';
+
+/** An error that already carries a family `code` (not a member, forbidden, wrong scope…) goes out untouched. */
+const bad = (e: any, msg: string) => (e?.response?.code ? e : new HttpException(e?.message || msg, 400));
 
 @Controller('transactions')
-@UseGuards(ClientJwtAuthGuard)
+@UseGuards(ClientJwtAuthGuard, ScopeGuard)
 export class TransactionController {
   constructor(private readonly transactionService: TransactionService) {}
 
   @Get()
-  async findAll(@Req() req: RequestWithClient, @Query() query: QueryTransactionDto) {
+  async findAll(@ReqScope() scope: Scope, @Query() query: QueryTransactionDto) {
     try {
       const parsed: QueryTransactionDto = {
         ...query,
@@ -22,68 +26,68 @@ export class TransactionController {
         month: query.month ? Number(query.month) : undefined,
         year:  query.year  ? Number(query.year)  : undefined,
       };
-      return await this.transactionService.findAll(req.client.id, parsed);
+      return await this.transactionService.findAll(scope, parsed);
     } catch (e: any) {
-      throw new HttpException(e.message || 'Failed to fetch transactions', 400);
+      throw bad(e, 'Failed to fetch transactions');
     }
   }
 
   @Get('recent')
   async findRecent(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Query('limit') limit?: string,
     @Query('view') view?: string,
     @Query('includeLoans') includeLoans?: string,
   ) {
     try {
-      return await this.transactionService.findRecent(req.client.id, limit ? Number(limit) : 3, view, includeLoans);
+      return await this.transactionService.findRecent(scope, limit ? Number(limit) : 3, view, includeLoans);
     } catch (e: any) {
-      throw new HttpException(e.message || 'Failed to fetch recent transactions', 400);
+      throw bad(e, 'Failed to fetch recent transactions');
     }
   }
 
   @Get('history')
-  async history(@Req() req: RequestWithClient, @Query() query: QueryTransactionDto) {
+  async history(@ReqScope() scope: Scope, @Query() query: QueryTransactionDto) {
     try {
       const parsed: QueryTransactionDto = {
         ...query,
         month: query.month ? Number(query.month) : undefined,
         year:  query.year  ? Number(query.year)  : undefined,
       };
-      return await this.transactionService.history(req.client.id, parsed);
+      return await this.transactionService.history(scope, parsed);
     } catch (e: any) {
-      throw new HttpException(e.message || 'Failed to fetch history', 400);
+      throw bad(e, 'Failed to fetch history');
     }
   }
 
   @Post()
-  async create(@Req() req: RequestWithClient, @Body() dto: CreateTransactionDto) {
+  async create(@ReqScope() scope: Scope, @Body() dto: CreateTransactionDto) {
     try {
-      return await this.transactionService.create(req.client.id, dto);
+      return await this.transactionService.create(scope, dto);
     } catch (e: any) {
-      throw new HttpException(e.message || 'Failed to create transaction', 400);
+      throw bad(e, 'Failed to create transaction');
     }
   }
 
   @Patch(':id')
   async update(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Param('id') id: string,
     @Body() dto: Partial<CreateTransactionDto>,
   ) {
     try {
-      return await this.transactionService.update(req.client.id, id, dto);
+      return await this.transactionService.update(scope, id, dto);
     } catch (e: any) {
-      throw new HttpException(e.message || 'Failed to update transaction', 400);
+      throw bad(e, 'Failed to update transaction');
     }
   }
 
   @Delete(':id')
-  async remove(@Req() req: RequestWithClient, @Param('id') id: string) {
+  async remove(@ReqScope() scope: Scope, @Param('id') id: string) {
     try {
-      return await this.transactionService.remove(req.client.id, id);
+      return await this.transactionService.remove(scope, id);
     } catch (e: any) {
-      throw new HttpException(e.message || 'Failed to delete transaction', 400);
+      throw bad(e, 'Failed to delete transaction');
     }
   }
 }

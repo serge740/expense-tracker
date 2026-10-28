@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ClientAuthModule } from '../client-auth/client-auth.module';
+import { FamilyModule } from '../family/family.module';
 import { DebtsModule } from '../debts/debts.module';
 import { ScheduledModule } from '../scheduled/scheduled.module';
 import { HomeController } from './home.controller';
 import { HomeService } from './home.service';
 
 @Module({
-  imports: [ClientAuthModule, DebtsModule, ScheduledModule],
+  imports: [ClientAuthModule, FamilyModule, DebtsModule, ScheduledModule],
   controllers: [HomeController],
   providers: [HomeService],
 })

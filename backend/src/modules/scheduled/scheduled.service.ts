@@ -60,7 +60,7 @@ export class ScheduledService implements OnModuleInit {
 
   private async checkWallet(clientId: string, walletId: string | null | undefined) {
     if (!walletId) return;
-    const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId } });
+    const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId, familyId: null } });
     if (!w) throw new NotFoundException('Wallet not found');
     if (w.archived) throw new BadRequestException('That wallet is archived');
   }
@@ -376,7 +376,7 @@ export class ScheduledService implements OnModuleInit {
         });
         if (claimed.count !== 1) throw new Failure(ALREADY);
         if (walletId) {
-          const w = await prx.wallet.findFirst({ where: { id: walletId, clientId: sch.clientId } });
+          const w = await prx.wallet.findFirst({ where: { id: walletId, clientId: sch.clientId, familyId: null } });
           if (!w) throw new Failure('The wallet no longer exists');
           if (w.archived) throw new Failure('The wallet is archived');
         }

@@ -92,6 +92,8 @@ export function ReminderModalHost() {
   const income = current?.source === 'SCHEDULED' && current.txType === 'INCOME';
   // Money going out (a debt payment, a bill) vs money coming in (a credit repaid, expected income).
   const debt = current?.source === 'DEBT' ? current.kind === 'BORROWED' : !income;
+  // A pay date with its own estimated payment asks for that, not for the whole balance.
+  const shownAmount = current?.source === 'DEBT' && current.payment ? Math.min(current.payment, current.remaining) : current?.remaining ?? 0;
   const color = current?.overdue ? OWE : theme.primary;
   const when = (iso: string) => formatDate(iso, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
 
@@ -119,7 +121,10 @@ export function ReminderModalHost() {
             <Text style={[s.who, { color: theme.text }]} numberOfLines={2}>
               {sched ? reminderLabel(current) : debt ? t('rem.payPerson', { person: reminderLabel(current) }) : t('rem.owesYou', { person: reminderLabel(current) })}
             </Text>
-            <Text style={[s.amount, { color }]} numberOfLines={1} adjustsFontSizeToFit>{formatMoney(current.remaining, reminderCurrency(current, mainCurrency.code))}</Text>
+            <Text style={[s.amount, { color }]} numberOfLines={1} adjustsFontSizeToFit>{formatMoney(shownAmount, reminderCurrency(current, mainCurrency.code))}</Text>
+            {shownAmount < current.remaining ? (
+              <Text style={[s.when, { color: theme.textMuted }]}>{t('rem.leftTotal', { amount: formatMoney(current.remaining, reminderCurrency(current, mainCurrency.code)) })}</Text>
+            ) : null}
             <Text style={[s.when, { color: theme.textMuted }]}>
               {t(current.overdue ? 'rem.wasDue' : 'rem.dueAt', { when: when(current.dueAt) })}
               {current.fireCount > 1 ? ` · ${t('rem.timesReminded', { n: current.fireCount })}` : ''}
@@ -249,7 +254,7 @@ export function PaySheet({ reminder, onClose, onDone }: { reminder: PendingDebtR
   const theme = useAppTheme();
   const { t } = useI18n();
   const debt = reminder.kind === 'BORROWED';
-  const [amount, setAmount] = useState(String(reminder.remaining));
+  const [amount, setAmount] = useState(String(reminder.payment ?? reminder.remaining));
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [walletId, setWalletId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

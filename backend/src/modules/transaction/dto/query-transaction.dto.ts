@@ -13,6 +13,8 @@ export class QueryTransactionDto {
   search?: string;    // searches title + description (case-insensitive)
   /** Home / History chip: all | income | expense | debt | credit | scheduled. */
   view?: string;
+  /** Family only: show just what this member added. */
+  memberId?: string;
   /** "false" or "0" leaves every loan row out of all / income / expense. */
   includeLoans?: string;
 }

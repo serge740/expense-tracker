@@ -253,7 +253,8 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
   const settled = debt.status !== 'OPEN';
   const usable = wallets.filter(w => w.currency === debt.currency);
 
-  const [amount, setAmount]     = useState('');
+  // The estimated payment for the next pay date is what most people will pay, so start there.
+  const [amount, setAmount]     = useState(debt.nextPayment ? String(debt.nextPayment) : '');
   // A payment only becomes an expense (or income) transaction when a wallet is chosen, so start on the debt's own wallet,
   // else the default wallet in this currency. "No wallet" is still one tap away.
   const [walletId, setWalletId] = useState<string | null>(

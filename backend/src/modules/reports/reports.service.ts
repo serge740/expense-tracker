@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import OpenAI from 'openai';
 import { loanFilter } from '../../common/utils/loan-filter';
 import { CATEGORY_LABELS } from '../../common/utils/categories';
+import { Scope, scopeWhere } from '../family/scope/scope';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -21,7 +22,7 @@ export class ReportsService {
     this.openai = new OpenAI({ apiKey: (process.env.OPEN_AI_KEY ?? '').trim() });
   }
 
-  async monthly(clientId: string, year: number, months: number, includeLoans = true) {
+  async monthly(scope: Scope, year: number, months: number, includeLoans = true) {
     const now = new Date();
     const results: { month: string; year: number; total: number; heightPct: number }[] = [];
 
@@ -31,7 +32,7 @@ export class ReportsService {
       const end   = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 
       const agg = await this.prisma.transaction.aggregate({
-        where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
+        where: { ...scopeWhere(scope), type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
         _sum: { amount: true },
       });
 
@@ -52,12 +53,12 @@ export class ReportsService {
     return [new Date(year, month - 1, 1), new Date(year, month, 1)];
   }
 
-  async byCategory(clientId: string, month: number, year: number, startDate?: string, endDate?: string, includeLoans = true) {
+  async byCategory(scope: Scope, month: number, year: number, startDate?: string, endDate?: string, includeLoans = true) {
     const [start, end] = this.resolveDateRange(month, year, startDate, endDate);
 
     const groups = await this.prisma.transaction.groupBy({
       by: ['category'],
-      where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
+      where: { ...scopeWhere(scope), type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
       _sum: { amount: true },
       orderBy: { _sum: { amount: 'desc' } },
     });
@@ -72,16 +73,16 @@ export class ReportsService {
     }));
   }
 
-  async summary(clientId: string, month: number, year: number, startDate?: string, endDate?: string, includeLoans = true) {
+  async summary(scope: Scope, month: number, year: number, startDate?: string, endDate?: string, includeLoans = true) {
     const [start, end] = this.resolveDateRange(month, year, startDate, endDate);
 
     const [inc, exp] = await Promise.all([
       this.prisma.transaction.aggregate({
-        where: { clientId, type: 'INCOME', date: { gte: start, lt: end }, ...loanFilter('INCOME', includeLoans) },
+        where: { ...scopeWhere(scope), type: 'INCOME', date: { gte: start, lt: end }, ...loanFilter('INCOME', includeLoans) },
         _sum: { amount: true },
       }),
       this.prisma.transaction.aggregate({
-        where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
+        where: { ...scopeWhere(scope), type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
         _sum: { amount: true },
       }),
     ]);
@@ -91,12 +92,12 @@ export class ReportsService {
     return { totalIncome, totalExpense, net: totalIncome - totalExpense };
   }
 
-  async topExpenses(clientId: string, month: number, year: number, limit: number, includeLoans = true) {
+  async topExpenses(scope: Scope, month: number, year: number, limit: number, includeLoans = true) {
     const start = new Date(year, month - 1, 1);
     const end   = new Date(year, month, 1);
 
     const txns = await this.prisma.transaction.findMany({
-      where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
+      where: { ...scopeWhere(scope), type: 'EXPENSE', date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
       orderBy: { amount: 'desc' },
       take: limit,
     });
@@ -111,7 +112,7 @@ export class ReportsService {
   }
 
   async aiAdvice(
-    clientId: string,
+    scope: Scope,
     month: number,
     year: number,
     startDate?: string,
@@ -123,8 +124,8 @@ export class ReportsService {
     if (!apiKey) throw new HttpException('OpenAI API key not configured on server', 500);
 
     const [cats, sum] = await Promise.all([
-      this.byCategory(clientId, month, year, startDate, endDate, includeLoans),
-      this.summary(clientId, month, year, startDate, endDate, includeLoans),
+      this.byCategory(scope, month, year, startDate, endDate, includeLoans),
+      this.summary(scope, month, year, startDate, endDate, includeLoans),
     ]);
 
     const periodLabel = startDate && endDate

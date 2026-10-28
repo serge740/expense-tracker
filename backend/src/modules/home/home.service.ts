@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { loanFilter } from '../../common/utils/loan-filter';
 import { DebtsService } from '../debts/debts.service';
 import { ScheduledService } from '../scheduled/scheduled.service';
+import { Scope, isFamily, scopeWhere } from '../family/scope/scope';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const num = (v: unknown) => Number(v ?? 0);
@@ -17,10 +18,10 @@ export class HomeService {
     private readonly scheduled: ScheduledService,
   ) {}
 
-  async summary(clientId: string, month: number, year: number, includeLoans = true, now = new Date()) {
+  async summary(scope: Scope, month: number, year: number, includeLoans = true, now = new Date()) {
     const range = { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) };
     const sum = async (where: object) =>
-      num((await this.prisma.transaction.aggregate({ where: { clientId, date: range, ...where }, _sum: { amount: true } }))._sum.amount);
+      num((await this.prisma.transaction.aggregate({ where: { ...scopeWhere(scope), date: range, ...where }, _sum: { amount: true } }))._sum.amount);
 
     // Month figures. Borrowed money is never income; the switch can leave every loan row out.
     const [income, expense, loanOut, loanIn, borrowed] = await Promise.all([
@@ -31,14 +32,19 @@ export class HomeService {
       sum({ type: 'INCOME', debtRole: 'BORROW_IN' }),
     ]);
 
+    // Loans, debts and schedules are personal. Inside a family they are simply not there.
+    const personalOnly = !isFamily(scope);
+    const clientId = scope.clientId;
     const [overview, waiting, nextSchedule, wallets] = await Promise.all([
-      this.debts.overview(clientId, now),
-      this.scheduled.waiting(clientId, now),
-      this.prisma.scheduledTransaction.findFirst({
-        where: { clientId, status: 'ACTIVE', nextDueAt: { not: null } }, orderBy: { nextDueAt: 'asc' },
-        select: { id: true, title: true, nextDueAt: true },
-      }),
-      this.prisma.wallet.groupBy({ by: ['currency'], where: { clientId, archived: false }, _sum: { balance: true } }),
+      personalOnly ? this.debts.overview(clientId, now) : Promise.resolve({ attention: [] as any[], owe: {} as Record<string, any>, owed: {} as Record<string, any> }),
+      personalOnly ? this.scheduled.waiting(clientId, now) : Promise.resolve([] as any[]),
+      personalOnly
+        ? this.prisma.scheduledTransaction.findFirst({
+            where: { clientId, status: 'ACTIVE', nextDueAt: { not: null } }, orderBy: { nextDueAt: 'asc' },
+            select: { id: true, title: true, nextDueAt: true },
+          })
+        : Promise.resolve(null),
+      this.prisma.wallet.groupBy({ by: ['currency'], where: { ...scopeWhere(scope), archived: false }, _sum: { balance: true } }),
     ]);
 
     // Needs attention: overdue pay dates and near ones, plus scheduled dates waiting for an answer.

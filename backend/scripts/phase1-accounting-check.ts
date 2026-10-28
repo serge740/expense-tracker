@@ -6,6 +6,7 @@
  *
  * It creates its own client + wallets and removes everything it created at the end.
  */
+import { personalScope } from '../src/modules/family/scope/scope';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DebtsService } from '../src/modules/debts/debts.service';
@@ -41,7 +42,7 @@ async function main() {
   const mkWallet = (name: string, balance: number) =>
     prisma.wallet.create({ data: { clientId: cid, name, bank: 'Test', currency: 'RWF', balance } });
   const bal = async (id: string) => Number((await prisma.wallet.findUniqueOrThrow({ where: { id } })).balance);
-  const sumTx = async (type: 'INCOME' | 'EXPENSE') => (await reports.summary(cid, new Date().getMonth() + 1, new Date().getFullYear()))[type === 'INCOME' ? 'totalIncome' : 'totalExpense'];
+  const sumTx = async (type: 'INCOME' | 'EXPENSE') => (await reports.summary(personalScope(cid), new Date().getMonth() + 1, new Date().getFullYear()))[type === 'INCOME' ? 'totalIncome' : 'totalExpense'];
 
   try {
     const w = await mkWallet('Main', 100000);
@@ -64,11 +65,11 @@ async function main() {
     d = await debts.addPayment(cid, d.id, { amount: 3000 });
     check('repay 3,000: remaining 5,000, still OPEN', [d.remaining, d.status], [5000, 'OPEN']);
 
-    const spendWithLoans = (await reports.summary(cid, new Date().getMonth() + 1, new Date().getFullYear())).totalExpense;
-    const spendNoLoans = (await reports.summary(cid, new Date().getMonth() + 1, new Date().getFullYear(), undefined, undefined, false)).totalExpense;
+    const spendWithLoans = (await reports.summary(personalScope(cid), new Date().getMonth() + 1, new Date().getFullYear())).totalExpense;
+    const spendNoLoans = (await reports.summary(personalScope(cid), new Date().getMonth() + 1, new Date().getFullYear(), undefined, undefined, false)).totalExpense;
     check('reports: loans included = 5,000', spendWithLoans, 5000);
     check('reports: includeLoans=false = 0', spendNoLoans, 0);
-    check('budget spent ignores debt flows', (await budget.getCurrent(cid)).spent, 0);
+    check('budget spent ignores debt flows', (await budget.getCurrent(personalScope(cid))).spent, 0);
 
     // ── Remove a payment: paid is re-summed and wallet restored ───────────────
     const firstPayment = d.payments.find((p: any) => Number(p.amount) === 2000);

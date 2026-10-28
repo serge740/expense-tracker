@@ -47,6 +47,7 @@ model Client {
   devices                Device[]
   webPushSubscriptions   WebPushSubscription[]
   userSubCategories      UserSubCategory[]
+  familyMembers          FamilyMember[]
   passkeys               Passkey[]
   notifications          Notification[]
   notificationPreference NotificationPreference?
@@ -233,6 +234,9 @@ model Wallet {
   id            String                 @id @default(uuid())
   clientId      String
   client        Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Set when the wallet belongs to a family (clientId is then who created it); null means a personal wallet.
+  familyId      String?
+  family        Family?                @relation(fields: [familyId], references: [id], onDelete: Cascade)
   name          String
   bank          String
   last4         String?
@@ -250,12 +254,16 @@ model Wallet {
   scheduled     ScheduledTransaction[]
 
   @@index([clientId])
+  @@index([familyId])
 }
 
 model Transaction {
   id                    String          @id @default(uuid())
   clientId              String
   client                Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Set when this is a family transaction (clientId is then its author); null means personal.
+  familyId              String?
+  family                Family?         @relation(fields: [familyId], references: [id], onDelete: Cascade)
   walletId              String?
   wallet                Wallet?         @relation(fields: [walletId], references: [id], onDelete: SetNull)
   type                  TransactionType
@@ -287,20 +295,28 @@ model Transaction {
   @@index([debtId])
   @@index([fundedByDebtId])
   @@index([clientId, debtRole, date])
+  @@index([familyId, date])
 }
 
 model Budget {
   id        String   @id @default(uuid())
   clientId  String
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // A family budget (clientId is then who set it) or null for a personal one.
+  familyId  String?
+  family    Family?  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  // `p:<clientId>` for a personal budget, `f:<familyId>` for a family one. A nullable familyId cannot make the pair unique
+  // (MySQL treats NULLs as distinct), so uniqueness is on this key instead.
+  scopeKey  String
   month     Int
   year      Int
   limit     Decimal  @db.Decimal(12, 2)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([clientId, month, year])
+  @@unique([scopeKey, month, year])
   @@index([clientId])
+  @@index([familyId])
 }
 
 // ── Debts & loans ──────────────────────────────────────────────────────────
@@ -540,4 +556,104 @@ model ScheduledOccurrence {
   @@unique([scheduleId, dueAt])
   @@index([scheduleId, status])
   @@index([status, dueAt])
+}
+
+// ── Family portal ──────────────────────────────────────────────────────────
+// A family is a shared space with its own members. Who may do what is decided in code (family-permissions.ts);
+// the database guarantees the two things that must never break: one active family per person, and unique invites.
+// Activity and invites keep plain ids (no foreign key to Client) so the family's history survives an account going away.
+
+enum FamilyRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum MemberStatus {
+  ACTIVE
+  REMOVED
+  LEFT
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum FamilyStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Family {
+  id         String         @id @default(uuid())
+  name       String         @db.VarChar(60)
+  currency   String         @default("RWF") @db.VarChar(3)
+  timezone   String         @default("UTC") @db.VarChar(64)
+  status     FamilyStatus   @default(ACTIVE)
+  archivedAt DateTime?
+  createdBy  String
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+  members    FamilyMember[]
+  invites    FamilyInvite[]
+  activity   FamilyActivity[]
+  wallets      Wallet[]
+  transactions Transaction[]
+  budgets      Budget[]
+}
+
+model FamilyMember {
+  id        String       @id @default(uuid())
+  familyId  String
+  family    Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role      FamilyRole   @default(MEMBER)
+  status    MemberStatus @default(ACTIVE)
+  nickname  String?      @db.VarChar(30)
+  joinedAt  DateTime     @default(now())
+  leftAt    DateTime?
+  // Holds the client id while this membership is ACTIVE in an active family, and NULL otherwise. The unique index
+  // therefore makes "one active family per person" a database rule, even when two requests race.
+  activeKey String?      @unique
+
+  @@unique([familyId, clientId])
+  @@index([clientId])
+  @@index([familyId, status])
+}
+
+model FamilyInvite {
+  id         String       @id @default(uuid())
+  familyId   String
+  family     Family       @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  invitedBy  String
+  role       FamilyRole   @default(MEMBER)
+  tokenHash  String       @unique
+  code       String       @unique @db.VarChar(6)
+  phone      String?
+  email      String?
+  status     InviteStatus @default(PENDING)
+  expiresAt  DateTime
+  acceptedBy String?
+  acceptedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@index([familyId, status])
+}
+
+model FamilyActivity {
+  id        String   @id @default(uuid())
+  familyId  String
+  family    Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  actorId   String
+  action    String   @db.VarChar(60)
+  targetId  String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([familyId, createdAt])
 }

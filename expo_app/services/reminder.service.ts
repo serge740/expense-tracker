@@ -17,6 +17,8 @@ export interface PendingDebtReminder extends PendingBase {
   person: string;
   currency: string;
   remaining: number;
+  /** This pay date's own amount (an estimated payment), when it has one. */
+  payment?: number | null;
   /** The wallet the debt was recorded against, if any. */
   walletId?: string | null;
 }

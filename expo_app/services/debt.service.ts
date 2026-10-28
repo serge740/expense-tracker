@@ -66,6 +66,8 @@ export interface Debt {
   overdue: boolean;
   /** Earliest pay date that is not paid yet (null when none, or the debt is closed). */
   nextDueAt: string | null;
+  /** What the next pay date asks for now (its estimated payment), when it has an amount of its own. */
+  nextPayment?: number | null;
   remindersOn: boolean;
   /** The live reminder for the next unpaid pay date, if any. */
   reminderId: string | null;

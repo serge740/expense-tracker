@@ -12,6 +12,7 @@ import { WebPushModule } from './modules/web-push/web-push.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
 import { SubCategoriesModule } from './modules/subcategories/subcategories.module';
+import { FamilyModule } from './modules/family/family.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { BudgetModule } from './modules/budget/budget.module';
 import { DebtsModule } from './modules/debts/debts.module';
@@ -37,6 +38,7 @@ import { HealthModule } from './modules/health/health.module';
     WalletModule,
     TransactionModule,
     SubCategoriesModule,
+    FamilyModule,
     ReportsModule,
     BudgetModule,
     DebtsModule,

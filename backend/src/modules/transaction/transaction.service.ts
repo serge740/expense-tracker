@@ -8,6 +8,23 @@ import { NO_DEBT_FLOWS, parseIncludeLoans } from '../../common/utils/loan-filter
 import { parseView, viewFilter } from '../../common/utils/feed-view';
 import { canonicalCategory, normalizeSubCategory } from '../../common/utils/categories';
 import { rememberSubCategory } from '../../common/utils/subcategory';
+import { Scope, assertCanEditTransaction, assertScopeCan, isFamily, personalScope, scopeData, scopeKeyOf, scopeWhere } from '../family/scope/scope';
+import { displayName } from '../family/family.service';
+import { errors } from '../family/family-errors';
+
+/** The only fields an edit can change. */
+const EDITABLE = ['type', 'category', 'title', 'subCategory', 'description', 'amount', 'date', 'walletId', 'receiptUrl', 'receiptReportUrl'] as const;
+
+/** MySQL can still abort one of several writers that touch the same wallet at the same moment; the right answer is to run it again. */
+export async function retryOnConflict<T>(run: () => Promise<T>, tries = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try { return await run(); }
+    catch (e: any) {
+      if (e?.code !== 'P2034' || attempt >= tries) throw e;
+      await new Promise(r => setTimeout(r, 15 * attempt + Math.random() * 40));
+    }
+  }
+}
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -18,11 +35,12 @@ export class TransactionService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  async findAll(clientId: string, query: QueryTransactionDto) {
+  async findAll(scope: Scope, query: QueryTransactionDto) {
     const { type, category, walletId, month, year, startDate, endDate, page = 1, limit = 20, search, view, includeLoans } = query;
 
     // Transfers only appear when asked for: older screens treat non-income as spending.
-    const where: Prisma.TransactionWhereInput = { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } };
+    const where: Prisma.TransactionWhereInput = { ...scopeWhere(scope), type: { notIn: ['TRANSFER', 'DEBT'] } };
+    if (isFamily(scope) && query.memberId) where.clientId = query.memberId;       // "only what Grace added"
     if (type === 'income')   where.type = 'INCOME';
     if (type === 'expense')  where.type = 'EXPENSE';
     if (type === 'transfer') where.type = 'TRANSFER';
@@ -56,25 +74,28 @@ export class TransactionService {
       this.prisma.transaction.count({ where }),
     ]);
 
-    return { data: data.map(t => this.mapTx(t)), total, page, limit };
+    const authors = await this.authorsOf(scope, data);
+    return { data: data.map(t => this.mapTx(t, authors)), total, page, limit };
   }
 
-  async findRecent(clientId: string, limit = 3, view?: string, includeLoans?: string) {
+  async findRecent(scope: Scope, limit = 3, view?: string, includeLoans?: string) {
     const chip = parseView(view);
     const txns = await this.prisma.transaction.findMany({
       where: {
-        clientId, type: { notIn: ['TRANSFER', 'DEBT'] },
+        ...scopeWhere(scope), type: { notIn: ['TRANSFER', 'DEBT'] },
         ...(chip !== 'all' || includeLoans !== undefined ? { AND: [viewFilter(chip, parseIncludeLoans(includeLoans))] } : {}),
       },
       orderBy: { date: 'desc' },
       take: limit,
     });
-    return txns.map(t => this.mapTx(t));
+    const authors = await this.authorsOf(scope, txns);
+    return txns.map(t => this.mapTx(t, authors));
   }
 
-  async history(clientId: string, query: QueryTransactionDto) {
+  async history(scope: Scope, query: QueryTransactionDto) {
     const { category, month, year, startDate, endDate, search, view, includeLoans } = query;
-    const where: Prisma.TransactionWhereInput = { clientId, type: { notIn: ['TRANSFER', 'DEBT'] } };
+    const where: Prisma.TransactionWhereInput = { ...scopeWhere(scope), type: { notIn: ['TRANSFER', 'DEBT'] } };
+    if (isFamily(scope) && query.memberId) where.clientId = query.memberId;
     const chip = parseView(view);
     if (chip !== 'all' || includeLoans !== undefined) where.AND = [viewFilter(chip, parseIncludeLoans(includeLoans))];
 
@@ -103,6 +124,7 @@ export class TransactionService {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
+    const authors = await this.authorsOf(scope, txns);
     const groupMap = new Map<string, ReturnType<typeof this.mapTx>[]>();
 
     for (const t of txns) {
@@ -119,7 +141,7 @@ export class TransactionService {
       }
 
       if (!groupMap.has(label)) groupMap.set(label, []);
-      groupMap.get(label)!.push(this.mapTx(t));
+      groupMap.get(label)!.push(this.mapTx(t, authors));
     }
 
     return Array.from(groupMap.entries()).map(([date, items]) => ({ date, items }));
@@ -131,10 +153,14 @@ export class TransactionService {
    */
   async createInTx(
     prx: Prisma.TransactionClient,
-    clientId: string,
+    who: string | Scope,
     dto: CreateTransactionDto,
     extra: { scheduledOccurrenceId?: string } = {},
   ) {
+    // Scheduled posting still passes a plain client id: that is always the person's own (personal) space.
+    const scope = typeof who === 'string' ? personalScope(who) : who;
+    const clientId = scope.clientId;
+    assertScopeCan(scope, 'tx.add');
     const amount = Math.abs(dto.amount);
     const date = dto.date ? new Date(dto.date) : new Date();
     // An older app may still send a retired category: it becomes the new one (groceries -> Food, "Groceries").
@@ -142,6 +168,7 @@ export class TransactionService {
     const category = canon.category as CategorySlug;
     const subCategory = normalizeSubCategory(dto.subCategory) ?? canon.subCategory ?? null;
     if (dto.fundedByDebtId) {
+      if (isFamily(scope)) throw errors.personalOnly();            // loans stay personal
       if (dto.type !== 'EXPENSE') throw new BadRequestException('Only an expense can be paid from borrowed money');
       const debt = await prx.debt.findFirst({ where: { id: dto.fundedByDebtId, clientId } });
       if (!debt || debt.kind !== 'BORROWED') throw new BadRequestException('Choose a debt you borrowed');
@@ -151,9 +178,21 @@ export class TransactionService {
       dto = { ...dto, walletId: undefined };
       await prx.debt.update({ where: { id: debt.id }, data: { spent: { increment: amount } } });
     }
+    // The wallet must be one of this scope's own: never trust an id from the request (it could be someone else's, or a family's).
+    if (dto.walletId) await this.assertWalletInScope(prx, scope, dto.walletId);
+    // The wallet is changed BEFORE the row is inserted. Inserting first makes MySQL hold a shared lock on the wallet (the
+    // foreign key) and then ask for an exclusive one, so two people adding at once deadlock. Taking the exclusive lock first
+    // makes them simply queue.
+    if (dto.walletId) {
+      const delta = new Prisma.Decimal(amount);
+      await prx.wallet.update({
+        where: { id: dto.walletId },
+        data: { balance: dto.type === 'INCOME' ? { increment: delta } : { decrement: delta } },
+      });
+    }
     const created = await prx.transaction.create({
       data: {
-        clientId,
+        ...scopeData(scope),
         type: dto.type,
         category,
         title: dto.title,
@@ -172,17 +211,6 @@ export class TransactionService {
     // What this person typed or picked is offered to them first next time. A scheduled post is not a new choice.
     if (!extra.scheduledOccurrenceId) await rememberSubCategory(prx, clientId, dto.type, category, subCategory);
 
-    if (dto.walletId) {
-      const delta = new Prisma.Decimal(amount);
-      await prx.wallet.update({
-        where: { id: dto.walletId },
-        data: {
-          balance: dto.type === 'INCOME'
-            ? { increment: delta }
-            : { decrement: delta },
-        },
-      });
-    }
     return created;
   }
 
@@ -191,10 +219,12 @@ export class TransactionService {
     this.notifyNewTransaction(clientId, tx.type, Number(tx.amount), tx.title, tx.date).catch(() => {});
   }
 
-  async create(clientId: string, dto: CreateTransactionDto) {
-    const tx = await this.prisma.$transaction(prx => this.createInTx(prx, clientId, dto));
-    this.notifyCreated(clientId, tx);
-    return this.mapTx(tx);
+  async create(scope: Scope, dto: CreateTransactionDto) {
+    const tx = await retryOnConflict(() => this.prisma.$transaction(prx => this.createInTx(prx, scope, dto)));
+    // Personal pushes and budget alerts only. Telling the rest of a family comes with the family notifications (F5).
+    if (!isFamily(scope)) this.notifyCreated(scope.clientId, tx);
+    const authors = await this.authorsOf(scope, [tx]);
+    return this.mapTx(tx, authors);
   }
 
   /** Push for the new transaction, plus a budget alert when it crosses 80% / 100%. */
@@ -210,12 +240,13 @@ export class TransactionService {
 
     const month = date.getMonth() + 1;
     const year = date.getFullYear();
-    const budget = await this.prisma.budget.findUnique({ where: { clientId_month_year: { clientId, month, year } } });
+    const personal = personalScope(clientId);
+    const budget = await this.prisma.budget.findUnique({ where: { scopeKey_month_year: { scopeKey: scopeKeyOf(personal), month, year } } });
     const limit = budget ? Number(budget.limit) : 0;
     if (limit <= 0) return;
 
     const agg = await this.prisma.transaction.aggregate({
-      where: { clientId, type: 'EXPENSE', date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) }, ...NO_DEBT_FLOWS },
+      where: { ...scopeWhere(personal), type: 'EXPENSE', date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) }, ...NO_DEBT_FLOWS },
       _sum: { amount: true },
     });
     const after = Number(agg._sum.amount ?? 0);
@@ -229,8 +260,9 @@ export class TransactionService {
     }
   }
 
-  async update(clientId: string, id: string, dto: Partial<CreateTransactionDto>) {
-    const existing = await this.assertOwner(clientId, id);
+  async update(scope: Scope, id: string, dto: Partial<CreateTransactionDto>) {
+    const existing = await this.assertInScope(scope, id);
+    assertCanEditTransaction(scope, existing.clientId);
     if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
     if (existing.fundedByDebtId || dto.fundedByDebtId) throw new BadRequestException('This was paid from borrowed money — delete it and add it again to change it.');
     if (existing.type === 'TRANSFER' || (dto.type as string) === 'TRANSFER') {
@@ -238,8 +270,12 @@ export class TransactionService {
     }
     const amount = dto.amount !== undefined ? Math.abs(dto.amount) : undefined;
     const date = dto.date ? new Date(dto.date) : undefined;
+    // Only these can change. The request body is never spread into the update: it could name clientId, familyId or debtId.
+    const picked: Record<string, unknown> = {};
+    for (const k of EDITABLE) if ((dto as Record<string, unknown>)[k] !== undefined) picked[k] = (dto as Record<string, unknown>)[k];
 
     const updated = await this.prisma.$transaction(async (prx) => {
+      if (dto.walletId && dto.walletId !== existing.walletId) await this.assertWalletInScope(prx, scope, dto.walletId);
       // Reverse old balance effect
       if (existing.walletId) {
         const oldDelta = new Prisma.Decimal(Number(existing.amount));
@@ -253,7 +289,7 @@ export class TransactionService {
         });
       }
 
-      const data: Prisma.TransactionUncheckedUpdateInput = { ...dto, amount, date } as Prisma.TransactionUncheckedUpdateInput;
+      const data: Prisma.TransactionUncheckedUpdateInput = { ...picked, amount, date } as Prisma.TransactionUncheckedUpdateInput;
       let finalCategory = existing.category as CategorySlug;
       if (dto.category !== undefined) {
         const canon = canonicalCategory(dto.category);
@@ -263,7 +299,7 @@ export class TransactionService {
       }
       if (dto.subCategory !== undefined) data.subCategory = normalizeSubCategory(dto.subCategory);
       const result = await prx.transaction.update({ where: { id }, data });
-      if (typeof data.subCategory === 'string') await rememberSubCategory(prx, clientId, (dto.type ?? existing.type) as TransactionType, finalCategory, data.subCategory);
+      if (typeof data.subCategory === 'string') await rememberSubCategory(prx, scope.clientId, (dto.type ?? existing.type) as TransactionType, finalCategory, data.subCategory);
 
       // Apply new balance effect
       const newWalletId = dto.walletId ?? existing.walletId;
@@ -283,11 +319,13 @@ export class TransactionService {
       return result;
     });
 
-    return this.mapTx(updated);
+    const authors = await this.authorsOf(scope, [updated]);
+    return this.mapTx(updated, authors);
   }
 
-  async remove(clientId: string, id: string) {
-    const existing = await this.assertOwner(clientId, id);
+  async remove(scope: Scope, id: string) {
+    const existing = await this.assertInScope(scope, id);
+    assertCanEditTransaction(scope, existing.clientId);
 
     if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
     if (existing.type === 'TRANSFER') {
@@ -326,9 +364,11 @@ export class TransactionService {
     return { success: true };
   }
 
-  private mapTx(t: { id: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null; debtId?: string | null; debtRole?: string | null }) {
+  private mapTx(t: { id: string; clientId?: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null; debtId?: string | null; debtRole?: string | null }, authors?: Map<string, string>) {
     const raw = Number(t.amount);
     return {
+      // In a family every row says who added it; Personal rows are all your own, so nothing is added there.
+      ...(authors && t.clientId ? { author: { clientId: t.clientId, name: authors.get(t.clientId) ?? 'Former member' } } : {}),
       id: t.id,
       type: t.type,
       category: t.category,
@@ -345,9 +385,29 @@ export class TransactionService {
     };
   }
 
-  private async assertOwner(clientId: string, id: string) {
-    const t = await this.prisma.transaction.findFirst({ where: { id, clientId } });
+  /** The transaction, if it is in this scope. Never looked up by id alone: someone else's or another family's is "not found". */
+  private async assertInScope(scope: Scope, id: string) {
+    const t = await this.prisma.transaction.findFirst({ where: { id, ...scopeWhere(scope) } });
     if (!t) throw new NotFoundException('Transaction not found');
     return t;
+  }
+
+  /** The wallet must belong to this scope. Asking for your own personal wallet from inside a family says so. */
+  private async assertWalletInScope(prx: Prisma.TransactionClient, scope: Scope, walletId: string) {
+    const w = await prx.wallet.findFirst({ where: { id: walletId, ...scopeWhere(scope) }, select: { id: true } });
+    if (w) return;
+    if (isFamily(scope)) {
+      const mine = await prx.wallet.findFirst({ where: { id: walletId, clientId: scope.clientId, familyId: null }, select: { id: true } });
+      if (mine) throw errors.wrongScope();
+    }
+    throw errors.walletNotFound();
+  }
+
+  /** Names of the people who wrote these rows, for a family only. */
+  private async authorsOf(scope: Scope, rows: Array<{ clientId: string }>): Promise<Map<string, string> | undefined> {
+    if (!isFamily(scope) || !rows.length) return isFamily(scope) ? new Map() : undefined;
+    const ids = [...new Set(rows.map(r => r.clientId))];
+    const people = await this.prisma.client.findMany({ where: { id: { in: ids } }, select: { id: true, firstName: true, lastName: true } });
+    return new Map(people.map(c => [c.id, displayName(c)]));
   }
 }

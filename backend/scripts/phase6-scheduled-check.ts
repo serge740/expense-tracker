@@ -103,7 +103,7 @@ async function main() {
     const c1 = await scheduled.confirm(A, s1.waiting[0].id);
     const t1 = await posted(s1.id);
     check('confirm: wallet −5,000 and one transaction', [await bal(wA.id), t1.length], [95000, 1]);
-    check('confirm: the transaction is an expense in the right category', [t1[0].type, t1[0].category, Number(t1[0].amount), t1[0].title], ['EXPENSE', 'rent', 5000, 'Rent']);
+    check('confirm: the transaction is an expense in the right category', [t1[0].type, t1[0].category, Number(t1[0].amount), t1[0].title], ['EXPENSE', 'bills', 5000, 'Rent']);
     check('confirm: occurrence POSTED and linked', [(await occs(s1.id))[0].status, (await occs(s1.id))[0].transactionId === c1.transactionId], ['POSTED', true]);
     check('confirm: a one-time schedule ends itself', (await prisma.scheduledTransaction.findUniqueOrThrow({ where: { id: s1.id } })).status, 'ENDED');
     check('confirm: its reminder is completed', (await prisma.reminder.findMany({ where: { occurrenceId: s1.waiting[0].id } }))[0].status, 'DONE');

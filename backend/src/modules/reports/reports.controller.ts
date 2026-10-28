@@ -1,17 +1,18 @@
-import { Controller, Get, HttpException, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpException, Query, UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
-import { RequestWithClient } from '../../common/interfaces/client.interface';
+import { ReqScope, ScopeGuard } from '../family/scope/scope.guard';
+import { Scope } from '../family/scope/scope';
 import { parseIncludeLoans } from '../../common/utils/loan-filter';
 
 @Controller('reports')
-@UseGuards(ClientJwtAuthGuard)
+@UseGuards(ClientJwtAuthGuard, ScopeGuard)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('monthly')
   async monthly(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Query('year')   year?:   string,
     @Query('months') months?: string,
     @Query('includeLoans') includeLoans?: string,
@@ -19,7 +20,7 @@ export class ReportsController {
     try {
       const now = new Date();
       return await this.reportsService.monthly(
-        req.client.id,
+        scope,
         year ? Number(year) : now.getFullYear(),
         months ? Number(months) : 6,
         parseIncludeLoans(includeLoans),
@@ -31,7 +32,7 @@ export class ReportsController {
 
   @Get('by-category')
   async byCategory(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Query('month')     month?:     string,
     @Query('year')      year?:      string,
     @Query('startDate') startDate?: string,
@@ -41,7 +42,7 @@ export class ReportsController {
     try {
       const now = new Date();
       return await this.reportsService.byCategory(
-        req.client.id,
+        scope,
         month ? Number(month) : now.getMonth() + 1,
         year  ? Number(year)  : now.getFullYear(),
         startDate,
@@ -55,7 +56,7 @@ export class ReportsController {
 
   @Get('summary')
   async summary(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Query('month')     month?:     string,
     @Query('year')      year?:      string,
     @Query('startDate') startDate?: string,
@@ -65,7 +66,7 @@ export class ReportsController {
     try {
       const now = new Date();
       return await this.reportsService.summary(
-        req.client.id,
+        scope,
         month ? Number(month) : now.getMonth() + 1,
         year  ? Number(year)  : now.getFullYear(),
         startDate,
@@ -79,7 +80,7 @@ export class ReportsController {
 
   @Get('top-expenses')
   async topExpenses(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Query('month') month?: string,
     @Query('year')  year?:  string,
     @Query('limit') limit?: string,
@@ -88,7 +89,7 @@ export class ReportsController {
     try {
       const now = new Date();
       return await this.reportsService.topExpenses(
-        req.client.id,
+        scope,
         month ? Number(month) : now.getMonth() + 1,
         year  ? Number(year)  : now.getFullYear(),
         limit ? Number(limit) : 4,
@@ -101,7 +102,7 @@ export class ReportsController {
 
   @Get('ai-advice')
   async aiAdvice(
-    @Req() req: RequestWithClient,
+    @ReqScope() scope: Scope,
     @Query('month')     month?:     string,
     @Query('year')      year?:      string,
     @Query('startDate') startDate?: string,
@@ -112,7 +113,7 @@ export class ReportsController {
     try {
       const now = new Date();
       return await this.reportsService.aiAdvice(
-        req.client.id,
+        scope,
         month ? Number(month) : now.getMonth() + 1,
         year  ? Number(year)  : now.getFullYear(),
         startDate,

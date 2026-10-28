@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma, Transaction } from '../../../generated/prisma';
 import { CreateWalletDto } from './dto/create-wallet.dto';
@@ -6,6 +6,9 @@ import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { ExchangeRateService } from './exchange-rate.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { Scope, assertScopeCan, isFamily, scopeCan, scopeData, scopeWhere } from '../family/scope/scope';
+import { errors } from '../family/family-errors';
+import { retryOnConflict } from '../transaction/transaction.service';
 
 const DAY = 24 * 60 * 60 * 1000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -26,6 +29,12 @@ function effectOn(walletId: string, t: Pick<Transaction, 'type' | 'walletId' | '
   return t.type === 'INCOME' ? amt : -amt;
 }
 
+/** Only these can be changed by an update. The request body is never spread into the database call: it could name clientId or familyId. */
+const UPDATABLE = ['name', 'bank', 'last4', 'accountHolder', 'accountNumber', 'color', 'walletType', 'balance', 'isDefault', 'archived', 'currency'] as const;
+
+/** Account details of a family wallet are for the people who manage it; everyone else sees name, bank, colour and balance. */
+const PRIVATE_FIELDS = ['accountNumber', 'accountHolder', 'last4'] as const;
+
 @Injectable()
 export class WalletService {
   constructor(
@@ -34,21 +43,23 @@ export class WalletService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private serialize<T extends { balance: Prisma.Decimal }>(w: T) {
-    return { ...w, balance: Number(w.balance) };
+  private serialize<T extends { balance: Prisma.Decimal }>(w: T, scope: Scope) {
+    const out: Record<string, unknown> = { ...w, balance: Number(w.balance) };
+    if (isFamily(scope) && !scopeCan(scope, 'wallet.manage')) for (const k of PRIVATE_FIELDS) if (k in out) out[k] = null;
+    return out as T & { balance: number };
   }
 
-  async findAll(clientId: string) {
+  async findAll(scope: Scope) {
     const wallets = await this.prisma.wallet.findMany({
-      where: { clientId },
+      where: scopeWhere(scope),
       orderBy: [{ archived: 'asc' }, { isDefault: 'desc' }, { createdAt: 'asc' }],
     });
-    return wallets.map(w => this.serialize(w));
+    return wallets.map(w => this.serialize(w, scope));
   }
 
   /** Kept for existing screens: totals in each wallet's own number, no conversion. */
-  async summary(clientId: string) {
-    const wallets = await this.prisma.wallet.findMany({ where: { clientId, archived: false } });
+  async summary(scope: Scope) {
+    const wallets = await this.prisma.wallet.findMany({ where: { ...scopeWhere(scope), archived: false } });
     const totalBalance = wallets.reduce((s, w) => s + Number(w.balance), 0);
     return { totalBalance, walletCount: wallets.length };
   }
@@ -58,15 +69,15 @@ export class WalletService {
    * per-currency breakdown. Wallets whose currency has no known rate are
    * listed in `unconverted` instead of being silently added 1:1.
    */
-  async overview(clientId: string, base: string) {
-    const wallets = await this.prisma.wallet.findMany({ where: { clientId, archived: false } });
+  async overview(scope: Scope, base: string) {
+    const wallets = await this.prisma.wallet.findMany({ where: { ...scopeWhere(scope), archived: false } });
     const rates = await this.fx.ratesFor(base, wallets.map(w => w.currency));
 
     const todayStart = startOfDay(new Date());
     const ids = wallets.map(w => w.id);
     const sinceToday = ids.length
       ? await this.prisma.transaction.findMany({
-          where: { clientId, date: { gte: todayStart }, OR: [{ walletId: { in: ids } }, { toWalletId: { in: ids } }] },
+          where: { ...scopeWhere(scope), date: { gte: todayStart }, OR: [{ walletId: { in: ids } }, { toWalletId: { in: ids } }] },
         })
       : [];
 
@@ -98,15 +109,15 @@ export class WalletService {
   }
 
   /** In / out per day for the last `days` days (transfers excluded), in `base`. */
-  async dailyFlow(clientId: string, base: string, days: number, walletId?: string) {
+  async dailyFlow(scope: Scope, base: string, days: number, walletId?: string) {
     const n = Math.min(Math.max(days || 7, 1), 92);
     const from = startOfDay(new Date(Date.now() - (n - 1) * DAY));
-    const wallets = await this.prisma.wallet.findMany({ where: { clientId }, select: { id: true, currency: true } });
+    const wallets = await this.prisma.wallet.findMany({ where: scopeWhere(scope), select: { id: true, currency: true } });
     const currencyOf = new Map(wallets.map(w => [w.id, w.currency]));
     const rates = await this.fx.ratesFor(base, wallets.map(w => w.currency));
 
     const txns = await this.prisma.transaction.findMany({
-      where: { clientId, type: { in: ['INCOME', 'EXPENSE'] }, date: { gte: from }, ...(walletId ? { walletId } : {}) },
+      where: { ...scopeWhere(scope), type: { in: ['INCOME', 'EXPENSE'] }, date: { gte: from }, ...(walletId ? { walletId } : {}) },
       select: { type: true, amount: true, date: true, walletId: true },
     });
 
@@ -133,12 +144,12 @@ export class WalletService {
   }
 
   /** Closing balance for each of the last `days` days, rebuilt from transactions. */
-  async balanceHistory(clientId: string, id: string, days: number) {
-    const wallet = await this.assertOwner(clientId, id);
+  async balanceHistory(scope: Scope, id: string, days: number) {
+    const wallet = await this.assertInScope(scope, id);
     const n = Math.min(Math.max(days || 30, 1), 366);
     const from = startOfDay(new Date(Date.now() - (n - 1) * DAY));
     const txns = await this.prisma.transaction.findMany({
-      where: { clientId, date: { gte: from }, OR: [{ walletId: id }, { toWalletId: id }] },
+      where: { ...scopeWhere(scope), date: { gte: from }, OR: [{ walletId: id }, { toWalletId: id }] },
       orderBy: { date: 'desc' },
     });
 
@@ -158,14 +169,14 @@ export class WalletService {
   }
 
   /** Transactions incl. transfers, newest first, with the wallet names involved. */
-  async activity(clientId: string, limit: number, walletId?: string) {
+  async activity(scope: Scope, limit: number, walletId?: string) {
     const take = Math.min(Math.max(limit || 20, 1), 100);
     const txns = await this.prisma.transaction.findMany({
-      where: { clientId, ...(walletId ? { OR: [{ walletId }, { toWalletId: walletId }] } : {}) },
+      where: { ...scopeWhere(scope), ...(walletId ? { OR: [{ walletId }, { toWalletId: walletId }] } : {}) },
       orderBy: { date: 'desc' },
       take,
     });
-    const wallets = await this.prisma.wallet.findMany({ where: { clientId }, select: { id: true, name: true, currency: true } });
+    const wallets = await this.prisma.wallet.findMany({ where: scopeWhere(scope), select: { id: true, name: true, currency: true } });
     const byId = new Map(wallets.map(w => [w.id, w]));
     return txns.map(t => ({
       id: t.id,
@@ -182,8 +193,8 @@ export class WalletService {
     }));
   }
 
-  async findOne(clientId: string, id: string) {
-    return this.serialize(await this.assertOwner(clientId, id));
+  async findOne(scope: Scope, id: string) {
+    return this.serialize(await this.assertInScope(scope, id), scope);
   }
 
   async rates(base: string, codes: string[]) {
@@ -192,8 +203,8 @@ export class WalletService {
   }
 
   /** Quote for a cross-currency transfer (no side effects). */
-  async quote(clientId: string, fromWalletId: string, toWalletId: string, amount: number) {
-    const [from, to] = await Promise.all([this.assertOwner(clientId, fromWalletId), this.assertOwner(clientId, toWalletId)]);
+  async quote(scope: Scope, fromWalletId: string, toWalletId: string, amount: number) {
+    const [from, to] = await Promise.all([this.assertInScope(scope, fromWalletId, true), this.assertInScope(scope, toWalletId, true)]);
     const rate = await this.fx.rate(from.currency, to.currency);
     return {
       from: from.currency,
@@ -204,14 +215,15 @@ export class WalletService {
     };
   }
 
-  /** Atomic move between two wallets (with conversion when currencies differ). */
-  async transfer(clientId: string, dto: TransferDto) {
+  /** Atomic move between two wallets (with conversion when currencies differ). Both must be in the same scope. */
+  async transfer(scope: Scope, dto: TransferDto) {
+    assertScopeCan(scope, 'tx.add');
     const amount = Number(dto.amount);
     if (!dto.fromWalletId || !dto.toWalletId) throw new BadRequestException('Choose both wallets');
     if (dto.fromWalletId === dto.toWalletId) throw new BadRequestException('Choose two different wallets');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Enter an amount greater than zero');
 
-    const [from, to] = await Promise.all([this.assertOwner(clientId, dto.fromWalletId), this.assertOwner(clientId, dto.toWalletId)]);
+    const [from, to] = await Promise.all([this.assertInScope(scope, dto.fromWalletId, true), this.assertInScope(scope, dto.toWalletId, true)]);
     if (from.archived || to.archived) throw new BadRequestException('Archived wallets cannot send or receive money');
     if (from.walletType !== 'CREDIT' && Number(from.balance) < amount) {
       throw new BadRequestException(`Not enough money in ${from.name}`);
@@ -227,10 +239,14 @@ export class WalletService {
     }
     const toAmount = round2(amount * rate);
 
-    const tx = await this.prisma.$transaction(async prx => {
+    const tx = await retryOnConflict(() => this.prisma.$transaction(async prx => {
+      // Both wallets are changed first, always in the same (id) order, so two transfers can never wait on each other in a circle.
+      const ordered = [{ id: from.id, change: { decrement: new Prisma.Decimal(amount) } }, { id: to.id, change: { increment: new Prisma.Decimal(toAmount) } }]
+        .sort((a, b) => a.id.localeCompare(b.id));
+      for (const w of ordered) await prx.wallet.update({ where: { id: w.id }, data: { balance: w.change } });
       const created = await prx.transaction.create({
         data: {
-          clientId,
+          ...scopeData(scope),
           type: 'TRANSFER',
           category: 'other',
           title: from.currency === to.currency ? `Transfer to ${to.name}` : `Exchange to ${to.name}`,
@@ -243,14 +259,12 @@ export class WalletService {
           toWalletId: to.id,
         },
       });
-      await prx.wallet.update({ where: { id: from.id }, data: { balance: { decrement: new Prisma.Decimal(amount) } } });
-      await prx.wallet.update({ where: { id: to.id }, data: { balance: { increment: new Prisma.Decimal(toAmount) } } });
       return created;
-    });
+    }));
 
     const fmt = (v: number, c: string) => `${v.toLocaleString('en-US', { maximumFractionDigits: 2 })} ${c}`;
     this.notifications.notify(
-      clientId,
+      scope.clientId,
       from.currency === to.currency ? 'Transfer completed' : 'Exchange completed',
       `${fmt(amount, from.currency)} from ${from.name} → ${fmt(toAmount, to.currency)} to ${to.name}`,
       'transaction',
@@ -258,11 +272,12 @@ export class WalletService {
     return { id: tx.id, amount, toAmount, rate, from: from.currency, to: to.currency };
   }
 
-  async create(clientId: string, dto: CreateWalletDto) {
-    const count = await this.prisma.wallet.count({ where: { clientId } });
+  async create(scope: Scope, dto: CreateWalletDto) {
+    assertScopeCan(scope, 'wallet.manage');
+    const count = await this.prisma.wallet.count({ where: scopeWhere(scope) });
     const wallet = await this.prisma.wallet.create({
       data: {
-        clientId,
+        ...scopeData(scope),
         name: dto.name,
         bank: dto.bank,
         accountHolder: dto.accountHolder?.trim() || null,
@@ -273,18 +288,22 @@ export class WalletService {
         walletType: dto.walletType ?? 'CHECKING',
         balance: dto.balance ?? 0,
         currency: (dto.currency ?? 'RWF').toUpperCase(),
-        isDefault: count === 0,
+        isDefault: count === 0,      // the first wallet of this scope (personal, or this family) is its default
       },
     });
-    return this.serialize(wallet);
+    return this.serialize(wallet, scope);
   }
 
-  async update(clientId: string, id: string, dto: UpdateWalletDto) {
-    await this.assertOwner(clientId, id);
+  async update(scope: Scope, id: string, dto: UpdateWalletDto) {
+    assertScopeCan(scope, 'wallet.manage');
+    await this.assertInScope(scope, id);
     // Changing currency relabels the balance (no conversion) — used to correct
     // wallets created before currencies existed. The app warns before saving.
+    const body = (dto ?? {}) as Record<string, unknown>;
+    const picked: Record<string, unknown> = {};
+    for (const k of UPDATABLE) if (body[k] !== undefined) picked[k] = body[k];
     const data = {
-      ...dto,
+      ...picked,
       ...(dto.currency ? { currency: dto.currency.toUpperCase() } : {}),
       ...(dto.accountNumber !== undefined ? {
         accountNumber: dto.accountNumber.replace(/\s+/g, '') || null,
@@ -293,18 +312,33 @@ export class WalletService {
       ...(dto.accountHolder !== undefined ? { accountHolder: dto.accountHolder.trim() || null } : {}),
     };
     const wallet = await this.prisma.wallet.update({ where: { id }, data });
-    return this.serialize(wallet);
+    return this.serialize(wallet, scope);
   }
 
-  async remove(clientId: string, id: string) {
-    await this.assertOwner(clientId, id);
+  async remove(scope: Scope, id: string) {
+    await this.assertInScope(scope, id);
+    if (isFamily(scope)) {
+      // A family's history must not change under everyone's feet: only the owner deletes, and only an unused wallet.
+      assertScopeCan(scope, 'wallet.delete');
+      const used = await this.prisma.transaction.count({ where: { familyId: scope.familyId, OR: [{ walletId: id }, { toWalletId: id }] } });
+      if (used > 0) throw errors.walletHasHistory();
+    }
     await this.prisma.wallet.delete({ where: { id } });
     return { success: true };
   }
 
-  private async assertOwner(clientId: string, id: string) {
-    const w = await this.prisma.wallet.findFirst({ where: { id, clientId } });
-    if (!w) throw new NotFoundException('Wallet not found');
-    return w;
+  /**
+   * The wallet, if it is in this scope. Never looked up by id alone, so another person's or another family's wallet is
+   * simply "not found". With `explainMix`, asking for one of your own personal wallets from inside a family says so,
+   * because mixing the two is a mistake the app can explain.
+   */
+  async assertInScope(scope: Scope, id: string, explainMix = false) {
+    const w = await this.prisma.wallet.findFirst({ where: { id, ...scopeWhere(scope) } });
+    if (w) return w;
+    if (explainMix && isFamily(scope)) {
+      const mine = await this.prisma.wallet.findFirst({ where: { id, clientId: scope.clientId, familyId: null }, select: { id: true } });
+      if (mine) throw errors.wrongScope();
+    }
+    throw errors.walletNotFound();
   }
 }

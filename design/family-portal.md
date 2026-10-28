@@ -1,6 +1,6 @@
 # Family Portal — Analysis & Plan
 
-Status: **proposal, not built yet.** Items marked **(proposed)** are my recommended defaults and wait for your confirmation (see §16).
+Status: **F1 (foundation) and F2 (scope) are built; F3 onwards is not.** Items marked **(proposed)** are my recommended defaults and wait for your confirmation (see §16).
 Legend: ⬜ not started · 🟦 in progress · ✅ done · ⚠️ blocked
 
 ---
@@ -462,7 +462,7 @@ Hide actions the role can't do (e.g. + for Viewers; delete on others' rows for M
 | Data leak through a forgotten `where` | Single `resolveScope` helper; services take `scope`, not `clientId`; **tests per endpoint**: non-member 403, other family's id 404, personal rows never returned in family and vice-versa. |
 | ID guessing (IDOR) | Look up by `{ id, ...scope.where }` — never by `id` alone. |
 | Invite token theft | Token stored hashed, single-use, 7-day expiry, revocable. |
-| Code brute force | 6 chars from a 31-symbol alphabet (~887M combos) + throttling per user and per IP (extend the existing `ThrottlerModule`), lockout after repeated failures. |
+| Code brute force | 6 chars from a 32-symbol alphabet (~1.07 billion combos) + throttling per user and per IP (extend the existing `ThrottlerModule`), lockout after repeated failures. |
 | Invite spam | Per-family pending cap; per-user invite creation limit. |
 | Throwaway accounts | Verified email/phone required to create or join. |
 | Privilege escalation | Role changes Owner-only; "exactly one Owner" invariant enforced in a DB transaction. |
@@ -518,8 +518,8 @@ Family debts · scheduled/recurring family transactions · family reminders · P
 | Phase | Title | Status |
 |---|---|---|
 | F0 | Analysis & plan (this document) | 🟦 awaiting confirmation |
-| F1 | Foundation: schema, migration, `family` module, roles/permissions, invites, tests | ⬜ |
-| F2 | Scope resolution: `resolveScope`, scope-aware wallets & transactions, isolation tests | ⬜ |
+| F1 | Foundation: schema, migration, `family` module, roles/permissions, invites, tests | ✅ (backend only, see `design/progress.md`) |
+| F2 | Scope resolution: `resolveScope`, scope-aware wallets & transactions, isolation tests | ✅ (backend only, see `design/progress.md`) |
 | F3 | App: scope context, switcher, create/join/invite/members screens (mobile) | ⬜ |
 | F4 | Family budget, reports by member, home in family scope | ⬜ |
 | F5 | Realtime rooms, push fan-out, preferences, activity log | ⬜ |

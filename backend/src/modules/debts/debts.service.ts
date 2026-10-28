@@ -74,6 +74,11 @@ export class DebtsService {
       overdue: live && (rows.length ? isOverdue(derived) : !!d.dueDate && new Date(d.dueDate) < new Date()),
       archived: !!d.archivedAt,
       nextDueAt: next ? next.dueAt : null,
+      // What the next pay date asks for now (its estimated payment less what already covers it); null when it has no amount of its own.
+      nextPayment: (() => {
+        const x = next && next.plannedAmount != null ? derived.find(v => v.id === next.id) : null;
+        return x ? Math.min(remainingOf(amount, paid, writtenOff), round2(Math.max(0, x.planned - x.covered))) || null : null;
+      })(),
       payments: (d.payments ?? []).map((p: any) => ({ ...p, amount: Number(p.amount) })),
       installments: (d.installments ?? []).map((i: any) => {
         const x = derived.find(v => v.id === i.id)!;
@@ -102,7 +107,7 @@ export class DebtsService {
   }
 
   private async wallet(clientId: string, walletId: string, currency: string) {
-    const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId } });
+    const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId, familyId: null } });
     if (!w) throw new NotFoundException('Wallet not found');
     if (w.currency !== currency) throw new BadRequestException(`Choose a ${currency} wallet for this record`);
     return w;
@@ -353,7 +358,7 @@ export class DebtsService {
     const walletId = kind === 'LENT' ? dto.walletId || undefined : undefined;
     let currency = (dto.currency ?? '').toUpperCase();
     if (walletId) {
-      const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId } });
+      const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId, familyId: null } });
       if (!w) throw new NotFoundException('Wallet not found');
       currency = w.currency;
     }

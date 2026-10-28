@@ -110,7 +110,7 @@ async function main() {
     // ── Archive blocks edits; restore allows them ─────────────────────────────
     let f = await debts.create(cid, { kind: 'BORROWED', person: 'Aline', amount: 50000, dueDate: iso(4), currency: 'RWF' });
     f = await debts.archive(cid, f.id);
-    await rejects('archive: pay dates are locked', () => debts.addInstallment(cid, f.id, { dueAt: iso(8) }), 'Restore this debt');
+    await rejects('archive: pay dates are locked', () => debts.addInstallment(cid, f.id, { dueAt: iso(8) }), 'Restore this loan');
     check('archive: an archived debt is never "overdue"', f.overdue, false);
     f = await debts.restore(cid, f.id);
     f = await debts.addInstallment(cid, f.id, { dueAt: iso(8) });

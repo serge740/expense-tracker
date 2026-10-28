@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { TransactionService } from './transaction.service';
+import { personalScope } from '../family/scope/scope';
 
 // A tiny fake of the database client: only what createInTx / remove touch.
 function fake(debt: any) {
@@ -46,9 +47,9 @@ describe('spending borrowed money (a debt\'s pot)', () => {
     const existing = { id: 't1', clientId: 'c1', type: 'EXPENSE', amount: 20000, walletId: null, debtId: null, fundedByDebtId: 'd1' };
     const { prx, calls } = fake(debt());
     const svc: any = new TransactionService({ $transaction: (fn: any) => fn(prx) } as any, { notify: () => {} } as any);
-    svc.assertOwner = async () => existing;
-    await expect(svc.update('c1', 't1', { title: 'x' })).rejects.toThrow(BadRequestException);
-    await svc.remove('c1', 't1');
+    svc.assertInScope = async () => existing;
+    await expect(svc.update(personalScope('c1'), 't1', { title: 'x' })).rejects.toThrow(BadRequestException);
+    await svc.remove(personalScope('c1'), 't1');
     expect(calls.debtUpdates[0].data).toEqual({ spent: { decrement: 20000 } });
   });
 });

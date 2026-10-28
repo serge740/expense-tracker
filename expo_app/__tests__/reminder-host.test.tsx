@@ -215,6 +215,20 @@ describe('ReminderModalHost', () => {
   });
 
   describe('mark paid', () => {
+    test('a pay date with an estimated payment shows it, and starts the form on it', async () => {
+      reminders.getPendingReminders.mockResolvedValue([rem({ payment: 50000 })]);
+      await mount();
+      await screen.findByText('Pay John');
+      expect(screen.getByText(/^[^0-9]*50,000$/)).toBeTruthy();
+      expect(screen.getByText(/150,000 left in total/)).toBeTruthy();
+      await fireEvent.press(screen.getByText('Mark paid'));
+      await screen.findAllByText('Record payment');
+      expect(screen.getByDisplayValue('50000')).toBeTruthy();
+      reminders.getPendingReminders.mockResolvedValue([]);
+      await fireEvent.press(screen.getAllByText('Record payment').at(-1)!);
+      await waitFor(() => expect(debts.addDebtPayment).toHaveBeenCalledWith('d1', { amount: 50000, walletId: undefined }));
+    });
+
     test('opens with what is left, then records a real payment', async () => {
       await mount();
       await screen.findByText('Pay John');

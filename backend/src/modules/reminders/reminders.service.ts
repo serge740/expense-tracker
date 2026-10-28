@@ -355,7 +355,7 @@ export class RemindersService {
         clientId, lastFiredAt: { not: null },
         OR: [{ status: 'ACTIVE' }, { status: 'SNOOZED', snoozedUntil: { lte: now } }],
       },
-      include: { debt: true, occurrence: { include: { schedule: { include: { wallet: { select: { currency: true } } } } } } },
+      include: { debt: true, installment: true, occurrence: { include: { schedule: { include: { wallet: { select: { currency: true } } } } } } },
       orderBy: { dueAt: 'asc' },
     });
     const common = (r: (typeof rows)[number]) => ({
@@ -365,9 +365,12 @@ export class RemindersService {
     for (const r of rows) {
       if (r.debt) {
         const d = r.debt;
+        const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
         out.push({
           ...common(r), source: 'DEBT', debtId: d.id, kind: d.kind, person: d.person, currency: d.currency, walletId: d.walletId,
-          remaining: remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount)),
+          remaining,
+          // This pay date's own amount (an estimated payment), never more than what is left.
+          payment: r.installment?.plannedAmount != null ? Math.min(remaining, Number(r.installment.plannedAmount)) : null,
         });
       } else if (r.occurrence) {
         const s = r.occurrence.schedule;

@@ -2,25 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpsertBudgetDto } from './dto/upsert-budget.dto';
 import { NO_DEBT_FLOWS } from '../../common/utils/loan-filter';
+import { Scope, assertScopeCan, scopeData, scopeKeyOf, scopeWhere } from '../family/scope/scope';
+import { errors } from '../family/family-errors';
 
 @Injectable()
 export class BudgetService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getCurrent(clientId: string) {
+  /** This month's limit and spending for the scope asked for: your own, or the family's. They never share a number. */
+  async getCurrent(scope: Scope) {
     const now = new Date();
     const month = now.getMonth() + 1;
     const year  = now.getFullYear();
 
     const budget = await this.prisma.budget.findUnique({
-      where: { clientId_month_year: { clientId, month, year } },
+      where: { scopeKey_month_year: { scopeKey: scopeKeyOf(scope), month, year } },
     });
 
     const start = new Date(year, month - 1, 1);
     const end   = new Date(year, month, 1);
 
     const agg = await this.prisma.transaction.aggregate({
-      where: { clientId, type: 'EXPENSE', date: { gte: start, lt: end }, ...NO_DEBT_FLOWS },
+      where: { ...scopeWhere(scope), type: 'EXPENSE', date: { gte: start, lt: end }, ...NO_DEBT_FLOWS },
       _sum: { amount: true },
     });
 
@@ -32,15 +35,19 @@ export class BudgetService {
     return { limit, spent, remaining, percentage, month, year };
   }
 
-  async upsert(clientId: string, dto: UpsertBudgetDto) {
+  /** Setting a family budget is for the Owner and Admins; your own budget is always yours to set. */
+  async upsert(scope: Scope, dto: UpsertBudgetDto) {
+    assertScopeCan(scope, 'budget.set');
+    const limit = Number(dto?.limit);
+    if (!Number.isFinite(limit) || limit < 0) throw errors.invalid('The budget must be a number, zero or more');
     const now   = new Date();
     const month = dto.month ?? now.getMonth() + 1;
     const year  = dto.year  ?? now.getFullYear();
 
     const budget = await this.prisma.budget.upsert({
-      where:  { clientId_month_year: { clientId, month, year } },
-      create: { clientId, month, year, limit: dto.limit },
-      update: { limit: dto.limit },
+      where:  { scopeKey_month_year: { scopeKey: scopeKeyOf(scope), month, year } },
+      create: { ...scopeData(scope), scopeKey: scopeKeyOf(scope), month, year, limit },
+      update: { limit },
     });
 
     return { ...budget, limit: Number(budget.limit) };
