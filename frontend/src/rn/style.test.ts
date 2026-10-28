@@ -37,7 +37,8 @@ describe('transforms, line height, borders', () => {
     expect(toCss({ transform: [{ rotate: '-8deg' }, { translateY: 12 }, { scale: 1.2 }] }).transform).toBe('rotate(-8deg) translateY(12px) scale(1.2)');
   });
   test('a numeric line height is pixels, not a multiplier', () => {
-    expect(toCss({ lineHeight: 22 }).lineHeight).toBe('22px');
+    expect(toCss({ lineHeight: 22 }).lineHeight).toBe('calc(22px * var(--fs, 1) * var(--fit, 1))');
+    expect(toCss({ fontSize: 16 }).fontSize).toBe('calc(16px * var(--fs, 1) * var(--fit, 1))');
   });
   test('a border width gets a solid style', () => {
     expect(toCss({ borderWidth: 1, borderColor: '#000' }).borderStyle).toBe('solid');

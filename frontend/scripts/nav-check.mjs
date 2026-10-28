@@ -59,7 +59,7 @@ try {
 
   // the four tabs, there and back
   await go('Wallets', '/app/wallets', 'My wallets');
-  await go('Debts', '/app/debts', 'Debts & loans');
+  await go('Loans', '/app/debts', 'Loans & debts');
   await go('Settings', '/app/profile', 'Profile');
   await go('Home', '/app', 'Include loans');
 

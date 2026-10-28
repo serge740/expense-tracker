@@ -73,6 +73,8 @@ function expandBox(out: Record<string, any>, s: Record<string, any>, prop: 'padd
 
 const DROPPED = ['elevation', 'textAlignVertical', 'includeFontPadding', 'resizeMode', 'tintColor', 'overlayColor', 'writingDirection'];
 
+const scaled = (px: number) => `calc(${px}px * var(--fs, 1) * var(--fit, 1))`;
+
 export function toCss(style: RNStyle): CSSProperties {
   const s = flatten(style);
   const out: Record<string, any> = { ...s };
@@ -93,7 +95,9 @@ export function toCss(style: RNStyle): CSSProperties {
   }
 
   if (out.transform !== undefined) out.transform = transformOf(out.transform);
-  if (typeof out.lineHeight === 'number') out.lineHeight = `${out.lineHeight}px`;
+  // Sizes follow --fs (narrow screens, see lib/ui-scale.ts) and --fit (a Text that shrinks to fit its line).
+  if (typeof out.fontSize === 'number') out.fontSize = scaled(out.fontSize);
+  if (typeof out.lineHeight === 'number') out.lineHeight = scaled(out.lineHeight);
   if (Array.isArray(out.fontVariant)) {
     out.fontVariantNumeric = out.fontVariant.includes('tabular-nums') ? 'tabular-nums' : undefined;
     delete out.fontVariant;

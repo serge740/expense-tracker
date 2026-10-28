@@ -15,6 +15,8 @@ export interface StatementInput {
   note?: string | null;
   payments: { amount: number; date: Date | string; note?: string | null }[];
   installments: { dueAt: Date | string; plannedAmount: number | null; view?: string }[];
+  /** The estimated payment plan of a loan, when it has one. */
+  plan?: { amount: number; finishesAt: Date | string | null; paymentsLeft: number } | null;
 }
 
 const BRAND = '#00627F';
@@ -31,7 +33,7 @@ export function buildDebtStatementPdf(d: StatementInput): Promise<Buffer> {
     doc.on('error', reject);
 
     const lent = d.kind === 'LENT';
-    doc.fontSize(20).fillColor(BRAND).text(`Rabbit Tracker — ${lent ? 'Credit' : 'Debt'} statement`);
+    doc.fontSize(20).fillColor(BRAND).text(`Rabbit Tracker — ${lent ? 'Debt' : 'Loan'} statement`);
     doc.fontSize(9).fillColor('#888888').text(`Generated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`);
     doc.moveDown(1);
 
@@ -48,7 +50,11 @@ export function buildDebtStatementPdf(d: StatementInput): Promise<Buffer> {
     row(lent ? 'Received:' : 'Paid:', money(d.paid, d.currency));
     if (d.writtenOffAmount > 0) row('Forgiven:', money(d.writtenOffAmount, d.currency));
     row('Left:', money(d.remaining, d.currency));
-    if (!lent && d.spent !== undefined) row('Spent from this debt:', money(d.spent, d.currency));
+    if (!lent && d.spent !== undefined) row('Spent from this loan:', money(d.spent, d.currency));
+    if (d.plan) {
+      row('Estimated payment:', `${money(d.plan.amount, d.currency)} each pay date`);
+      row('Estimated last payment:', d.plan.finishesAt ? day(d.plan.finishesAt) : 'not reached by the plan');
+    }
     if (d.note) row('Note:', d.note);
 
     doc.moveDown(0.8).fontSize(13).fillColor('#111111').text('Payments');

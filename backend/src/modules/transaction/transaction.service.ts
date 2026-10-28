@@ -6,6 +6,8 @@ import { CategorySlug, Prisma, TransactionType } from '../../../generated/prisma
 import { NotificationsService } from '../notifications/notifications.service';
 import { NO_DEBT_FLOWS, parseIncludeLoans } from '../../common/utils/loan-filter';
 import { parseView, viewFilter } from '../../common/utils/feed-view';
+import { canonicalCategory, normalizeSubCategory } from '../../common/utils/categories';
+import { rememberSubCategory } from '../../common/utils/subcategory';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -135,6 +137,10 @@ export class TransactionService {
   ) {
     const amount = Math.abs(dto.amount);
     const date = dto.date ? new Date(dto.date) : new Date();
+    // An older app may still send a retired category: it becomes the new one (groceries -> Food, "Groceries").
+    const canon = canonicalCategory(dto.category);
+    const category = canon.category as CategorySlug;
+    const subCategory = normalizeSubCategory(dto.subCategory) ?? canon.subCategory ?? null;
     if (dto.fundedByDebtId) {
       if (dto.type !== 'EXPENSE') throw new BadRequestException('Only an expense can be paid from borrowed money');
       const debt = await prx.debt.findFirst({ where: { id: dto.fundedByDebtId, clientId } });
@@ -149,9 +155,9 @@ export class TransactionService {
       data: {
         clientId,
         type: dto.type,
-        category: dto.category,
+        category,
         title: dto.title,
-        subCategory: dto.subCategory,
+        subCategory,
         description: dto.description,
         amount,
         date,
@@ -162,6 +168,9 @@ export class TransactionService {
         ...extra,
       },
     });
+
+    // What this person typed or picked is offered to them first next time. A scheduled post is not a new choice.
+    if (!extra.scheduledOccurrenceId) await rememberSubCategory(prx, clientId, dto.type, category, subCategory);
 
     if (dto.walletId) {
       const delta = new Prisma.Decimal(amount);
@@ -244,10 +253,17 @@ export class TransactionService {
         });
       }
 
-      const result = await prx.transaction.update({
-        where: { id },
-        data: { ...dto, amount, date },
-      });
+      const data: Prisma.TransactionUncheckedUpdateInput = { ...dto, amount, date } as Prisma.TransactionUncheckedUpdateInput;
+      let finalCategory = existing.category as CategorySlug;
+      if (dto.category !== undefined) {
+        const canon = canonicalCategory(dto.category);
+        finalCategory = canon.category as CategorySlug;
+        data.category = finalCategory;
+        if (dto.subCategory === undefined && canon.subCategory) data.subCategory = canon.subCategory;
+      }
+      if (dto.subCategory !== undefined) data.subCategory = normalizeSubCategory(dto.subCategory);
+      const result = await prx.transaction.update({ where: { id }, data });
+      if (typeof data.subCategory === 'string') await rememberSubCategory(prx, clientId, (dto.type ?? existing.type) as TransactionType, finalCategory, data.subCategory);
 
       // Apply new balance effect
       const newWalletId = dto.walletId ?? existing.walletId;

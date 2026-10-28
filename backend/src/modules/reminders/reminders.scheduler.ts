@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { RemindersService } from './reminders.service';
+import { DebtPlanService } from '../debts/debt-plan.service';
 
 /**
  * Runs the engine inside the server: every minute, plus once shortly after start-up to catch up on
@@ -13,7 +14,7 @@ export class RemindersScheduler implements OnApplicationBootstrap {
   private running = false;
   private warnedMissingTables = false;
 
-  constructor(private readonly reminders: RemindersService) {}
+  constructor(private readonly reminders: RemindersService, private readonly plans: DebtPlanService) {}
 
   private get disabled() { return process.env.REMINDERS_DISABLED === 'true'; }
 
@@ -35,6 +36,18 @@ export class RemindersScheduler implements OnApplicationBootstrap {
       this.report('tick', e);
     } finally {
       this.running = false;
+    }
+  }
+
+  /** Loans with an estimated payment keep their next pay dates ready as time passes. */
+  @Cron('7 * * * *')
+  async loanPlans() {
+    if (this.disabled) return;
+    try {
+      const changed = await this.plans.reconcileAll();
+      if (changed) this.logger.log(`loan plans: ${changed} updated`);
+    } catch (e: any) {
+      this.report('loan plans', e);
     }
   }
 

@@ -7,6 +7,8 @@ export interface MessageInput {
   kind: DebtKindName;
   person: string;
   remaining: number;
+  /** What this pay date asks for (an estimated payment), when it is less than everything still owed. */
+  payment?: number | null;
   currency: string;
   dueAt: Date;
   tz: string;
@@ -34,6 +36,8 @@ interface Words {
   cTomorrow: string; cHour: string; cNow: string; cLate: string;
   dLead: string; dOver: string; cLead: string; cOver: string;
   digest: string; more: string;
+  /** Added after a payment that is only part of what is owed. */
+  leftNote: string;
   sTomorrow: string; sHour: string; sNow: string; sLate: string;
   iTomorrow: string; iHour: string; iNow: string; iLate: string;
   sLead: string; sOver: string; iLead: string; iOver: string;
@@ -46,6 +50,7 @@ const WORDS: Record<Lang, Words> = {
     dLead: 'Pay {person} {amount} by {when}.', dOver: 'Your payment to {person} ({amount}) was due {when}.',
     cLead: '{person} owes you {amount}, due {when}.', cOver: '{person} owes you {amount} since {when}.',
     digest: '{n} payments need attention', more: ' +{k} more',
+    leftNote: ' {left} left in total.',
     sTomorrow: 'Scheduled payment due tomorrow', sHour: 'Scheduled payment due in 1 hour', sNow: 'Scheduled payment due now', sLate: 'Scheduled payment overdue',
     iTomorrow: 'Expected income tomorrow', iHour: 'Expected income in 1 hour', iNow: 'Expected income now', iLate: 'Expected income is late',
     sLead: '{title} · {amount} is due {when}.', sOver: '{title} · {amount} was due {when}.',
@@ -57,6 +62,7 @@ const WORDS: Record<Lang, Words> = {
     dLead: 'Payez {person} {amount} avant {when}.', dOver: 'Votre paiement à {person} ({amount}) était dû {when}.',
     cLead: '{person} vous doit {amount}, échéance {when}.', cOver: '{person} vous doit {amount} depuis {when}.',
     digest: '{n} paiements demandent votre attention', more: ' +{k} de plus',
+    leftNote: ' Il reste {left} au total.',
     sTomorrow: 'Paiement prévu demain', sHour: 'Paiement prévu dans 1 heure', sNow: 'Paiement prévu maintenant', sLate: 'Paiement prévu en retard',
     iTomorrow: 'Revenu attendu demain', iHour: 'Revenu attendu dans 1 heure', iNow: 'Revenu attendu maintenant', iLate: 'Revenu attendu en retard',
     sLead: '{title} · {amount} est dû {when}.', sOver: '{title} · {amount} était dû {when}.',
@@ -68,6 +74,7 @@ const WORDS: Record<Lang, Words> = {
     dLead: 'Ishyura {person} {amount} bitarenze {when}.', dOver: 'Kwishyura {person} ({amount}) byagombaga {when}.',
     cLead: '{person} agufitiye {amount}, bigomba {when}.', cOver: '{person} agufitiye {amount} kuva {when}.',
     digest: 'Ibyishyurwa {n} bikeneye kwitabwaho', more: ' +{k} bindi',
+    leftNote: ' Hasigaye {left} yose hamwe.',
     sTomorrow: 'Kwishyura byateganyijwe ejo', sHour: 'Kwishyura byateganyijwe mu isaha imwe', sNow: 'Kwishyura byateganyijwe none', sLate: 'Kwishyura byateganyijwe byarengeje igihe',
     iTomorrow: 'Amafaranga ategerejwe ejo', iHour: 'Amafaranga ategerejwe mu isaha imwe', iNow: 'Amafaranga ategerejwe none', iLate: 'Amafaranga ategerejwe yatinze',
     sLead: '{title} · {amount} bigomba {when}.', sOver: '{title} · {amount} byagombaga {when}.',
@@ -79,6 +86,7 @@ const WORDS: Record<Lang, Words> = {
     dLead: 'Mlipe {person} {amount} kabla ya {when}.', dOver: 'Malipo yako kwa {person} ({amount}) yalitakiwa {when}.',
     cLead: '{person} anakudai {amount}, tarehe {when}.', cOver: '{person} anakudai {amount} tangu {when}.',
     digest: 'Malipo {n} yanahitaji umakini', more: ' +{k} zaidi',
+    leftNote: ' Imebaki {left} kwa jumla.',
     sTomorrow: 'Malipo yaliyopangwa kesho', sHour: 'Malipo yaliyopangwa baada ya saa 1', sNow: 'Malipo yaliyopangwa sasa', sLate: 'Malipo yaliyopangwa yamechelewa',
     iTomorrow: 'Mapato yanayotarajiwa kesho', iHour: 'Mapato yanayotarajiwa baada ya saa 1', iNow: 'Mapato yanayotarajiwa sasa', iLate: 'Mapato yanayotarajiwa yamechelewa',
     sLead: '{title} · {amount} yanatakiwa {when}.', sOver: '{title} · {amount} yalitakiwa {when}.',
@@ -92,7 +100,9 @@ const isLate = (s: StepKind) => s === 'LATE_30M' || s === 'LATE_2H' || s === 'LA
 /** The words for one reminder, in the person's language. */
 export function reminderMessage(i: MessageInput): { title: string; body: string; headline: string; late: boolean } {
   const w = WORDS[i.lang ?? 'en'];
-  const amount = money(i.remaining, i.currency);
+  // A pay date with its own amount asks for that, and says how much is still owed in all.
+  const part = i.payment != null && i.payment > 0 && i.payment < i.remaining - 0.005 ? i.payment : null;
+  const amount = money(part ?? i.remaining, i.currency);
   const when = whenText(i.dueAt, i.tz, i.lang ?? 'en');
   const late = isLate(i.step);
   const debt = i.kind === 'BORROWED';
@@ -102,7 +112,8 @@ export function reminderMessage(i: MessageInput): { title: string; body: string;
     : { LEAD_DAY: w.cTomorrow, LEAD_HOUR: w.cHour, DUE: w.cNow }[i.step as 'LEAD_DAY'] ?? w.cLate;
   const bodyTpl = debt ? (late ? w.dOver : w.dLead) : (late ? w.cOver : w.cLead);
 
-  return { title: pick, headline: pick, late, body: fill(bodyTpl, { person: i.person, amount, when }) };
+  const body = fill(bodyTpl, { person: i.person, amount, when }) + (part !== null ? fill(w.leftNote, { left: money(i.remaining, i.currency) }) : '');
+  return { title: pick, headline: pick, late, body };
 }
 
 export interface ScheduledMessageInput {

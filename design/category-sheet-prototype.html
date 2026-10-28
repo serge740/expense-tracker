@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Category and subcategory sheet — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .screen{--background:#EEF7FA;--surface:#FFFFFF;--primary:#00627F;--primaryBg:rgba(0,98,127,.08);--text:#0E2A33;--textSecondary:#5A7682;--textMuted:#9AB0B9;--border:rgba(0,98,127,.12);--inputBg:#F3F8FA;--headerBg:linear-gradient(135deg,#00627F,#0A8FB3);--income:#16A34A;--expense:#DC2626}
+  .screen.dark{--background:#0A1A20;--surface:#11262E;--primary:#5BB8D6;--primaryBg:rgba(91,184,214,.15);--text:#EAF5F8;--textSecondary:rgba(234,245,248,.60);--textMuted:rgba(234,245,248,.35);--border:rgba(234,245,248,.10);--inputBg:#0F2229;--headerBg:linear-gradient(135deg,#0B3B4B,#0F5870)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0%,#15202b 0%,#0D1117 60%);font-family:'Poppins',sans-serif;color:#fff;padding:32px 16px}
+  .stage{max-width:1040px;margin:0 auto;display:flex;gap:40px;align-items:flex-start;justify-content:center;flex-wrap:wrap}
+  .panel{width:340px;display:flex;flex-direction:column;gap:14px}
+  .panel h1{font-size:16px;margin:0 0 2px}.panel p{font-size:12px;color:rgba(255,255,255,.62);line-height:1.55;margin:0}
+  .box{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px}
+  .box h2{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:rgba(255,255,255,.5);margin:0 0 8px}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;margin:6px 0}
+  .switch{width:38px;height:22px;border-radius:11px;background:rgba(255,255,255,.2);position:relative;cursor:pointer;border:none;flex:none}
+  .switch::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s}
+  .switch.on{background:#00A3CC}.switch.on::after{left:19px}
+  .ex{display:block;width:100%;text-align:left;font:inherit;font-size:11.5px;color:#fff;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:7px 10px;margin:5px 0;cursor:pointer}
+  .ex:hover{background:rgba(255,255,255,.14)}
+  #out{font-size:10.5px;line-height:1.5;white-space:pre-wrap;color:#9be9ff;margin:0}
+  .list{margin:0;padding-left:16px;font-size:11.5px;line-height:1.6;color:rgba(255,255,255,.75)}
+
+  .phone{position:relative;width:390px;height:844px;background:#05050a;border-radius:52px;padding:12px;box-shadow:0 0 0 2px rgba(255,255,255,.06),0 30px 60px -20px rgba(0,0,0,.7);flex:none}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#05050a;border-radius:0 0 18px 18px;z-index:50}
+  .screen{position:relative;width:100%;height:100%;background:var(--background);border-radius:42px;overflow:hidden;color:var(--text);isolation:isolate}
+  .statusbar{display:flex;justify-content:space-between;padding:16px 30px 0;font-size:14px;font-weight:600;color:#fff;position:relative;z-index:3}
+  .appbar{background:var(--headerBg);padding:50px 20px 18px;margin-top:-34px;display:flex;align-items:center;justify-content:space-between}
+  .appbar h3{margin:0;font-size:18px;color:#fff}
+  .appbar .x{width:34px;height:34px;border-radius:17px;background:rgba(255,255,255,.16);display:grid;place-items:center;color:#fff}
+  .form{padding:6px 16px 90px;overflow:auto;height:calc(100% - 112px)}.form::-webkit-scrollbar{display:none}
+  .label{font-size:11px;font-weight:600;color:var(--textSecondary);margin:12px 2px 5px}
+  .field{display:flex;align-items:center;gap:10px;min-height:48px;border-radius:12px;border:1px solid var(--border);background:var(--inputBg);padding:8px 12px;width:100%;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+  .field .material-icons{flex:none;color:var(--textMuted);font-size:20px}
+  .field .val{flex:1;line-height:1.35;min-width:0}
+  .field small{display:block;color:var(--textSecondary);font-size:11px}
+  .field.static{cursor:default}
+  .tile{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none}
+  .tile .material-icons{font-size:19px;color:inherit}
+  .amount{font-size:26px;font-weight:700;color:var(--expense);text-align:center;padding:10px 0 4px}
+  .amount.inc{color:var(--income)}
+  .seg{display:flex;background:var(--inputBg);border-radius:14px;padding:3px;margin-top:8px}
+  .seg button{flex:1;font:inherit;font-size:12px;font-weight:600;color:var(--textMuted);background:none;border:none;border-radius:11px;height:34px;cursor:pointer}
+  .seg button.on{background:var(--surface);color:var(--primary);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .savebar{position:absolute;left:0;right:0;bottom:0;background:var(--background);border-top:1px solid var(--border);padding:10px 16px 18px;z-index:5}
+  .btn{width:100%;height:48px;border-radius:24px;border:none;font:inherit;font-size:14px;font-weight:700;background:var(--primary);color:#fff;cursor:pointer}
+  .screen.dark .btn{color:#06222B}
+  .oldwall{display:flex;flex-wrap:wrap;gap:6px}
+  .oldchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);border-radius:14px;padding:5px 9px;font-size:11px;color:var(--textSecondary)}
+  .oldchip .material-icons{font-size:15px}.oldchip.on{font-weight:700;color:var(--text)}
+  .note{font-size:11px;color:var(--textMuted);margin:6px 2px;display:flex;gap:5px;align-items:center}
+  .note .material-icons{font-size:14px}
+
+  .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .25s;z-index:20}.backdrop.show{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:30;background:var(--surface);border-radius:26px 26px 0 0;padding:10px 18px 18px;transform:translateY(105%);transition:transform .36s cubic-bezier(.2,.8,.2,1);height:84%;display:flex;flex-direction:column}
+  .sheet.show{transform:none}
+  .grab{width:38px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 10px;flex:none}
+  .shead{display:flex;align-items:center;gap:10px;flex:none;min-height:36px}
+  .shead h4{margin:0;font-size:15px;font-weight:700;flex:1}
+  .shead .sub{font-size:11px;color:var(--textSecondary);font-weight:500}
+  .ibtn{width:32px;height:32px;border-radius:16px;border:1px solid var(--border);background:var(--inputBg);color:var(--text);display:grid;place-items:center;cursor:pointer;flex:none}
+  .ibtn .material-icons{font-size:18px}
+  .sbody{overflow-y:auto;flex:1;min-height:0;margin:0 -4px;padding:0 4px}.sbody::-webkit-scrollbar{display:none}
+  .search{display:flex;align-items:center;gap:8px;height:42px;border-radius:21px;border:1px solid var(--border);background:var(--inputBg);padding:0 14px;margin:10px 0 4px;flex:none}
+  .search .material-icons{font-size:19px;color:var(--textMuted)}
+  .search input,.typed input{flex:1;border:none;outline:none;background:none;font:inherit;font-size:13px;color:var(--text);min-width:0}
+  .sec{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--textMuted);margin:14px 2px 7px;display:flex;justify-content:space-between;align-items:center}
+  .sec button{font:inherit;font-size:11px;font-weight:700;color:var(--primary);background:none;border:none;cursor:pointer;letter-spacing:0}
+  .freq{display:flex;gap:7px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--inputBg);border-radius:18px;padding:5px 11px 5px 6px;font:inherit;font-size:12px;font-weight:600;color:var(--text);cursor:pointer}
+  .pill .tile{width:24px;height:24px;border-radius:8px}.pill .tile .material-icons{font-size:15px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:5px;border:1.5px solid transparent;background:none;border-radius:14px;padding:8px 2px 6px;font:inherit;font-size:10.5px;font-weight:600;color:var(--textSecondary);cursor:pointer;min-width:0}
+  .cell .tile{width:44px;height:44px;border-radius:14px}.cell .tile .material-icons{font-size:23px}
+  .cell span.t{max-width:100%;white-space:normal;line-height:1.2;text-align:center;min-height:1.2em;display:block}
+  .cell.on{border-color:var(--primary);color:var(--text);background:var(--primaryBg)}
+  .rowbtn{display:flex;align-items:center;gap:12px;width:100%;border:none;background:none;font:inherit;text-align:left;color:var(--text);padding:9px 2px;border-bottom:1px solid var(--border);cursor:pointer}
+  .rowbtn:last-child{border-bottom:none}
+  .rowbtn .mid{flex:1;min-width:0}.rowbtn b{display:block;font-size:13px}
+  .rowbtn small{display:block;color:var(--textSecondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rowbtn .material-icons.chev{color:var(--textMuted);font-size:20px}
+  .catchip{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .catchip b{font-size:14px}
+  .typed{display:flex;align-items:center;gap:8px;height:46px;border-radius:14px;border:1.5px solid var(--primary);background:var(--inputBg);padding:0 8px 0 14px;margin:10px 0 2px;flex:none}
+  .typed .material-icons{font-size:19px;color:var(--primary)}
+  .addbtn{height:32px;padding:0 14px;border-radius:16px;border:none;background:var(--primary);color:#fff;font:inherit;font-size:12px;font-weight:700;cursor:pointer;flex:none}
+  .screen.dark .addbtn{color:#06222B}
+  .addbtn:disabled{opacity:.35;cursor:default}
+  .tabs{display:flex;gap:6px;overflow-x:auto;margin:12px -4px 2px;padding:0 4px;flex:none}.tabs::-webkit-scrollbar{display:none}
+  .tab{flex:none;border:1px solid var(--border);background:var(--inputBg);border-radius:16px;padding:6px 13px;font:inherit;font-size:12px;font-weight:600;color:var(--textSecondary);cursor:pointer;white-space:nowrap}
+  .tab.on{background:var(--primary);border-color:var(--primary);color:#fff}.screen.dark .tab.on{color:#06222B}
+  .newrow{display:flex;align-items:center;gap:10px;width:100%;margin:8px 0 2px;padding:10px 12px;border-radius:14px;border:1.5px dashed var(--primary);background:var(--primaryBg);color:var(--text);font:inherit;text-align:left;cursor:pointer}
+  .newrow .material-icons{color:var(--primary);font-size:21px}
+  .newrow b{display:block;font-size:13px}.newrow small{display:block;color:var(--textSecondary);font-size:11px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--inputBg);border-radius:17px;padding:7px 13px;font:inherit;font-size:12.5px;font-weight:500;color:var(--text);cursor:pointer}
+  .chip.on{border-color:var(--primary);background:var(--primaryBg);color:var(--primary);font-weight:700}
+  .chip .material-icons{font-size:14px;color:var(--primary)}
+  .chip .del{margin-left:2px;color:var(--expense)}
+  .chip .alias{font-size:10.5px;color:var(--textMuted);font-weight:500}
+  .chip .grp{font-size:10px;color:var(--textMuted);font-weight:500}
+  .privacy{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:1.45;color:var(--textSecondary);margin:14px 2px 4px}
+  .privacy .material-icons{font-size:15px;color:var(--primary);margin-top:1px}
+  .skip{width:100%;height:42px;border-radius:21px;border:1px solid var(--border);background:none;color:var(--textSecondary);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;margin-top:10px;flex:none}
+  .empty{font-size:12px;color:var(--textMuted);text-align:center;padding:18px 0}
+  .toast{position:absolute;left:50%;bottom:86px;transform:translateX(-50%) translateY(20px);background:#0E2A33;color:#fff;font-size:12px;padding:8px 14px;border-radius:14px;opacity:0;transition:.25s;z-index:60;white-space:nowrap}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="panel">
+    <h1>Category and subcategory sheet</h1>
+    <p>Prototype only: nothing in the real app has changed. Tap the Category field on the phone. Everything you add here is kept in this browser, to show how "saved only for you" behaves.</p>
+
+    <div class="box">
+      <h2>Try it</h2>
+      <button class="ex" data-try="pick">1. Food › Eating out › Pizza</button>
+      <button class="ex" data-try="search">2. Search "netflix" (goes straight to Entertainment)</button>
+      <button class="ex" data-try="alias">3. Transport, then type "bolt" (finds Ride app)</button>
+      <button class="ex" data-try="custom">4. Type my own item under Personal</button>
+      <button class="ex" data-try="income">5. Switch to Income and choose Freelance</button>
+      <button class="ex" data-try="reset">Reset everything I saved</button>
+    </div>
+
+    <div class="box">
+      <h2>View</h2>
+      <div class="row"><span>Dark theme</span><button class="switch" id="dark"></button></div>
+      <div class="row"><span>Show today's version (chip wall)</span><button class="switch" id="compare"></button></div>
+    </div>
+
+    <div class="box">
+      <h2>What would be saved</h2>
+      <pre id="out"></pre>
+    </div>
+
+    <div class="box">
+      <h2>How it works</h2>
+      <ul class="list">
+        <li>Step 1: 10 categories, all on one screen, your 3 most used on top.</li>
+        <li>Step 2: the items you really pay for. Each category has group tabs (Food: Shopping, Drinks, Eating out), so nothing is a long wall.</li>
+        <li>Type in the box to search every group at once. Brand names work: "bolt" finds Ride app.</li>
+        <li>What you type or pick is kept under "Yours", shown first next time, and nobody else sees it.</li>
+        <li>Only the item is saved on the transaction; the group is just for finding it.</li>
+      </ul>
+    </div>
+
+    <div class="box">
+      <h2>Where today's 25 categories go</h2>
+      <ul class="list">
+        <li>Food, Groceries → Food</li>
+        <li>Transport, Fuel, Travel → Transport (Trips)</li>
+        <li>Rent, Utilities, Bills, Subscriptions → Bills (streaming → Entertainment)</li>
+        <li>Health, Personal care, Education → Personal</li>
+        <li>Gifts, Family → Giving</li>
+        <li>Insurance → Finance</li>
+        <li>Shopping, Entertainment, Business, Other stay</li>
+        <li>Loan stays as the automatic one for Debts.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen" id="screen">
+      <div class="statusbar"><span>9:41</span><span>●●● 100%</span></div>
+      <div class="appbar"><h3>New transaction</h3><div class="x"><span class="material-icons">close</span></div></div>
+
+      <div class="form" id="form">
+        <div class="seg" id="kindseg"><button data-kind="EXPENSE" class="on">Expense</button><button data-kind="INCOME">Income</button></div>
+        <div class="amount" id="amount">- 25,000 <small style="font-size:13px;font-weight:600;color:var(--textMuted)">RWF</small></div>
+
+        <div class="label">Category</div>
+        <div id="catfield"></div>
+
+        <div class="label">Wallet</div>
+        <div class="field static"><span class="tile" style="background:rgba(14,165,233,.14);color:#0EA5E9"><span class="material-icons">account_balance_wallet</span></span><span class="val">MoMo<small>Balance 184,500 RWF</small></span></div>
+
+        <div class="label">Description</div>
+        <div class="field static"><span class="material-icons">notes</span><span class="val" style="color:var(--textMuted)">What was it for? (optional)</span></div>
+
+        <div class="label">Date</div>
+        <div class="field static"><span class="material-icons">event</span><span class="val">Today, 9:41 AM</span></div>
+      </div>
+
+      <div class="savebar"><button class="btn">Save transaction</button></div>
+      <div class="toast" id="toast"></div>
+
+      <div class="backdrop" id="backdrop"></div>
+      <div class="sheet" id="sheet" role="dialog" aria-modal="true">
+        <div class="grab"></div>
+        <div id="sheetcontent" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- catalog ----------
+   Category > group (a tab, only for finding things) > item (what is stored as the subcategory).
+   An item may carry search words after "|" (brand names): "Ride app|Uber,Bolt,Yego". */
+const item = raw => { const [name, a] = raw.split('|'); return { name, aliases: a ? a.split(',') : [] }; };
+const G = (name, items) => ({ name, items: items.map(item) });
+const C = (id, name, icon, color, groups) => ({ id, name, icon, color, groups, all: groups.flatMap(g => g.items.map(i => ({ ...i, group: g.name }))) });
+const FLAT = (items) => [G('', items)];
+
+const CATALOG = {
+  EXPENSE: [
+    C('food', 'Food', 'restaurant', '#F97316', [
+      G('Shopping', ['Groceries', 'Supermarket', 'Open market', 'Vegetables', 'Fruits', 'Meat', 'Fish', 'Chicken', 'Eggs', 'Milk', 'Bread', 'Rice', 'Flour', 'Cooking oil', 'Sugar', 'Spices', 'Snacks', 'Sweets', 'Baby food']),
+      G('Drinks', ['Bottled water', 'Soft drinks', 'Juice', 'Energy drinks', 'Coffee', 'Tea', 'Beer', 'Wine', 'Spirits']),
+      G('Eating out', ['Restaurants', 'Fast food', 'Street food', 'Pizza', 'Burger', 'Fried chicken', 'Brochettes', 'Shawarma', 'Breakfast out', 'Dinner out', 'Work lunch', 'Canteen', 'Takeaway', 'Food delivery', 'Café', 'Bakery', 'Ice cream']),
+    ]),
+    C('transport', 'Transport', 'directions_car', '#3B82F6', [
+      G('Daily', ['Fuel', 'Moto-taxi', 'Taxi', 'Ride app|Uber,Bolt,Yego', 'Bus fare', 'Train', 'Metro', 'Ferry', 'Bicycle', 'E-scooter rental', 'Parking', 'Toll']),
+      G('Vehicle', ['Car repair', 'Oil change', 'Tyres', 'Car battery', 'Spare parts', 'Car wash', 'Towing', 'Vehicle licence', 'Inspection', 'Driving lessons', 'Vehicle purchase', 'Car loan payment']),
+      G('Trips', ['Flights', 'Baggage fees', 'Airport taxi', 'Intercity bus', 'Train ticket', 'Car rental', 'Hotel', 'Airbnb', 'Guest house', 'Visa', 'Passport', 'Tours', 'Safari', 'Park entry']),
+    ]),
+    C('bills', 'Bills', 'receipt_long', '#F59E0B', [
+      G('Housing', ['Rent', 'Mortgage', 'Service charge', 'Security guard', 'Waste collection']),
+      G('Energy & water', ['Electricity', 'Prepaid electricity', 'Water', 'Cooking gas', 'Charcoal', 'Firewood', 'Generator fuel', 'Solar payment']),
+      G('Connectivity', ['Internet', 'WiFi', 'Airtime', 'Mobile data', 'Phone contract']),
+      G('Subscriptions', ['iCloud', 'Google One', 'ChatGPT', 'Microsoft 365', 'Adobe', 'Apps', 'Software']),
+      G('Upkeep', ['Repairs', 'Plumber', 'Electrician', 'Painting', 'Furniture', 'Appliances', 'Bedding', 'Curtains', 'Kitchenware', 'Cleaning supplies', 'Laundry', 'Dry cleaning', 'Domestic help', 'Gardener']),
+      G('Pets', ['Pet food', 'Vet', 'Pet grooming']),
+    ]),
+    C('shopping', 'Shopping', 'shopping_bag', '#EC4899', [
+      G('Clothes', ['Clothing', 'Shoes', 'Sneakers', 'Underwear', 'Bags', 'Tailor', 'Traditional wear']),
+      G('Accessories', ['Watch', 'Jewellery', 'Sunglasses', 'Belt', 'Wallet', 'Perfume', 'Cosmetics']),
+      G('Electronics', ['Phone', 'Laptop', 'Tablet', 'TV', 'Headphones', 'Earbuds', 'Speaker', 'Charger', 'Phone case', 'Power bank', 'Phone repair', 'Smartwatch']),
+      G('Kids', ['Kids clothes', 'Toys', 'Diapers', 'Baby formula', 'Baby gear']),
+      G('Other', ['Books', 'Stationery', 'Sports gear', 'Household items', 'Online orders|Amazon,Jumia,AliExpress,Temu']),
+    ]),
+    C('health', 'Personal', 'person', '#EF4444', [
+      G('Medical', ['Doctor visit', 'Clinic', 'Hospital stay', 'Surgery', 'Maternity', 'Pharmacy', 'Medicine', 'Vaccines', 'Lab tests', 'X-ray', 'Scan', 'Dentist', 'Eye test', 'Glasses', 'Contact lenses', 'Therapy', 'Mental health']),
+      G('Fitness', ['Gym membership', 'Yoga', 'Swimming', 'Fitness class', 'Supplements', 'Protein']),
+      G('Grooming', ['Haircut', 'Barber', 'Salon', 'Braids', 'Wig', 'Nails', 'Makeup', 'Spa', 'Massage', 'Skincare', 'Toiletries', 'Sanitary pads', 'Shaving']),
+      G('School', ['School fees', 'University fees', 'Registration fee', 'Hostel', 'School supplies', 'Textbooks', 'Uniform', 'School shoes', 'School transport', 'School lunch', 'Printing', 'Photocopy', 'Graduation fees']),
+      G('Learning', ['Courses', 'Online courses|Udemy,Coursera', 'Language classes', 'Exams', 'Certification', 'Tutoring', 'Driving school']),
+      G('Childcare', ['Daycare', 'Nursery', 'Babysitter']),
+    ]),
+    C('entertainment', 'Entertainment', 'movie', '#F43F5E', [
+      G('Streaming', ['Netflix', 'Spotify', 'YouTube Premium', 'Disney+', 'Amazon Prime', 'Apple Music', 'Showmax', 'DStv', 'Canal+', 'Boomplay']),
+      G('Going out', ['Cinema', 'Concert', 'Festival', 'Theatre', 'Comedy show', 'Football match', 'Stadium ticket', 'Nightclub', 'Club entry', 'Bar', 'Karaoke', 'Bowling', 'Swimming pool', 'Amusement park', 'Zoo', 'Museum', 'Picnic', 'Party', 'Birthday party']),
+      G('Gaming', ['Video games', 'PlayStation', 'Xbox', 'Game Pass', 'In-game purchases', 'Gaming centre']),
+      G('Hobbies', ['Hobbies', 'Books for fun', 'Music lessons', 'Photography', 'Art supplies']),
+      G('Betting', ['Sports betting', 'Lottery', 'Casino']),
+    ]),
+    C('gifts', 'Giving', 'volunteer_activism', '#E11D48', [
+      G('Gifts', ['Birthday gift', 'Wedding gift', 'Baby shower', 'Bridal shower', 'Graduation gift', 'Christmas gift', "Valentine's gift"]),
+      G('Family', ['Family support', 'Parents', 'Siblings', "Relative's school fees", 'Pocket money', 'Allowance']),
+      G('Faith', ['Tithe', 'Offering', 'Church contribution', 'Zakat', 'Mosque donation']),
+      G('Community', ['Donations', 'Charity', 'Fundraiser', 'Crowdfunding', 'Tips', 'Helping someone']),
+      G('Ceremonies', ['Wedding contribution', 'Dowry', 'Funeral', 'Condolences']),
+    ]),
+    C('business', 'Business', 'business_center', '#0F766E', [
+      G('Operations', ['Stock', 'Raw materials', 'Packaging', 'Equipment', 'Tools', 'Shop rent', 'Office rent', 'Office supplies', 'Business phone', 'Business internet']),
+      G('People', ['Wages', 'Casual labour', 'Commission', 'Professional services', 'Accountant', 'Lawyer']),
+      G('Growth', ['Marketing', 'Facebook ads', 'Google ads', 'Printing', 'Business cards', 'Website', 'Domain', 'Hosting', 'Software']),
+      G('Delivery', ['Business transport', 'Delivery', 'Shipping', 'Courier']),
+      G('Legal', ['Permits', 'Trading licence', 'Business registration']),
+    ]),
+    C('insurance', 'Finance', 'account_balance', '#64748B', [
+      G('Insurance', ['Health insurance', 'Vehicle insurance', 'Life insurance', 'Home insurance', 'Device insurance', 'Travel insurance']),
+      G('Fees', ['Bank fees', 'MoMo fees|Mobile money', 'ATM fees', 'Transfer fees', 'Card fees', 'Late payment fee']),
+      G('Debt', ['Loan repayment', 'Loan interest', 'Credit card payment']),
+      G('Government', ['Income tax', 'Property tax', 'Vehicle tax', 'Traffic fine', 'Fines', 'Court fees']),
+      G('Legal', ['Legal fees', 'Notary']),
+      G('Retirement', ['Pension contribution']),
+    ]),
+    C('other', 'Other', 'more_horiz', '#94A3B8', FLAT([])),
+  ],
+  INCOME: [
+    C('salary', 'Salary', 'work', '#16A34A', FLAT(['Monthly salary', 'Bonus', 'Overtime', 'Allowance', 'Commission', 'Pension & benefits'])),
+    C('business', 'Business', 'business_center', '#0F766E', FLAT(['Sales', 'Services', 'Contracts'])),
+    C('freelance', 'Freelance', 'laptop_mac', '#0D9488', FLAT(['Design', 'Writing & translation', 'Software', 'Consulting', 'Photography', 'Tutoring'])),
+    C('investment', 'Investments', 'trending_up', '#059669', FLAT(['Dividends', 'Interest', 'Rental income', 'Capital gains'])),
+    C('gifts', 'Gifts', 'card_giftcard', '#E11D48', FLAT(['Gift received', 'Family support', 'Contribution'])),
+    C('refund', 'Refunds', 'replay', '#0284C7', FLAT(['Product refund', 'Tax refund', 'Deposit returned', 'Reimbursement'])),
+    C('savings', 'Savings', 'savings', '#15803D', FLAT(['Withdrawal from savings', 'Interest'])),
+    C('other', 'Other', 'more_horiz', '#94A3B8', FLAT([])),
+  ],
+};
+const DEFAULT_CAT = { EXPENSE: 'food', INCOME: 'salary' };
+
+/* ---------- what this person has saved (kept in this browser; in the real app: their own rows on the server) ---------- */
+const KEY = 'category-sheet-proto-v3';
+const seed = () => ({ catUsed: { 'EXPENSE:food': 9, 'EXPENSE:transport': 7, 'EXPENSE:bills': 5, 'EXPENSE:entertainment': 2 }, custom: {}, used: {} });
+let store; try { store = JSON.parse(localStorage.getItem(KEY)) || seed(); } catch { store = seed(); }
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch { /* private mode */ } };
+
+const S = { kind: 'EXPENSE', cat: 'food', sub: null, source: 'none', view: 'main', query: '', draft: '', edit: false, compare: false, gi: 0 };
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const cats = () => CATALOG[S.kind];
+const catOf = id => cats().find(c => c.id === id) || cats()[0];
+const k = (kind, id, sub) => [kind, id, sub].filter(Boolean).join(':');
+const tile = c => `<span class="tile" style="background:${c.color}22;color:${c.color}"><span class="material-icons">${c.icon}</span></span>`;
+const same = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const hit = (it, q) => it.name.toLowerCase().includes(q) || it.aliases.some(a => a.toLowerCase().includes(q));
+const aliasHit = (it, q) => !it.name.toLowerCase().includes(q) && it.aliases.find(a => a.toLowerCase().includes(q));
+
+/* "yours" = typed by me or picked before, most used first */
+function yoursFor(c) {
+  const custom = store.custom[k(S.kind, c.id)] || [];
+  const used = n => store.used[k(S.kind, c.id, n)] || 0;
+  const list = [...new Set([...custom, ...c.all.filter(i => used(i.name) > 0).map(i => i.name)])].sort((a, b) => used(b) - used(a) || a.localeCompare(b));
+  return { list, isCustom: n => custom.some(x => same(x, n)) };
+}
+
+/* ---------- the form ---------- */
+const OLD = {
+  EXPENSE: [['Food', 'restaurant', '#F97316'], ['Groceries', 'local_grocery_store', '#22C55E'], ['Transport', 'directions_bus', '#3B82F6'], ['Fuel', 'local_gas_station', '#EAB308'], ['Shopping', 'shopping_bag', '#EC4899'], ['Bills', 'receipt_long', '#0EA5E9'], ['Rent', 'home', '#14B8A6'], ['Utilities', 'bolt', '#F59E0B'], ['Subscriptions', 'subscriptions', '#0891B2'], ['Health', 'local_hospital', '#EF4444'], ['Personal care', 'spa', '#F472B6'], ['Education', 'school', '#2563EB'], ['Family', 'family_restroom', '#10B981'], ['Gifts', 'card_giftcard', '#E11D48'], ['Entertainment', 'movie', '#F43F5E'], ['Travel', 'flight', '#06B6D4'], ['Insurance', 'health_and_safety', '#64748B'], ['Business', 'business_center', '#0F766E'], ['Other', 'more_horiz', '#94A3B8']],
+  INCOME: [['Gifts', 'card_giftcard', '#E11D48'], ['Business', 'business_center', '#0F766E'], ['Salary', 'work', '#16A34A'], ['Freelance', 'laptop_mac', '#0D9488'], ['Investment', 'trending_up', '#059669'], ['Refund', 'replay', '#0284C7'], ['Savings', 'savings', '#15803D'], ['Other', 'more_horiz', '#94A3B8']],
+};
+function renderForm() {
+  const c = catOf(S.cat);
+  $('#kindseg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.kind === S.kind));
+  $('#amount').className = 'amount' + (S.kind === 'INCOME' ? ' inc' : '');
+  $('#amount').firstChild.textContent = (S.kind === 'INCOME' ? '+ ' : '- ') + '25,000 ';
+  if (S.compare) {
+    $('#catfield').innerHTML = `<div class="oldwall">${OLD[S.kind].map(x => `<span class="oldchip"><span class="material-icons" style="color:${x[2]}">${x[1]}</span>${esc(x[0])}</span>`).join('')}</div>
+      <div class="note"><span class="material-icons">info</span>Today: ${OLD[S.kind].length} chips, and nowhere to set a subcategory.</div>`;
+  } else {
+    $('#catfield').innerHTML = `<button class="field" id="catbtn">${tile(c)}<span class="val">${esc(c.name)}${S.sub ? ` <span style="color:var(--textMuted)">›</span> ${esc(S.sub)}` : ''}<small>${S.sub ? 'Tap to change' : 'Add a subcategory (optional)'}</small></span><span class="material-icons">expand_more</span></button>`;
+    $('#catbtn').onclick = () => open(S.sub ? 'sub' : 'main');
+  }
+  $('#out').textContent = JSON.stringify({ type: S.kind, category: S.cat, subCategory: S.sub, source: S.sub ? S.source : null }, null, 2)
+    + '\n\ncategory = an existing slug,\nsubCategory = the existing text column.';
+}
+
+/* ---------- the sheet ---------- */
+function open(view) {
+  S.view = view; S.query = ''; S.draft = ''; S.edit = false; if (view === 'sub') S.gi = 0;
+  $('#backdrop').classList.add('show'); $('#sheet').classList.add('show'); renderSheet();
+}
+function close() { $('#backdrop').classList.remove('show'); $('#sheet').classList.remove('show'); }
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1800); }
+
+function choose(catId, sub, source) {
+  S.cat = catId; S.sub = sub || null; S.source = sub ? source : 'none';
+  store.catUsed[k(S.kind, catId)] = (store.catUsed[k(S.kind, catId)] || 0) + 1;
+  if (sub) store.used[k(S.kind, catId, sub)] = (store.used[k(S.kind, catId, sub)] || 0) + 1;
+  save(); close(); renderForm();
+  if (sub && source === 'custom') toast(`Saved “${sub}” for you`);
+}
+
+function addCustom(c, text) {
+  const name = text.trim().replace(/\s+/g, ' ').slice(0, 30);
+  if (!name) return;
+  const builtIn = c.all.find(i => same(i.name, name));
+  const mine = (store.custom[k(S.kind, c.id)] || []).find(n => same(n, name));
+  if (builtIn) return choose(c.id, builtIn.name, 'suggested');
+  if (mine) return choose(c.id, mine, 'custom');
+  (store.custom[k(S.kind, c.id)] ||= []).push(name);
+  choose(c.id, name, 'custom');
+}
+
+function renderSheet() {
+  const box = $('#sheetcontent');
+  box.innerHTML = S.view === 'main' ? mainView() : subView();
+  wire();
+}
+
+function mainView() {
+  const q = S.query.trim().toLowerCase();
+  const head = `<div class="shead"><h4>Choose category</h4><button class="ibtn" data-act="close" aria-label="Close"><span class="material-icons">close</span></button></div>
+    <div class="search"><span class="material-icons">search</span><input id="q" placeholder="Search anything: pizza, Netflix, school fees…" value="${esc(S.query)}" autocomplete="off" /></div>`;
+  if (q) {
+    const rows = [];
+    for (const c of cats()) {
+      if (c.name.toLowerCase().includes(q)) rows.push({ c, sub: null });
+      for (const i of c.all) if (hit(i, q)) rows.push({ c, sub: i.name, group: i.group, alias: aliasHit(i, q) });
+      for (const n of store.custom[k(S.kind, c.id)] || []) if (n.toLowerCase().includes(q)) rows.push({ c, sub: n, group: 'Yours' });
+    }
+    return head + `<div class="sbody"><div class="sec"><span>RESULTS</span></div>${rows.length ? rows.slice(0, 16).map(r => `<button class="rowbtn" data-pick="${r.c.id}" ${r.sub ? `data-sub="${esc(r.sub)}"` : ''}>${tile(r.c)}<span class="mid"><b>${esc(r.sub || r.c.name)}${r.alias ? ` <span style="font-weight:500;color:var(--textMuted)">· ${esc(r.alias)}</span>` : ''}</b><small>${r.sub ? esc(r.c.name + (r.group ? ' · ' + r.group : '')) : 'Category'}</small></span><span class="material-icons chev">chevron_right</span></button>`).join('') : '<div class="empty">Nothing matches. Pick a category and type your own.</div>'}</div>`;
+  }
+  const freq = [...cats()].filter(c => store.catUsed[k(S.kind, c.id)]).sort((a, b) => store.catUsed[k(S.kind, b.id)] - store.catUsed[k(S.kind, a.id)]).slice(0, 3);
+  return head + `<div class="sbody">
+    ${freq.length ? `<div class="sec"><span>YOUR FREQUENT</span></div><div class="freq">${freq.map(c => `<button class="pill" data-pick="${c.id}">${tile(c)}${esc(c.name)}</button>`).join('')}</div>` : ''}
+    <div class="sec"><span>ALL CATEGORIES</span></div>
+    <div class="grid">${cats().map(c => `<button class="cell ${c.id === S.cat ? 'on' : ''}" data-pick="${c.id}">${tile(c)}<span class="t">${esc(c.name)}</span></button>`).join('')}</div></div>`;
+}
+
+function subView() {
+  const c = catOf(S.cat);
+  const { list: yours, isCustom } = yoursFor(c);
+  const d = S.draft.trim().toLowerCase();
+  const groups = c.groups.filter(g => g.name);
+  const g = groups.length ? (groups[S.gi] || groups[0]) : c.groups[0];
+  const exact = [...c.all.map(i => i.name), ...yours].some(n => same(n, S.draft));
+  const chip = (n, mine, extra = '') => `<button class="chip ${S.sub && same(S.sub, n) && S.cat === c.id ? 'on' : ''}" data-sub="${esc(n)}" data-src="${mine && isCustom(n) ? 'custom' : 'suggested'}">${mine && isCustom(n) ? '<span class="material-icons">person</span>' : ''}${esc(n)}${extra}${S.edit && mine ? `<span class="material-icons del" data-del="${esc(n)}">cancel</span>` : ''}</button>`;
+
+  let body = '';
+  if (d) {
+    const fy = yours.filter(n => n.toLowerCase().includes(d));
+    const found = c.all.filter(i => hit(i, d) && !fy.some(y => same(y, i.name)));
+    // A real match comes first; "Add your own" comes after the matches (or alone when nothing matches).
+    const addRow = !exact ? `<button class="newrow" id="newrow"><span class="material-icons">add_circle</span><span><b>Add “${esc(S.draft.trim())}”</b><small>Saved under ${esc(c.name)}, only for you</small></span></button>` : '';
+    body = (fy.length ? `<div class="sec"><span>YOURS</span></div><div class="chips">${fy.map(n => chip(n, true)).join('')}</div>` : '')
+      + (found.length ? `<div class="sec"><span>FOUND</span></div><div class="chips">${found.map(i => chip(i.name, false, `${aliasHit(i, d) ? ` <span class="alias">${esc(aliasHit(i, d))}</span>` : ''}${i.group ? ` <span class="grp">${esc(i.group)}</span>` : ''}`)).join('')}</div>` : '')
+      + addRow;
+  } else {
+    body = (yours.length ? `<div class="sec"><span>YOURS</span><button id="editbtn">${S.edit ? 'Done' : 'Edit'}</button></div><div class="chips">${yours.slice(0, 8).map(n => chip(n, true)).join('')}</div>` : '')
+      + (g && g.items.length ? `<div class="sec"><span>${esc((g.name || 'SUGGESTED').toUpperCase())}</span></div><div class="chips">${g.items.map(i => chip(i.name, false)).join('')}</div>` : '<div class="empty">No suggestions for this one.<br>Type your own above; it is kept for next time.</div>');
+  }
+
+  return `<div class="shead"><button class="ibtn" data-view="main" aria-label="Back to categories"><span class="material-icons">arrow_back</span></button>
+      <div class="catchip">${tile(c)}<div><b>${esc(c.name)}</b><div class="sub">Step 2 of 2 · What was it?</div></div></div>
+      <button class="ibtn" data-act="close" aria-label="Close"><span class="material-icons">close</span></button></div>
+    <div class="typed"><span class="material-icons">search</span><input id="draft" maxlength="30" placeholder="${c.all.length ? 'Search or type, e.g. ' + esc((c.all[3] || c.all[0]).name) : 'Type your own subcategory'}" value="${esc(S.draft)}" autocomplete="off" /><button class="addbtn" id="add" ${S.draft.trim() ? '' : 'disabled'}>${exact ? 'Use' : 'Add'}</button></div>
+    ${!d && groups.length > 1 ? `<div class="tabs">${groups.map((x, i) => `<button class="tab ${i === S.gi ? 'on' : ''}" data-tab="${i}">${esc(x.name)}</button>`).join('')}</div>` : ''}
+    <div class="sbody">${body}
+      <div class="privacy"><span class="material-icons">lock</span><span>What you add or pick is kept for you and shown first next time. Nobody else can see it.</span></div>
+    </div>
+    <button class="skip" id="skip">Continue without a subcategory</button>`;
+}
+
+function wire() {
+  const box = $('#sheetcontent');
+  box.querySelectorAll('[data-act="close"]').forEach(b => b.onclick = close);
+  box.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { S.view = b.dataset.view; S.query = ''; renderSheet(); });
+  box.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+    if (b.dataset.sub) return choose(b.dataset.pick, b.dataset.sub, yoursFor(catOf(b.dataset.pick)).isCustom(b.dataset.sub) ? 'custom' : 'suggested');
+    S.cat = b.dataset.pick; S.draft = ''; S.edit = false; S.gi = 0; S.view = 'sub'; renderSheet();
+  });
+  box.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { S.gi = Number(b.dataset.tab); renderSheet(); });
+  const q = $('#q'); if (q) { q.oninput = () => { S.query = q.value; renderSheet(); const n = $('#q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }; }
+  const draft = $('#draft');
+  if (draft) {
+    draft.oninput = () => { S.draft = draft.value; renderSheet(); const n = $('#draft'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+    draft.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addCustom(catOf(S.cat), S.draft); } };
+  }
+  const add = $('#add'); if (add) add.onclick = () => addCustom(catOf(S.cat), S.draft);
+  const nr = $('#newrow'); if (nr) nr.onclick = () => addCustom(catOf(S.cat), S.draft);
+  const sk = $('#skip'); if (sk) sk.onclick = () => choose(S.cat, null);
+  const eb = $('#editbtn'); if (eb) eb.onclick = () => { S.edit = !S.edit; renderSheet(); };
+  box.querySelectorAll('[data-del]').forEach(x => x.onclick = e => {
+    e.stopPropagation();
+    const c = catOf(S.cat), name = x.dataset.del;
+    store.custom[k(S.kind, c.id)] = (store.custom[k(S.kind, c.id)] || []).filter(n => !same(n, name));
+    delete store.used[k(S.kind, c.id, name)]; if (S.sub && same(S.sub, name)) S.sub = null;
+    save(); renderSheet(); renderForm(); toast(`Removed “${name}”`);
+  });
+  box.querySelectorAll('.chip[data-sub]').forEach(b => b.onclick = () => choose(S.cat, b.dataset.sub, b.dataset.src));
+}
+
+/* ---------- page controls ---------- */
+$('#backdrop').onclick = close;
+$('#kindseg').querySelectorAll('button').forEach(b => b.onclick = () => {
+  if (b.dataset.kind === S.kind) return;
+  S.kind = b.dataset.kind; S.cat = DEFAULT_CAT[S.kind]; S.sub = null; S.source = 'none'; renderForm();
+});
+$('#dark').onclick = e => { e.currentTarget.classList.toggle('on'); $('#screen').classList.toggle('dark'); };
+$('#compare').onclick = e => { e.currentTarget.classList.toggle('on'); S.compare = !S.compare; renderForm(); };
+document.querySelectorAll('[data-try]').forEach(b => b.onclick = () => {
+  const t = b.dataset.try; close();
+  if (t === 'reset') { store = seed(); save(); S.kind = 'EXPENSE'; S.cat = 'food'; S.sub = null; S.source = 'none'; renderForm(); return toast('Saved items cleared'); }
+  if (t === 'income') { S.kind = 'INCOME'; S.cat = 'salary'; S.sub = null; renderForm(); setTimeout(() => { open('main'); setTimeout(() => { S.cat = 'freelance'; S.view = 'sub'; renderSheet(); }, 700); }, 250); return; }
+  S.kind = 'EXPENSE'; S.sub = null; renderForm();
+  setTimeout(() => {
+    open('main');
+    setTimeout(() => {
+      if (t === 'pick') { S.cat = 'food'; S.view = 'sub'; S.gi = 2; renderSheet(); }
+      if (t === 'search') { S.query = 'netflix'; renderSheet(); }
+      if (t === 'alias') { S.cat = 'transport'; S.view = 'sub'; S.draft = 'bolt'; renderSheet(); }
+      if (t === 'custom') { S.cat = 'health'; S.view = 'sub'; S.draft = 'Hair oil'; renderSheet(); }
+    }, 700);
+  }, 250);
+});
+renderForm();
+</script>
+</body>
+</html>

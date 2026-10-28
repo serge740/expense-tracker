@@ -67,6 +67,28 @@ describe('reminder messages', () => {
     expect(reminderMessage({ ...base, step: 'DUE', lang: 'fr' }).title).toBe('Paiement dû maintenant');
   });
 
+  it('a pay date with its own amount asks for that, and says how much is left in all', () => {
+    const m = reminderMessage({ ...base, payment: 50000, step: 'LEAD_DAY' });
+    expect(m.body).toContain('RWF 50,000');
+    expect(m.body).not.toContain('RWF 150,000 by');
+    expect(m.body).toContain('RWF 150,000 left in total.');
+    expect(reminderMessage({ ...base, payment: 50000, step: 'LATE_DAY' }).body).toContain('was due');
+  });
+
+  it('says nothing extra when the pay date asks for everything that is left (or has no amount)', () => {
+    for (const payment of [150000, 200000, null, undefined, 0]) {
+      const m = reminderMessage({ ...base, payment, step: 'DUE' });
+      expect(m.body).toContain('RWF 150,000');
+      expect(m.body).not.toContain('in total');
+    }
+  });
+
+  it('the extra line is translated too', () => {
+    expect(reminderMessage({ ...base, payment: 50000, step: 'DUE', lang: 'fr' }).body).toContain('Il reste RWF 150,000 au total.');
+    expect(reminderMessage({ ...base, payment: 50000, step: 'DUE', lang: 'rw' }).body).toContain('Hasigaye RWF 150,000 yose hamwe.');
+    expect(reminderMessage({ ...base, payment: 50000, step: 'DUE', lang: 'sw' }).body).toContain('Imebaki RWF 150,000 kwa jumla.');
+  });
+
   it('falls back to English for an unknown language', () => {
     expect(asLang('xx')).toBe('en');
     expect(asLang(null)).toBe('en');

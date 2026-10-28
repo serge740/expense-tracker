@@ -8,6 +8,8 @@ import { RemindersService } from '../reminders/reminders.service';
 import { isValidTimeZone, localParts, zonedToUtc } from '../reminders/reminder-policy';
 import { normalizeRule, occurrences, RepeatRule, ruleProblem, Wall } from './recurrence';
 import { CreateScheduledDto, ConfirmOccurrenceDto, UpdateScheduledDto } from './dto/scheduled.dto';
+import { canonicalCategory, normalizeSubCategory } from '../../common/utils/categories';
+import { rememberSubCategory } from '../../common/utils/subcategory';
 
 const MIN = 60_000;
 /** After a long outage, at most this many missed dates are caught up; the rest are dropped and the schedule resumes from now. */
@@ -163,7 +165,10 @@ export class ScheduledService implements OnModuleInit {
     if (dto?.type !== 'INCOME' && dto?.type !== 'EXPENSE') throw new BadRequestException('Choose income or expense');
     if (!dto.title?.trim()) throw new BadRequestException('Enter a title');
     const amount = this.amountOf(dto.amount);
-    const category = this.categoryOf(dto.category);
+    // A retired category an older app still sends becomes the new one (groceries -> Food, "Groceries").
+    const canon = canonicalCategory(String(dto.category));
+    const category = this.categoryOf(canon.category);
+    const subCategory = normalizeSubCategory(dto.subCategory) ?? canon.subCategory ?? null;
     const startAt = this.futureStart(dto.startAt);
     const repeat = this.parseRule(dto.repeat);
     const mode = dto.mode === 'AUTO_POST' ? 'AUTO_POST' : 'REMIND_CONFIRM';
@@ -172,11 +177,12 @@ export class ScheduledService implements OnModuleInit {
 
     const s = await this.prisma.scheduledTransaction.create({
       data: {
-        clientId, type: dto.type, category, title: dto.title.trim(), subCategory: dto.subCategory?.trim() || null,
+        clientId, type: dto.type, category, title: dto.title.trim(), subCategory,
         description: dto.description?.trim() || null, amount, walletId: dto.walletId ?? null, startAt, timezone,
         repeat: asJson(repeat), mode,
       },
     });
+    await rememberSubCategory(this.prisma, clientId, dto.type, category, subCategory);
     await this.materialize(s.id);
     return this.findOne(clientId, s.id);
   }
@@ -192,9 +198,15 @@ export class ScheduledService implements OnModuleInit {
       data.title = dto.title.trim();
     }
     if (dto.amount !== undefined) data.amount = this.amountOf(dto.amount);
-    if (dto.category !== undefined) data.category = this.categoryOf(dto.category);
+    let finalCategory: CategorySlug = s.category;
+    if (dto.category !== undefined) {
+      const canon = canonicalCategory(String(dto.category));
+      finalCategory = this.categoryOf(canon.category);
+      data.category = finalCategory;
+      if (dto.subCategory === undefined && canon.subCategory) data.subCategory = canon.subCategory;
+    }
     if (dto.description !== undefined) data.description = dto.description?.trim() || null;
-    if (dto.subCategory !== undefined) data.subCategory = dto.subCategory?.trim() || null;
+    if (dto.subCategory !== undefined) data.subCategory = normalizeSubCategory(dto.subCategory);
     if (dto.walletId !== undefined) {
       await this.checkWallet(clientId, dto.walletId);
       data.wallet = dto.walletId ? { connect: { id: dto.walletId } } : { disconnect: true };
@@ -219,6 +231,7 @@ export class ScheduledService implements OnModuleInit {
         data.nextDueAt = null;
       }
       await prx.scheduledTransaction.update({ where: { id }, data });
+      if (typeof data.subCategory === 'string') await rememberSubCategory(prx, clientId, s.type, finalCategory, data.subCategory);
     });
     if (timingChanged) await this.materialize(id);
     else if (modeChanged) await this.reminders.syncScheduleSafe(id);

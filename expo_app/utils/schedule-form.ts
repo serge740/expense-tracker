@@ -21,6 +21,7 @@ export function scheduleStartError(date: Date, rule: RepeatRule | null, now: Dat
 export interface ScheduleFormState {
   kind: 'INCOME' | 'EXPENSE';
   category: CategorySlug;
+  subCategory?: string | null;
   title: string;
   description?: string;
   amount: number;
@@ -36,6 +37,7 @@ export function scheduledPayload(f: ScheduleFormState): CreateScheduledInput {
   return {
     type: f.kind,
     category: f.category,
+    subCategory: f.subCategory || undefined,
     title: f.title,
     amount: f.amount,
     description: f.description || undefined,

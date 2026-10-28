@@ -1,18 +1,25 @@
 import api from '@/api';
 import { ComponentProps } from 'react';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { CATEGORIES, CategorySlug } from '@/constants/categories';
+import { ALL_CATEGORY_SLUGS, CategorySlug, canonicalCategory, categoryOf } from '@/constants/categories';
 
 export type TransactionType = 'INCOME' | 'EXPENSE';
 export type { CategorySlug } from '@/constants/categories';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
 
-export const CATEGORY_ICON = Object.fromEntries(CATEGORIES.map(c => [c.id, c.icon])) as Record<CategorySlug, IconName>;
+// Keyed by every stored value, so a retired one still gets the icon and name of the category it became.
+export const CATEGORY_ICON = Object.fromEntries(ALL_CATEGORY_SLUGS.map(s => [s, categoryOf(s).icon])) as Record<CategorySlug, IconName>;
+
+const ENGLISH_LABEL: Partial<Record<CategorySlug, string>> = {
+  food: 'Food', transport: 'Transport', bills: 'Bills', shopping: 'Shopping', health: 'Personal', entertainment: 'Entertainment',
+  gifts: 'Giving', business: 'Business', insurance: 'Finance', salary: 'Salary', freelance: 'Freelance', investment: 'Investments',
+  refund: 'Refunds', savings: 'Savings', loan: 'Loans', other: 'Other',
+};
 
 /** English fallback labels for older screens; new screens use t('cat.<id>'). */
 export const CATEGORY_LABEL = Object.fromEntries(
-  CATEGORIES.map(c => [c.id, c.id.replace('_', ' ').replace(/^./, s => s.toUpperCase())]),
+  ALL_CATEGORY_SLUGS.map(s => [s, ENGLISH_LABEL[canonicalCategory(s).id] ?? 'Other']),
 ) as Record<CategorySlug, string>;
 
 export interface Transaction {

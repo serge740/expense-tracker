@@ -1,4 +1,5 @@
 import api from '@/api';
+import type { RepeatRule } from '@/utils/recurrence';
 
 export type DebtKind = 'BORROWED' | 'LENT';
 
@@ -25,6 +26,21 @@ export interface DebtInstallment {
   covered: number;
   movedFromId: string | null;
   note: string | null;
+  /** Made by the loan's estimated payment (it may change while it is still ahead). */
+  fromPlan?: boolean;
+}
+
+/** A loan's estimated payment: how much each time, how often, and where it ends. */
+export interface DebtPlan {
+  amount: number;
+  repeat: RepeatRule;
+  /** The first pay date; the repeat counts from here. */
+  startAt: string;
+  timezone: string;
+  /** The date of the last payment, or null when the repeat stops before the loan is paid off. */
+  finishesAt: string | null;
+  paymentsLeft: number;
+  shortfall: number;
 }
 
 export interface Debt {
@@ -58,6 +74,8 @@ export interface Debt {
   nextReminderAt: string | null;
   payments: DebtPayment[];
   installments: DebtInstallment[];
+  /** Loans only: the estimated payment, or null when there is none. */
+  plan?: DebtPlan | null;
 }
 
 export interface LedgerCurrency {
@@ -99,9 +117,15 @@ export const getDebtSummary = (): Promise<DebtSummary> => api.get('/debts/summar
 export const createDebt = (data: {
   kind: DebtKind; person: string; phone?: string; amount: number; currency?: string;
   walletId?: string; date?: string; dueDate?: string; note?: string; remind?: boolean;
+  /** Loans only: how much to pay each time and how often, from the first pay date (dueDate) until the loan is paid off. */
+  planAmount?: number; planRepeat?: RepeatRule; planTimezone?: string;
 }): Promise<Debt> => api.post('/debts', data).then(r => r.data);
 
-export const updateDebt = (id: string, data: { person?: string; phone?: string; amount?: number; dueDate?: string | null; note?: string; remindersOn?: boolean }): Promise<Debt> =>
+export const updateDebt = (id: string, data: {
+  person?: string; phone?: string; amount?: number; dueDate?: string | null; note?: string; remindersOn?: boolean;
+  /** Set or change the estimated payment (loans only); send null for planAmount to stop it. */
+  planAmount?: number | null; planRepeat?: RepeatRule | null; planStartAt?: string; planTimezone?: string;
+}): Promise<Debt> =>
   api.patch(`/debts/${id}`, data).then(r => r.data);
 
 export const addDebtPayment = (id: string, data: { amount: number; walletId?: string; date?: string; note?: string }): Promise<Debt> =>

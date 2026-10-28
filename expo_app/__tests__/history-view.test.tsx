@@ -49,7 +49,7 @@ describe('History with the Home filter', () => {
     mockParams.current = { view: 'debt', includeLoans: 'true' };
     await mount();
     await waitFor(() => expect(lastQuery().view).toBe('debt'));
-    expect(screen.getByRole('button', { name: 'Debt', selected: true })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Loan', selected: true })).toBeTruthy();
   });
 
   test('the loans choice carries over', async () => {
@@ -61,7 +61,7 @@ describe('History with the Home filter', () => {
   test('changing the chip in History reloads with the new filter', async () => {
     await mount();
     await waitFor(() => expect(history).toHaveBeenCalled());
-    await fireEvent.press(screen.getByText('Credit'));
+    await fireEvent.press(screen.getByText('Debt'));
     await waitFor(() => expect(lastQuery().view).toBe('credit'));
     await fireEvent.press(screen.getAllByText('All')[0]);      // the kind chip row is the first one (the category row has an All too)
     await waitFor(() => expect(lastQuery().view).toBeUndefined());

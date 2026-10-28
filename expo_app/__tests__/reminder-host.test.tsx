@@ -155,7 +155,7 @@ describe('ReminderModalHost', () => {
   test('Open goes to the debt and keeps the popup closed', async () => {
     await mount();
     await screen.findByText('Pay John');
-    await fireEvent.press(screen.getByText('Open debt'));
+    await fireEvent.press(screen.getByText('Open loan'));
     expect(reminders.markReminderOpened).toHaveBeenCalledWith('r1');
     expect(router.push).toHaveBeenCalledWith({ pathname: '/(dashboard)/debts', params: { openId: 'd1' } });
     await waitFor(() => expect(screen.queryByTestId('reminder-popup')).toBeNull());
@@ -359,7 +359,7 @@ describe('ReminderModalHost', () => {
       expect(screen.getByText('Pay now')).toBeTruthy();
       expect(screen.getByText('Open')).toBeTruthy();
       expect(screen.getByText('Skip this date')).toBeTruthy();
-      expect(screen.queryByText('Open debt')).toBeNull();
+      expect(screen.queryByText('Open loan')).toBeNull();
     });
 
     test('expected income says "Mark received"', async () => {
