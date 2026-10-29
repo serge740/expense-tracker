@@ -25,6 +25,8 @@ import { currencyEntries, needsLoansHint, type FeedView } from '@/utils/home';
 import { ROLE_TAG } from '@/utils/debt';
 import { BudgetModal } from '@/components/budget-modal';
 import { useCurrency } from '@/context/currency-context';
+import { LinearGradient } from '@/rn/gradient';
+import Svg, { Circle } from '@/rn/svg';
 
 type IconName = string;
 
@@ -113,9 +115,22 @@ export default function HomeScreen() {
     load(true);
   };
 
+  // The hero is always a deep card (like the design), in the brand teal or, inside a family, the family purple.
+  const heroColors: [string, string, string] = isFamily
+    ? (theme.isDark ? ['#2A1D5C', '#1F1547', '#170F36'] : ['#6D52E0', '#5B3FD0', '#46309F'])
+    : (theme.isDark ? ['#1D3B47', '#112730', '#0D1E25'] : ['#0A7799', '#00627F', '#064A5F']);
+  const net = summary?.totals.net ?? 0;
+  const status = !summary ? null
+    : budget && budget.limit > 0 && pct >= 100 ? { label: `▼ ${tr('home.overBudget')}`, color: '#FF9D9A' }
+    : net < 0 ? { label: `▼ ${tr('home.overBudget')}`, color: '#FF9D9A' }
+    : { label: `▲ ${tr('home.onTrack')}`, color: '#4ADE80' };
+  const netColor = net >= 0 ? '#FFFFFF' : '#FF9D9A';
+  const money = (n: number) => `${sym}${Math.round(n).toLocaleString()}`;
+  const dim = 'rgba(255,255,255,0.62)';
+
   return (
-    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.headerBg }]}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.headerBg} />
+    <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
 
       <BudgetModal
         visible={showBudget}
@@ -127,85 +142,85 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={[s.scroll, { backgroundColor: theme.background }]}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => { setRefreshing(true); load(true); }}
-            tintColor="#fff"
+            tintColor={theme.primary}
           />
         }
       >
 
-        {/* ── Header (deep koamaru) ── */}
-        <View style={[s.headerWrap, { backgroundColor: theme.headerBg }]}>
-          <View style={s.headerDecorA} />
-          <View style={s.headerDecorB} />
+        {/* ── Top row: who you are, search, notifications ── */}
+        <FadeInView delay={0} slideFrom="top" distance={14}>
+          <View style={s.headerRow}>
+            <View style={[s.avatar, { backgroundColor: theme.primaryBg, borderColor: theme.primary }]}>
+              <Text style={[s.avatarText, { color: theme.primary }]}>{(firstName || 'A').slice(0, 1).toUpperCase()}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.greeting, { color: theme.textSecondary }]}>{tr('home.greeting')}</Text>
+              <Text style={[s.userName, { color: theme.text }]} numberOfLines={1}>{firstName || 'Welcome'}</Text>
+            </View>
+            <TouchableOpacity
+              accessibilityLabel="Search" style={[s.roundBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7}
+              onPress={() => router.push({ pathname: '/(dashboard)/history', params: { openSearch: 'true' } } as any)}
+            >
+              <MaterialIcons name="search" size={20} color={theme.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityLabel="Notifications" style={[s.roundBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7}
+              onPress={() => router.push('/(dashboard)/(settings)/notifications')}
+            >
+              <MaterialIcons name="notifications-none" size={20} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+          <View style={s.pillRow}><ScopePill /></View>
+        </FadeInView>
 
-          <FadeInView delay={0} slideFrom="top" distance={14}>
-            <View style={s.headerRow}>
-              <View>
-                <Text style={s.greeting}>GOOD MORNING</Text>
-                <Text style={s.userName}>{firstName || 'Welcome'}</Text>
-                <View style={{ marginTop: 8 }}><ScopePill onHeader /></View>
+        {/* ── Hero: this month at a glance ── */}
+        <FadeInView delay={60} slideFrom="bottom" distance={20}>
+          <LinearGradient colors={heroColors} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={s.hero}>
+            <View style={s.heroTop}>
+              <Text style={[s.heroLabel, { color: dim }]}>{monthName.toUpperCase()} NET</Text>
+              {status && !loading ? (
+                <View style={[s.statusChip, { backgroundColor: `${status.color}22` }]}>
+                  <Text style={[s.statusText, { color: status.color }]}>{status.label}</Text>
+                </View>
+              ) : null}
+            </View>
+            {loading ? (
+              <ActivityIndicator color="#fff" style={{ marginVertical: 18 }} />
+            ) : (() => {
+              const netAbs  = Math.abs(net).toFixed(2);
+              const intPart = netAbs.split('.')[0];
+              const decPart = netAbs.split('.')[1];
+              const sign    = net >= 0 ? `+${sym}` : `-${sym}`;
+              return (
+                <Text numberOfLines={1} adjustsFontSizeToFit style={[s.heroAmount, { color: netColor }]}>
+                  {sign}{parseInt(intPart, 10).toLocaleString()}
+                  <Text style={s.heroCents}>.{decPart}</Text>
+                </Text>
+              );
+            })()}
+            <View style={s.tiles}>
+              <View style={s.tile}>
+                <View style={s.tileHead}>
+                  <View style={[s.tileIcon, { backgroundColor: 'rgba(74,222,128,0.16)' }]}><MaterialIcons name="south-west" size={12} color="#4ADE80" /></View>
+                  <Text style={[s.tileLabel, { color: dim }]}>INCOME</Text>
+                </View>
+                <Text style={s.tileVal}>{money(summary?.totals.income ?? 0)}</Text>
               </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TouchableOpacity
-                  style={[s.bellBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
-                  activeOpacity={0.7}
-                  onPress={() => router.push({ pathname: '/(dashboard)/history', params: { openSearch: 'true' } } as any)}
-                >
-                  <MaterialIcons name="search" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.bellBtn, { backgroundColor: 'rgba(255,255,255,0.12)' }]}
-                  activeOpacity={0.7}
-                  onPress={() => router.push('/(dashboard)/(settings)/notifications')}
-                >
-                  <MaterialIcons name="notifications-none" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
+              <View style={s.tile}>
+                <View style={s.tileHead}>
+                  <View style={[s.tileIcon, { backgroundColor: 'rgba(255,157,154,0.16)' }]}><MaterialIcons name="north-east" size={12} color="#FF9D9A" /></View>
+                  <Text style={[s.tileLabel, { color: dim }]}>SPENT</Text>
+                </View>
+                <Text style={s.tileVal}>{money(summary?.totals.expense ?? budget?.spent ?? 0)}</Text>
               </View>
             </View>
-          </FadeInView>
-
-          {/* Balance card */}
-          <FadeInView delay={60} slideFrom="bottom" distance={20}>
-            <View style={s.balanceCard}>
-              <Text style={s.balLabel}>{monthName.toUpperCase()} NET</Text>
-              {loading ? (
-                <ActivityIndicator color="#fff" style={{ marginVertical: 12 }} />
-              ) : (() => {
-                const net     = summary?.totals.net ?? 0;
-                const netAbs  = Math.abs(net).toFixed(2);
-                const intPart = netAbs.split('.')[0];
-                const decPart = netAbs.split('.')[1];
-                const sign    = net >= 0 ? `+${sym}` : `-${sym}`;
-                return (
-                  <Text numberOfLines={1} adjustsFontSizeToFit style={[s.balAmount, { color: net >= 0 ? '#fff' : '#FDA4A4' }]}>
-                    {sign}{parseInt(intPart, 10).toLocaleString()}
-                    <Text style={s.balCents}>.{decPart}</Text>
-                  </Text>
-                );
-              })()}
-              <View style={s.balStats}>
-                <View>
-                  <Text style={s.balStatLabel}>INCOME</Text>
-                  <Text style={s.balStatVal}>
-                    {sym}{Math.round(summary?.totals.income ?? 0).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={s.balDivider} />
-                <View>
-                  <Text style={s.balStatLabel}>SPENT</Text>
-                  <Text style={s.balStatVal}>
-                    {sym}{Math.round(summary?.totals.expense ?? budget?.spent ?? 0).toLocaleString()}
-                  </Text>
-                </View>
-              </View>
-              {summary && !isFamily && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
-            </View>
-          </FadeInView>
-        </View>
+            {summary && !isFamily && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
+          </LinearGradient>
+        </FadeInView>
 
         {/* ── Quick actions ── */}
         <FadeInView delay={120} slideFrom="bottom" distance={18}>
@@ -213,18 +228,18 @@ export default function HomeScreen() {
           <View style={s.quickWrap}>
             {([
               // Receipt scanning is hidden for now; attach receipt photos from Add instead.
-              { icon: 'currency-exchange' as IconName, label: 'Exchange', route: '/(dashboard)/transfer?mode=exchange' },
-              { icon: 'add'              as IconName, label: 'Add',     route: '/(dashboard)/add'     },
-              { icon: 'bar-chart'        as IconName, label: 'Reports', route: '/(dashboard)/reports' },
+              { icon: 'currency-exchange' as IconName, label: 'Exchange', route: '/(dashboard)/transfer?mode=exchange', bg: theme.primary,  fg: theme.isDark ? '#08222B' : '#FFFFFF' },
+              { icon: 'add'              as IconName, label: 'Add',      route: '/(dashboard)/add',                     bg: theme.income,   fg: '#08222B' },
+              { icon: 'bar-chart'        as IconName, label: 'Reports',  route: '/(dashboard)/reports',                 bg: theme.primaryBg, fg: theme.primary },
             ] as const).map(a => (
               <TouchableOpacity
                 key={a.label}
-                style={[s.quickCard, { backgroundColor: theme.surface }]}
+                style={[s.quickPill, { backgroundColor: theme.surface }]}
                 activeOpacity={0.75}
                 onPress={() => router.push(a.route as any)}
               >
-                <View style={[s.quickIcon, { backgroundColor: theme.primaryBg }]}>
-                  <MaterialIcons name={a.icon} size={22} color={theme.primary} />
+                <View style={[s.quickIcon, { backgroundColor: a.bg }]}>
+                  <MaterialIcons name={a.icon} size={18} color={a.fg} />
                 </View>
                 <Text style={[s.quickLabel, { color: theme.text }]}>{a.label}</Text>
               </TouchableOpacity>
@@ -260,7 +275,7 @@ export default function HomeScreen() {
               <View style={s.budgetTop}>
                 <Text style={[s.budgetTitle, { color: theme.text }]}>{monthName} Budget</Text>
                 <View style={s.budgetTopRight}>
-                  <Text style={[s.budgetPct, { color: pct >= 100 ? '#F87171' : theme.primary }]}>{pctLabel}</Text>
+                  <Text style={[s.budgetPct, { color: pct >= 100 ? theme.expense : theme.primary }]}>{pctLabel}</Text>
                   {scope.can('budget.set') ? (
                     <TouchableOpacity testID="edit-budget" onPress={() => setShowBudget(true)} style={s.editBudgetBtn} activeOpacity={0.7}>
                       <MaterialIcons name="edit" size={14} color={theme.textMuted} />
@@ -269,7 +284,7 @@ export default function HomeScreen() {
                 </View>
               </View>
               <View style={[s.track, { backgroundColor: theme.border }]}>
-                <View style={[s.fill, { backgroundColor: pct >= 100 ? '#F87171' : theme.primary, width: pctWidth }]} />
+                <View style={[s.fill, { backgroundColor: pct >= 100 ? theme.expense : theme.primary, width: pctWidth }]} />
               </View>
               <View style={s.budgetFoot}>
                 <Text style={[s.budgetSub, { color: theme.textSecondary }]}>{sym}{budget.spent.toFixed(2)} spent</Text>
@@ -286,9 +301,15 @@ export default function HomeScreen() {
               onPress={() => setShowBudget(true)}
               activeOpacity={0.75}
             >
-              <MaterialIcons name="tune" size={18} color={theme.primary} />
-              <Text style={[s.setBudgetText, { color: theme.primary }]}>Set a monthly budget to track spending</Text>
-              <MaterialIcons name="chevron-right" size={18} color={theme.textMuted} />
+              <Svg width={40} height={40} viewBox="0 0 40 40">
+                <Circle cx={20} cy={20} r={16} fill="none" stroke={theme.border} strokeWidth={5} />
+                <Circle cx={20} cy={20} r={16} fill="none" stroke={theme.primary} strokeWidth={5} strokeDasharray="100.5" strokeDashoffset={75} strokeLinecap="round" transform="rotate(-90 20 20)" />
+              </Svg>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.setBudgetText, { color: theme.primary }]}>{tr('home.setBudget')}</Text>
+                <Text style={[s.setBudgetSub, { color: theme.textSecondary }]}>{tr('home.setBudgetSub')}</Text>
+              </View>
+              <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           </FadeInView>
         ) : null}
@@ -320,33 +341,36 @@ export default function HomeScreen() {
             </View>
           </FadeInView>
         ) : (
-          recent.map((t, i) => (
-            <FadeInView key={t.id} delay={280 + i * 50} slideFrom="bottom" distance={12}>
-              <TouchableOpacity
-                style={[s.txRow, { backgroundColor: theme.surface }]}
-                activeOpacity={0.75}
-                onPress={() => router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(t) } as any)}
-              >
-                {t.author ? (
-                  <MemberAvatar id={t.author.clientId} name={t.author.name} size={40} />
-                ) : (
-                  <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
-                    <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={20} color={theme.primary} />
+          <FadeInView delay={280} slideFrom="bottom" distance={12}>
+            <View style={[s.txGroup, { backgroundColor: theme.surface }]}>
+              {recent.map((t, i) => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[s.txRow, i < recent.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}
+                  activeOpacity={0.75}
+                  onPress={() => router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(t) } as any)}
+                >
+                  {t.author ? (
+                    <MemberAvatar id={t.author.clientId} name={t.author.name} size={44} />
+                  ) : (
+                    <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
+                      <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={20} color={theme.primary} />
+                    </View>
+                  )}
+                  <View style={s.txText}>
+                    <Text style={[s.txTitle, { color: theme.text }]} numberOfLines={1}>{t.title}</Text>
+                    <Text style={[s.txSub, { color: theme.textSecondary }]} numberOfLines={1}>{formatSubtitle(t)}{t.author ? ` · ${t.author.isYou ? tr('family.tx.you') : t.author.name}` : ''}</Text>
                   </View>
-                )}
-                <View style={s.txText}>
-                  <Text style={[s.txTitle, { color: theme.text }]}>{t.title}</Text>
-                  <Text style={[s.txSub, { color: theme.textSecondary }]}>{formatSubtitle(t)}{t.author ? ` · ${t.author.isYou ? tr('family.tx.you') : t.author.name}` : ''}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end', gap: 3 }}>
-                  <Text style={[s.txAmount, { color: t.debtRole === 'BORROW_IN' ? theme.textSecondary : t.amount >= 0 ? theme.income : theme.expense }]}>
-                    {fmt(t.amount, sym)}
-                  </Text>
-                  {t.debtRole ? <ToneChip label={tr(ROLE_TAG[t.debtRole].label)} tone={ROLE_TAG[t.debtRole].tone} /> : null}
-                </View>
-              </TouchableOpacity>
-            </FadeInView>
-          ))
+                  <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                    <Text style={[s.txAmount, { color: t.debtRole === 'BORROW_IN' ? theme.textSecondary : t.amount >= 0 ? theme.income : theme.expense }]}>
+                      {fmt(t.amount, sym)}
+                    </Text>
+                    {t.debtRole ? <ToneChip label={tr(ROLE_TAG[t.debtRole].label)} tone={ROLE_TAG[t.debtRole].tone} /> : null}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </FadeInView>
         )}
 
         <View style={{ height: 24 }} />
@@ -361,29 +385,34 @@ const s = StyleSheet.create({
   safe:   { flex: 1 },
   scroll: { flexGrow: 1 },
 
-  headerWrap:   { paddingBottom: 24, overflow: 'hidden' },
-  headerDecorA: { position: 'absolute', width: 280, height: 280, borderRadius: 140, backgroundColor: 'rgba(255,255,255,0.06)', top: -100, right: -60 },
-  headerDecorB: { position: 'absolute', width: 180, height: 180, borderRadius: 90,  backgroundColor: 'rgba(255,255,255,0.04)', bottom: -40, left: -30 },
-  headerRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 20 },
-  greeting:     { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.55)', letterSpacing: 1.2, marginBottom: 3 },
-  userName:     { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
-  bellBtn:      { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  headerRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 18 },
+  avatar:     { width: 46, height: 46, borderRadius: 23, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 17, fontWeight: '700' },
+  greeting:   { fontSize: 11, fontWeight: '500', letterSpacing: 0.8 },
+  userName:   { fontSize: 19, fontWeight: '700', lineHeight: 23 },
+  roundBtn:   { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  pillRow:    { paddingHorizontal: 18, marginTop: 12, alignItems: 'flex-start' },
 
-  balanceCard:  { marginHorizontal: 22, borderRadius: 20, padding: 0 },
-  balLabel:     { fontSize: 11, color: 'rgba(255,255,255,0.55)', letterSpacing: 1, fontWeight: '600', marginBottom: 6 },
-  balAmount:    { fontSize: 48, fontWeight: '800', color: '#FFFFFF', marginBottom: 20 },
-  balCents:     { fontSize: 28, fontWeight: '600' },
-  balStats:     { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  balStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.55)', letterSpacing: 0.8, marginBottom: 4 },
-  balStatVal:   { fontSize: 18, fontWeight: '700', color: '#FFFFFF' },
-  balDivider:   { width: 1, height: 34, backgroundColor: 'rgba(255,255,255,0.22)' },
+  hero:       { marginHorizontal: 18, marginTop: 16, borderRadius: 30, padding: 20, paddingBottom: 16, overflow: 'hidden' },
+  heroTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroLabel:  { fontSize: 11, letterSpacing: 0.8, fontWeight: '600' },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
+  statusText: { fontSize: 11, fontWeight: '600' },
+  heroAmount: { fontSize: 44, fontWeight: '800', marginTop: 6, marginBottom: 14 },
+  heroCents:  { fontSize: 24, fontWeight: '500', opacity: 0.8 },
+  tiles:      { flexDirection: 'row', gap: 10 },
+  tile:       { flex: 1, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 14, paddingVertical: 12 },
+  tileHead:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tileIcon:   { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  tileLabel:  { fontSize: 11, letterSpacing: 0.5 },
+  tileVal:    { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
 
-  quickWrap:  { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginTop: 20, marginBottom: 14 },
-  quickCard:  { flex: 1, borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
-  quickIcon:  { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  quickLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  quickWrap:  { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 14, marginBottom: 14 },
+  quickPill:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingRight: 10, borderRadius: 99 },
+  quickIcon:  { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  quickLabel: { fontSize: 13, fontWeight: '600' },
 
-  budgetCard:     { marginHorizontal: 20, borderRadius: 18, padding: 16, marginBottom: 18, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  budgetCard:     { marginHorizontal: 18, borderRadius: 24, padding: 16, marginBottom: 12 },
   budgetTop:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   budgetTopRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   budgetTitle:    { fontSize: 15, fontWeight: '700' },
@@ -394,21 +423,23 @@ const s = StyleSheet.create({
   budgetFoot:     { flexDirection: 'row', justifyContent: 'space-between' },
   budgetSub:      { fontSize: 12 },
 
-  setBudgetRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 20, marginBottom: 18, borderRadius: 14, padding: 14, borderWidth: 1.5, borderStyle: 'dashed' },
-  setBudgetText: { flex: 1, fontSize: 13, fontWeight: '500' },
+  setBudgetRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 18, marginTop: 4, marginBottom: 6, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 14, borderWidth: 1.5, borderStyle: 'dashed' },
+  setBudgetText: { fontSize: 14, fontWeight: '600' },
+  setBudgetSub:  { fontSize: 11, marginTop: 1 },
 
-  sectionRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: '800' },
-  seeAll:       { fontSize: 13, fontWeight: '700' },
+  sectionRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, marginTop: 22, marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '600' },
+  seeAll:       { fontSize: 13, fontWeight: '600' },
 
-  txRow:   { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 8, borderRadius: 16, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  txIcon:  { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  txGroup: { marginHorizontal: 18, marginTop: 6, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 4 },
+  txRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+  txIcon:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   txText:  { flex: 1 },
-  txTitle: { fontSize: 15, fontWeight: '600', marginBottom: 3 },
-  txSub:   { fontSize: 12 },
+  txTitle: { fontSize: 15, fontWeight: '600' },
+  txSub:   { fontSize: 12, marginTop: 1 },
   txAmount:{ fontSize: 15, fontWeight: '700' },
 
   hint:      { fontSize: 11, lineHeight: 15, marginHorizontal: 20, marginBottom: 8 },
-  emptyCard: { marginHorizontal: 20, borderRadius: 16, padding: 28, alignItems: 'center', gap: 8 },
+  emptyCard: { marginHorizontal: 18, borderRadius: 24, padding: 28, alignItems: 'center', gap: 8 },
   emptyText: { fontSize: 14 },
 });

@@ -21,6 +21,7 @@ export function LoansBar({ loans, includeLoans, onToggle }: {
   return (
     <View style={s.loanBar}>
       <View style={{ flex: 1 }}>
+        <Text style={s.loanLabel}>{t('home.includeLoans')}</Text>
         {hasLoanMovement(loans) && (
           <>
             <Text style={s.loanText}>{t(includeLoans ? 'home.loansOn' : 'home.loansOff', { out: plain(loans.out), in: plain(loans.in) })}</Text>
@@ -28,7 +29,6 @@ export function LoansBar({ loans, includeLoans, onToggle }: {
           </>
         )}
       </View>
-      <Text style={s.loanLabel}>{t('home.includeLoans')}</Text>
       <Switch value={includeLoans} onValueChange={onToggle} trackColor={{ true: '#4ADE80', false: 'rgba(255,255,255,0.3)' }}
               thumbColor="#FFFFFF" accessibilityLabel={t('home.includeLoans')} />
     </View>
@@ -67,7 +67,7 @@ export function DebtCreditCards({ owe, owed, scheduled, hidden, onOwe, onOwed, o
     <View style={s.grid} testID="debt-credit-cards">
       {cards.map(c => (
         <TouchableOpacity key={c.key} activeOpacity={0.85} onPress={c.onPress} accessibilityRole="button"
-                          style={[s.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                          style={[s.card, { backgroundColor: c.plainValue ? theme.surface : `${c.color}14`, borderColor: c.plainValue ? theme.border : `${c.color}40` }]}>
           <View style={s.cardLabelRow}>
             <View style={[s.dot, { backgroundColor: c.color }]} />
             <Text style={[s.cardLabel, { color: theme.textMuted }]}>{c.label}</Text>
@@ -138,6 +138,7 @@ export function NetWorthRows({ netWorth, hidden }: { netWorth: NetWorth[]; hidde
   const theme = useAppTheme();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const ink = theme.isDark ? '#07202A' : '#FFFFFF';
   // A person with one wallet and no debts already sees that number on Home: only show this when it adds something.
   const worthShowing = netWorth.filter(n => n.owed > 0 || n.owe > 0);
   if (!worthShowing.length) return null;
@@ -146,20 +147,20 @@ export function NetWorthRows({ netWorth, hidden }: { netWorth: NetWorth[]; hidde
     <View style={{ gap: 6 }}>
       {worthShowing.map(n => (
         <TouchableOpacity key={n.currency} activeOpacity={0.85} onPress={() => setOpen(v => !v)} accessibilityRole="button"
-                          style={[s.nwCard, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="net-worth-row">
+                          style={[s.nwCard, { backgroundColor: theme.primary }]} testID="net-worth-row">
           <View style={{ flex: 1 }}>
-            <Text style={[s.nwLabel, { color: theme.textMuted }]}>{t('home.netWorth', { currency: n.currency })}</Text>
-            <Text style={[s.nwValue, { color: n.total < 0 ? OWE : theme.text }]}>{formatMoney(n.total, n.currency, { hidden })}</Text>
+            <Text style={[s.nwLabel, { color: ink, opacity: 0.8 }]}>{t('home.netWorth', { currency: n.currency })}</Text>
+            <Text style={[s.nwValue, { color: ink }]}>{formatMoney(n.total, n.currency, { hidden })}</Text>
             {open && (
-              <Text style={[s.nwDetail, { color: theme.textSecondary }]} testID="net-worth-detail">
+              <Text style={[s.nwDetail, { color: ink, opacity: 0.85 }]} testID="net-worth-detail">
                 {t('home.netBreakdown', {
                   wallets: formatMoney(n.wallets, n.currency, { hidden }), owed: formatMoney(n.owed, n.currency, { hidden }), owe: formatMoney(n.owe, n.currency, { hidden }),
                 })}
               </Text>
             )}
           </View>
-          <View style={[s.nwChip, { backgroundColor: theme.inputBg }]}>
-            <Text style={[s.nwChipText, { color: theme.textSecondary }]}>{t('home.details')} {open ? '▴' : '▾'}</Text>
+          <View style={[s.nwChip, { backgroundColor: 'rgba(0,0,0,0.18)' }]}>
+            <Text style={[s.nwChipText, { color: ink }]}>{t('home.details')} {open ? '▴' : '▾'}</Text>
           </View>
         </TouchableOpacity>
       ))}
@@ -179,8 +180,8 @@ export function FeedChips({ value, onChange, only }: { value: FeedView; onChange
         const on = c.id === value;
         return (
           <TouchableOpacity key={c.id} onPress={() => onChange(c.id)} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ selected: on }}
-                            style={[s.chip, { backgroundColor: on ? theme.primary : theme.surface, borderColor: on ? theme.primary : theme.border }]}>
-            <Text style={[s.chipText, { color: on ? '#FFFFFF' : theme.textSecondary }]}>{t(c.label)}</Text>
+                            style={[s.chip, { backgroundColor: on ? theme.primary : theme.surface }]}>
+            <Text style={[s.chipText, { color: on ? (theme.isDark ? '#07202A' : '#FFFFFF') : theme.textSecondary }]}>{t(c.label)}</Text>
           </TouchableOpacity>
         );
       })}
@@ -189,36 +190,36 @@ export function FeedChips({ value, onChange, only }: { value: FeedView; onChange
 }
 
 const s = StyleSheet.create({
-  loanBar:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)' },
-  loanText:  { color: '#FFFFFF', fontSize: 10.5, lineHeight: 15, opacity: 0.9 },
-  loanLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  loanBar:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)' },
+  loanText:  { color: '#FFFFFF', fontSize: 11, lineHeight: 15, opacity: 0.7, marginTop: 2 },
+  loanLabel: { color: '#FFFFFF', fontSize: 13, fontWeight: '500' },
 
-  grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16 },
-  card:      { width: '48%', flexGrow: 1, borderRadius: 18, borderWidth: 1, padding: 12 },
+  grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 18 },
+  card:      { width: '48%', flexGrow: 1, borderRadius: 24, borderWidth: 1, padding: 16 },
   cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot:       { width: 8, height: 8, borderRadius: 4 },
-  cardLabel: { fontSize: 11 },
-  cardValue: { fontSize: 17, fontWeight: '800', marginTop: 3 },
-  cardSub:   { fontSize: 10.5, marginTop: 2 },
+  cardLabel: { fontSize: 12 },
+  cardValue: { fontSize: 23, fontWeight: '700', marginTop: 10, letterSpacing: -0.5 },
+  cardSub:   { fontSize: 11, marginTop: 8 },
 
-  sectionRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 18, marginBottom: 8 },
-  sectionTitle: { fontSize: 14, fontWeight: '700' },
+  sectionRow:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 22, marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '600' },
   link:         { fontSize: 12, fontWeight: '600' },
-  listCard:     { marginHorizontal: 16, borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  listCard:     { marginHorizontal: 18, borderRadius: 24, borderWidth: 1, overflow: 'hidden' },
   attRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
   attIcon:      { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   attTitle:     { fontSize: 12.5, fontWeight: '700' },
   attSub:       { fontSize: 10.5, marginTop: 1 },
   attAmount:    { fontSize: 13, fontWeight: '800' },
 
-  nwCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 16, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  nwCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 18, borderRadius: 24, padding: 16 },
   nwLabel:    { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  nwValue:    { fontSize: 16, fontWeight: '800', marginTop: 1 },
+  nwValue:    { fontSize: 23, fontWeight: '700', marginTop: 6, letterSpacing: -0.5 },
   nwDetail:   { fontSize: 11, lineHeight: 15, marginTop: 6 },
-  nwChip:     { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 9 },
+  nwChip:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
   nwChipText: { fontSize: 10, fontWeight: '700' },
 
-  chips:    { gap: 6, paddingHorizontal: 16, marginBottom: 8 },
-  chip:     { paddingHorizontal: 13, paddingVertical: 7, borderRadius: 99, borderWidth: 1 },
-  chipText: { fontSize: 11.5, fontWeight: '700' },
+  chips:    { gap: 8, paddingHorizontal: 18, marginBottom: 8 },
+  chip:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99 },
+  chipText: { fontSize: 13, fontWeight: '600' },
 });

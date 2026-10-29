@@ -49,7 +49,7 @@ export function FamilyBalanceCard({ hidden = false }: { hidden?: boolean }) {
 }
 
 const s = StyleSheet.create({
-  card: { marginHorizontal: 16, marginBottom: 14, borderWidth: 1, borderRadius: 18, padding: 14 },
+  card: { marginHorizontal: 18, marginBottom: 14, borderWidth: 1, borderRadius: 24, padding: 16 },
   label: { fontSize: 10.5, fontWeight: '800', letterSpacing: 1 },
   amount: { fontSize: 24, fontWeight: '800', marginTop: 4 },
   empty: { fontSize: 13, marginTop: 4 },

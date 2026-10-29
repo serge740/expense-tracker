@@ -41,9 +41,9 @@ export class FamilyService {
   }
 
   /** A person may make or join a family only with a verified email or phone (stops throwaway accounts). */
-  async assertVerified(clientId: string, db: any = this.prisma) {
+  async assertVerified(clientId: string, db: any = this.prisma, opts: { requireVerified?: boolean } = {}) {
     const c = await db.client.findUnique({ where: { id: clientId } });
-    if (!c || c.isActive === false || (!c.emailVerifiedAt && !c.phoneVerifiedAt)) throw errors.notVerified();
+    if (!c || c.isActive === false || (opts.requireVerified !== false && !c.emailVerifiedAt && !c.phoneVerifiedAt)) throw errors.notVerified();
     return c;
   }
 
@@ -51,7 +51,8 @@ export class FamilyService {
     const name = cleanName(input?.name);
     const currency = input?.currency === undefined ? 'RWF' : cleanCurrency(input.currency);
     const timezone = input?.timezone === undefined ? 'UTC' : cleanZone(input.timezone);
-    await this.assertVerified(clientId);
+    // Creating a family needs no verification (it was only friction); joining still does.
+    await this.assertVerified(clientId, this.prisma, { requireVerified: false });
     if (await this.access.membershipOf(clientId)) throw errors.alreadyInFamily();
     try {
       return await this.prisma.$transaction(async (tx: any) => {

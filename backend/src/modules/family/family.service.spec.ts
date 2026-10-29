@@ -24,12 +24,10 @@ describe('creating a family', () => {
     expect(w.db.tables.familyActivity.map(a => a.action)).toEqual(['family.created']);
   });
 
-  test('needs a verified email or phone, and an active account', async () => {
+  test('needs only an active account (no email or phone verification to create)', async () => {
     const w = makeWorld();
     w.db.tables.client.find(c => c.id === 'aline')!.emailVerifiedAt = null;
-    expect(await codeOf(w.families.create('aline', { name: 'X' }))).toBe('NOT_VERIFIED');
-    w.db.tables.client.find(c => c.id === 'aline')!.phoneVerifiedAt = new Date();       // a verified phone is enough
-    expect(await codeOf(w.families.create('aline', { name: 'X' }))).toBe('OK');
+        expect(await codeOf(w.families.create('aline', { name: 'X' }))).toBe('OK');
     w.db.tables.client.find(c => c.id === 'eric')!.isActive = false;
     expect(await codeOf(w.families.create('eric', { name: 'Y' }))).toBe('NOT_VERIFIED');
   });
