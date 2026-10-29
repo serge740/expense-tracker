@@ -63,6 +63,14 @@ Phase tags: **H1** foundation · **H2** find things · **H3** manage · **H4** u
 | 28 | Wallet strip (quick wallet switch) | Component | H2 |
 | 29 | Wallet-focused mode (one wallet selected) | Mode | H2 |
 | 30 | Wallet entry points (from Wallets, wallet detail, row tags, Home) | Navigation | H2 |
+| 31 | Used-categories and sub-categories filter (with counts) | Filter section | H2 |
+| 32 | Scheduled-items filters | Filter section | H2 |
+| 33 | Advanced filter builder (AND / OR / NOT, saved) | Screen | H4 |
+| 34 | Activity mode: the unified timeline of everything that happened | Mode | H4 |
+| 35 | Event row types (what happened, who, before and after) | Component | H4 |
+| 36 | "History of this item" (transaction, wallet, debt, schedule) | Section in each detail screen | H4 |
+| 37 | Management actions menu and the action rules table | Sheets | H3-H5 |
+| 38 | Rules and clean-up tools (merge sub-categories, auto-categorise, duplicates) | Screens | H5 |
 
 ---
 
@@ -130,8 +138,8 @@ One bottom sheet replaces the stack of chip rows. Sections:
 | Period | The presets from section 5 |
 | Type | Income, Expense, Transfer, Debt flows, Credit flows, Scheduled (multi-select) |
 | Wallets | Multi-select with wallet colour, name, currency; archived wallets shown separately |
-| Categories | All **25** categories, searchable, multi-select, with icon and colour; grouped (spending / income / system) |
-| Sub-categories | Appears after choosing a category; searchable; includes the user's own custom ones |
+| Categories | **The categories this user has actually used first, with counts**, plus a switch to show all 25; see section 33 for the full behaviour |
+| Sub-categories | **The sub-categories the user has used or typed**, shown under their category with counts and last-used date; see section 33 |
 | Amount | Min and max; currency note when wallets differ |
 | Receipt | Any / With receipt / Without receipt |
 | Loans | Include loans switch; pick a specific debt or person |
@@ -457,8 +465,9 @@ Motion should explain change: a row leaving, a filter being applied, a period ch
 10. Insights strip and panel.
 11. Reconcile mode and edit history.
 12. A small component sheet: chip, badge set, amount style, day header, snackbar, skeletons, empty-state block.
-13. Wallet interaction (section 32): wallet strip, wallet-focused header and summary, the entry points, a transfer row seen from each wallet, empty/archived wallet states.
-14. Notes on motion and a list of the icons used.
+13. Advanced filtering (section 33), the Activity timeline with every event type (section 34), and the management actions (section 35).
+14. Wallet interaction (section 32): wallet strip, wallet-focused header and summary, the entry points, a transfer row seen from each wallet, empty/archived wallet states.
+15. Notes on motion and a list of the icons used.
 
 ---
 
@@ -471,6 +480,8 @@ Motion should explain change: a row leaving, a filter being applied, a period ch
 5. Calendar and chart modes: part of History, or a link to Reports?
 6. Should History and the separate Expenses list screen be merged into one?
 7. Should the wallet detail screen embed the shared History list (recommended, one list everywhere) or keep its own small activity list?
+8. How long should the activity log be kept (forever, or e.g. 2 years)? Should account and security events (sign-ins, new devices, passkeys) appear in the same timeline or in a separate Security log?
+9. Should "restore a deleted item" and "revert an edit" be allowed for everyone, or only the author and Family admins?
 
 ---
 
@@ -546,3 +557,196 @@ The page changes from "my transactions" to "this wallet's statement":
 - A running balance per row for a wallet.
 - Wallet currency on every row, and wallet name/colour so rows do not need extra lookups.
 - Everything respects the Personal or Family scope.
+
+---
+
+## 33. Advanced filtering (extends sections 7 to 9)
+
+The filter sheet must understand **this user's own data**, not just the app's fixed lists.
+
+### 33.1 Categories and sub-categories the user has used (H2)
+The app already remembers every sub-category a person picked or typed (with how many times and when last used). The filter uses that.
+
+| Behaviour | Detail |
+|---|---|
+| Used first | The category list shows **only categories that have transactions in the user's data**, ordered by usage or by recency (toggle). Each shows a **count** and, optionally, a **total amount** |
+| Show all | A switch reveals all 25 categories, with unused ones muted, so nothing is hidden for good |
+| Sub-categories under their category | Expanding "Food" lists the sub-categories the user used (Pizza, Lunch, Coffee ...), with counts and last-used date, including ones they typed themselves |
+| Hierarchical selection | A category checkbox has three states: none, some, all of its sub-categories. Selecting "Food" means all of Food; selecting "Food > Pizza" means only that |
+| Mix freely | Several categories and sub-categories at once ("Food > Pizza" + "Transport > Bus" + all of "Bills") |
+| Include and exclude | Each choice can be **included or excluded** ("everything except Rent"); excluded choices show a different chip style |
+| No sub-category | A choice "Food, no sub-category" for rows that were never refined |
+| Other / uncategorised | A clear shortcut to find rows still in "Other" |
+| Income and expense kept apart | The same sub-category name can exist under both an expense and an income category; the list says which |
+| Case and spelling | "pizza" and "Pizza" appear once (the first spelling wins) |
+| Retired categories | Older rows that used a retired category appear under the category they became, with no duplicates |
+| Faceted counts | Counts reflect the **other filters currently active** (wallet, period, amount ...), so the user sees what will actually be found; choices with zero results are muted but still selectable |
+| Search inside | Type to find a category or sub-category quickly; matches are highlighted and shown in the user's language |
+| Recently used | A "Recent" row on top with the last few choices |
+| Large lists | Dozens of custom sub-categories must scroll and search smoothly; show the top ones and "Show N more" |
+| Family | In Family, the list is the family's; with a **member filter** the counts show who used what |
+| Empty | A new user with no history sees the full list and a hint that used categories will appear here |
+
+### 33.2 Scheduled and recurring filters (H2)
+Schedules, their occurrences and the transactions they posted are all filterable.
+
+| Filter | Options |
+|---|---|
+| Source | All / **Posted by a schedule** / **Entered by hand** / Scanned receipt / Debt payment / Transfer |
+| Specific schedule | Pick one or several schedules by title ("Rent", "Netflix", "Salary"); shows each schedule's status |
+| Schedule status | Active, Paused, Ended |
+| Mode | **Auto-posted** (created automatically) / **Reminder and confirm** (the user confirmed it) |
+| How it was handled | Posted automatically / Confirmed by me / Edited before posting / Skipped / Failed / Still waiting |
+| Occurrence status | Waiting, Posted, Skipped, Failed (with the failure reason searchable: "wallet missing", "not enough balance" ...) |
+| Repeat pattern | Daily, weekly, monthly, yearly, custom |
+| Due window | Overdue, Due today, Next 7 days, Next 30 days, a custom range of due dates |
+| Direction | Scheduled income / scheduled expense |
+| Reminder state | Reminder sent, Snoozed, Dismissed, Not yet sent |
+| Linked loan | Installments and plan payments of a debt (a specific person's loan) |
+
+Two lists, one filter: the result can show **what already happened** (posted rows), **what is coming** (waiting occurrences, shown as Upcoming), or **both**, with a clear switch "Past / Upcoming / Both".
+
+### 33.3 Every other dimension
+| Group | Filters |
+|---|---|
+| Time | Transaction date; **date entered** (created today, backdated entries, edited recently); time of day; weekday; month across years ("every December") |
+| Money | Amount range, exact amount, round amounts, currency, large/small relative to the user's usual |
+| Wallet | One or several wallets; for transfers, **from** and **to** separately |
+| Text | Title (contains / exact), has a note, note contains, receipt text when scanned |
+| Evidence | Has receipt, has report PDF, no receipt |
+| Loans | Person, kind (borrowed / lent), status (open, settled, written off, forgiven), role (money in, money out, repayment), paid from a borrowed pot |
+| People | Added by (Family member), edited by |
+| Quality flags | Uncategorised, possible duplicate, balance mismatch, not reconciled, flagged for review |
+| State | Active, **deleted** (Recently deleted), edited, restored |
+| Marks | Starred or flagged items, tags (later) |
+
+### 33.4 Combining filters
+- Across different filters the rule is **AND** (Food AND MoMo wallet AND over 5,000). Inside one filter the rule is **OR** (Pizza OR Lunch). Any choice can be **excluded (NOT)**.
+- The active-filters bar shows included chips and excluded chips differently, and tapping a chip toggles include/exclude.
+- **Advanced filter builder** (H4): rows of "field, operator, value" with add/remove, grouping, and a plain-language summary at the top ("Expenses in Food or Transport, over 5,000, not in Cash, paid by schedules"). Easy mode (sheet) and advanced mode (builder) edit the same filter.
+- The search box understands the same filters as tokens (`cat:food sub:pizza sched:rent status:failed -wallet:cash`).
+- Every filter set can be **saved as a view**, named, pinned, and (Family) shared with the family.
+- **Result count** is always shown before applying.
+
+---
+
+## 34. Activity mode: everything that ever happened (H4, H5)
+
+A switch at the top of History: **Money** (the transactions list described so far) | **Activity** (a timeline of every event). Activity answers "what happened, to what, when and by whom, and what did it look like before?"
+
+### 34.1 What gets recorded
+| Area | Events | Recorded today? |
+|---|---|---|
+| Transactions | Created, edited (before and after), deleted, restored, receipt added or replaced, scanned, category changed, moved wallet | Created: yes (the row). **Edits, deletes: no** |
+| Transfers | Created, deleted, rate used | Created: yes. Deletes: no |
+| Wallets | Created, renamed, colour or currency or default changed, balance adjusted by hand, archived, restored, deleted | **No** |
+| Budget | Set or changed for a month, alert at 80% and 100% reached | Alerts are in the inbox; changes **no** |
+| Loans (debts) | Created, edited, payment added or removed, installment moved or skipped, plan set, written off, forgiven, reopened, archived, restored, settled, statement exported | Payments and installments: yes. Others: partly |
+| Scheduled | Schedule created, edited, paused, resumed, ended, deleted; each occurrence due, posted, confirmed, skipped, failed (with reason) | Occurrences: yes (status and handled time). Schedule edits: **no** |
+| Reminders | Fired (which step, which channels), snoozed, marked done, dismissed, push delivered or failed | Yes |
+| Notifications | Every alert sent (transaction, reminder, system, security) | Yes (inbox) |
+| Exports | Statement or report generated, who exported | **No** |
+| Account and security | Sign-in, new device, passkey added or removed, password changed, verification done, profile edited, device registered or removed | Partly (devices, passkeys exist; sign-in history **no**) |
+| Family | Member joined, left, removed, role changed, invite created or revoked, family renamed, ownership transferred, archived | Yes (family activity log) |
+
+**Important for design and product:** what is marked "No" is not stored today, so the Activity timeline can only show those events **from the moment the new event log is introduced**. Older creations can be rebuilt from existing rows (created and updated times, payments, occurrences, reminder fires), but past edits and deletions cannot be recovered. The UI must say so honestly ("Detailed history starts from 12 Nov 2026") instead of implying a complete past.
+
+### 34.2 The Activity screen
+- Same chrome as the main page: period navigator, filters, search, summary, but the summary counts **events** (and highlights money-affecting ones).
+- **Day headers** as before; each event is a **card**: icon for the area, a sentence ("Grace edited 'Groceries'"), the time, who did it, and the key change.
+- **Event card types** the designer must cover:
+  | Type | Shows |
+  |---|---|
+  | Created | The new item in brief |
+  | Edited | **Before to after** for each changed field (amount 5,000 to 6,000; category Food to Bills); long lists collapse |
+  | Deleted | The item as it was, with a **Restore** action while allowed |
+  | Restored | Who restored and when |
+  | Status change | Schedule paused, loan settled, wallet archived |
+  | Money event | Posted, skipped, failed (with reason), payment received |
+  | Reminder | Sent / snoozed / dismissed, with the channel |
+  | Alert | Budget at 80%, balance low |
+  | System | Export created, sign-in, new device |
+  | Family | Joined, role changed, removed |
+  | Grouped | Many similar events collapsed ("12 transactions posted by schedules"), expandable |
+- Tapping a card opens the thing it is about (transaction, wallet, loan, schedule, family hub) **or** its detail if it was deleted.
+- **Money impact** shown where relevant ("Wallet MoMo balance +45,000").
+- Events are **read-only and permanent**: nobody can delete the log; deleting an item adds an event, it does not remove the past.
+
+### 34.3 Filtering Activity
+Event type (multi-select), area (transactions, wallets, budget, loans, schedules, reminders, account, family), **actor** (Family member, system, me), entity (one wallet, one loan, one schedule), period, amount touched, "changes only" (edits), "money-moving only", "needs attention" (failed, overdue, mismatch), and text search over the sentence and the changed values.
+
+### 34.4 "History of this item" (H4)
+Every detail screen (transaction, wallet, loan, schedule, budget month) gets a **History** section or tab with the same event cards **for that item only**, newest first. For a transaction this includes edits and the original values; for a schedule, every occurrence and what happened to it; for a loan, every payment, installment change and reminder; for a wallet, balance events.
+
+### 34.5 Unified "everything" feed (optional view)
+A combined feed for people who want one stream: money rows and non-money events interleaved by time, with a type filter to switch parts off. Default is the Money list; Activity is one tap away.
+
+### 34.6 Rules
+- Respect scope: in Family, events show the family's, with the actor; personal events never appear.
+- Respect roles: sensitive items (account details, security events of others) are limited to owner and admins; a Viewer reads only what they may.
+- Retention and size: pages and infinite scroll; very old events load on demand.
+- Privacy: a user can see their own security events; others never see them.
+- Export: the filtered timeline can be exported as an audit report (PDF/CSV).
+
+---
+
+## 35. Management actions (everything the user can do from History)
+
+Grouped by what they act on. Every action needs: where it lives (swipe, peek, bulk, detail), a confirmation rule, an undo rule and, in Family, a permission rule.
+
+### 35.1 On a transaction
+| Action | Notes |
+|---|---|
+| Open, edit (amount, title, date and time, category, sub-category, wallet, note) | Edits are logged with before and after |
+| Duplicate | New row prefilled; choose date |
+| Make recurring | Opens the schedule form prefilled |
+| Split | Divide one amount across several categories (or members) |
+| Change category / sub-category | Offer "apply to all similar" |
+| Move to another wallet | Balances of both wallets adjust; explained before confirming |
+| Add, replace or remove receipt; view receipt report | |
+| Add a note or comment | In Family, comments are visible to members |
+| Star or flag for review | Shows in the Flags filter |
+| Mark reconciled / not reconciled | |
+| Mark "not a duplicate" or merge duplicates | |
+| Delete and restore | With undo and Recently deleted |
+| Share a single transaction (as image or PDF receipt) | |
+
+### 35.2 On many rows at once
+Select all in this filter, change category, move wallet, shift date (fix a wrong day), add note, star, export, delete. Shows a **preview of the effect on wallet balances** before confirming and a result sheet afterwards.
+
+### 35.3 On scheduled items, from History
+Confirm, **Pay now** (post early), Skip, Edit this occurrence, Edit the whole schedule, Pause, Resume, End, **Skip all overdue**, Retry a failed post, Open the schedule. Reminders: snooze, mark done, dismiss.
+
+### 35.4 On loans, from History
+Open the loan, record a payment, move or skip an installment, see the statement, export it; money paid from a borrowed pot opens its source loan.
+
+### 35.5 On wallets, from History
+Open the wallet, add a transaction to it, transfer, **adjust the balance** (creates a visible adjustment entry), archive, restore, export a statement.
+
+### 35.6 Clean-up and rules (H5)
+| Tool | What it does |
+|---|---|
+| Merge or rename sub-categories | "Pizza" and "pizzas" become one; all rows updated; logged |
+| Re-categorise by pattern | "Everything titled Netflix becomes Subscriptions" |
+| **Auto-categorise rules** | Create a rule from a row; show which past rows it would change before applying |
+| Find duplicates | List of likely pairs with compare view |
+| Fix uncategorised | A guided pass through "Other" rows with suggestions |
+| Fix date/time-zone mistakes | Shift a batch by hours or days |
+| Balance mismatch review | Lists the rows to investigate and offers an adjustment |
+
+### 35.7 Data in and out
+Export (CSV, PDF, Excel, audit log), share a view, print, and (later) import from CSV or bank statements with a review step.
+
+### 35.8 Safety rules (for every action)
+| Question | Rule |
+|---|---|
+| Reversible? | Delete, edit, bulk change and merge are reversible through **Undo** and the **Recently deleted / Activity** screens; permanent steps (Delete forever, end a schedule) say so |
+| Confirmation | Anything touching wallet balances or many rows shows the effect first |
+| Logged? | Every action creates an event (section 34) with who, when, before and after |
+| Family permissions | Viewer: none. Member: own items. Admin and Owner: all items. Disabled actions explain why |
+| Locked items | Reconciled rows, loan-linked rows and ended schedules show what can and cannot change and why |
+| Failures | Clear message and a way to retry, never a silent no-op |
+| Offline | Actions are queued or disabled with a reason; the user always knows which |
+
+### 35.9 Where actions live
+Swipe (fast: delete, edit, duplicate), quick peek (everything for one row), select mode (bulk), overflow menu (view-wide: export, saved views, rules, clean-up, recently deleted), and detail screens (full control and the item's History).
