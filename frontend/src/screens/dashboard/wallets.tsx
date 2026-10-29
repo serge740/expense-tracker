@@ -174,7 +174,7 @@ export default function WalletsScreen() {
         {/* Header */}
         <View style={s.header}>
           <View>
-            <Text style={[s.title, { color: theme.text }]}>{t('wallet.title')}</Text>
+            <Text style={[s.title, { color: theme.text }]}>{t(scope.isFamily ? 'family.wallet.title' : 'wallet.title')}</Text>
             <Text style={[s.subtitle, { color: theme.textMuted }]}>{t('wallet.subtitle')}</Text>
             <View style={{ marginTop: 8 }}><ScopePill /></View>
           </View>

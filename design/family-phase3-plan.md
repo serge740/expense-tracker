@@ -38,7 +38,9 @@ No new native module, so no extra app build beyond your normal one.
 
 ---
 
-## 2. Decisions needed from you
+## 2. Decisions (all confirmed)
+
+Confirmed on 2026-10-29: D1–D12 are accepted as recommended below, and F3a/F3b were built that way. One change by the owner: **D5 is superseded**: a family has its own bottom bar (Home, Wallets, Add, Settings) with no Loans tab, and Settings opens the family settings; Loans and Scheduled stay Personal-only.
 
 | ID | Question | Recommendation |
 |---|---|---|
@@ -115,7 +117,7 @@ The parent plan's §9.10 rule: if the Expo app opens `expensetracker://family-jo
 ### 4.7 Steps (F3a)
 | # | Step | Done when |
 |---|---|---|
-| 0 | You answer D1–D12 | Answered |
+| 0 | You answer D1–D12 | Answered (confirmed 2026-10-29) |
 | 1 | B2 `PersonalOnlyGuard` + specs | Green |
 | 2 | `family.service`, `family-errors`, `family-permissions`, `family-invite` + tests | Green |
 | 3 | `api.ts` header (allow-list) + 403 fallback + session-loss clearing + tests | Green |

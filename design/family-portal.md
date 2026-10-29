@@ -52,7 +52,7 @@ The Family Portal adds a second place where money can live: a **family space** s
 
 ---
 
-## 4. Decisions (proposed)
+## 4. Decisions (confirmed 2026-10-29)
 
 | ID | Decision | Why |
 |---|---|---|
