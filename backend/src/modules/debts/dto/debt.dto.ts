@@ -41,6 +41,9 @@ export class DebtPaymentDto {
   walletId?: string;
   date?: string;
   note?: string;
+  /** Optional proof of payment, already uploaded through the receipts endpoint. */
+  receiptUrl?: string;
+  receiptReportUrl?: string;
 }
 
 export class InstallmentDto {

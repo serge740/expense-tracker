@@ -26,6 +26,11 @@ import { deviceTimeZone } from '@/utils/reminders';
 import { DebtInfo } from '@/components/debt/debt-info';
 import { ReminderRow, RemindSwitch } from '@/components/reminders/reminder-row';
 import { ToneChip } from '@/components/debt/tone-chip';
+import { ReceiptField } from '@/components/add/receipt-field';
+import { processReceipt } from '@/services/receipts.service';
+import * as ImagePicker from '@/lib/shims/expo-image-picker';
+import * as DocumentPicker from '@/lib/shims/expo-document-picker';
+import ENV from '@/env';
 import { closedTag } from '@/utils/debt';
 
 type Tab = 'BORROWED' | 'LENT' | 'SETTLED';
@@ -260,14 +265,42 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
     debt.walletId && usable.some(w => w.id === debt.walletId) ? debt.walletId : (usable.find(w => w.isDefault) ?? usable[0])?.id ?? null,
   );
   const [busy, setBusy]         = useState(false);
+  // Optional proof of payment: picked in the receipt sheet, uploaded at once, sent with the payment.
+  const [proof, setProof] = useState<{ url: string; reportUrl: string; mime: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const keepProof = async (uri: string, name: string, mime: string) => {
+    setUploading(true);
+    try {
+      const r = await processReceipt(uri, name, mime);
+      setProof({ url: r.receiptUrl, reportUrl: r.receiptReportUrl, mime, name });
+    } catch (e: any) {
+      Alert.alert(t('add.receipt'), e?.response?.data?.message || e?.message || t('add.uploadFailed'));
+    } finally { setUploading(false); }
+  };
+  const proofFromCamera = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) { Alert.alert(t('add.receipt'), t('add.cameraPermission')); return; }
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true });
+    if (res.canceled || !res.assets[0]) return;
+    const a = res.assets[0]; const mime = a.mimeType ?? 'image/jpeg';
+    await keepProof(a.uri, a.fileName ?? `receipt.${mime === 'image/png' ? 'png' : 'jpg'}`, mime);
+  };
+  const proofFromFile = async () => {
+    const res = await DocumentPicker.getDocumentAsync({ type: ['image/*', 'application/pdf'], copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.[0]) return;
+    const a = res.assets[0];
+    await keepProof(a.uri, a.name, a.mimeType ?? 'application/octet-stream');
+  };
+  const proofPreview = proof ? (/^https?:/.test(proof.url) ? proof.url : `${ENV.UPLOADS_URL}/${proof.url}`) : null;
 
   const pay = async () => {
     const value = parseFloat(amount.replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('debts.recordPayment'), t('add.errAmount'));
     setBusy(true);
     try {
-      await addDebtPayment(debt.id, { amount: value, ...(debt.kind === 'LENT' && walletId ? { walletId } : {}) });
+      await addDebtPayment(debt.id, { amount: value, ...(debt.kind === 'LENT' && walletId ? { walletId } : {}), ...(proof ? { receiptUrl: proof.url, receiptReportUrl: proof.reportUrl } : {}) });
       setAmount('');
+      setProof(null);
       onChanged();
     } catch (e: any) {
       Alert.alert(t('common.error'), e?.response?.data?.message || t('add.errSave'));
@@ -399,7 +432,10 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
                   <WalletChips wallets={usable} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
                 </>
               )}
-              <TouchableOpacity style={[s.payBtn, { backgroundColor: color }]} onPress={pay} disabled={busy} activeOpacity={0.85}>
+              <Text style={[s.walletLabel, { color: theme.textSecondary }]}>{t('add.receipt')} ({t('add.optional')})</Text>
+              <ReceiptField attached={!!proof} previewUri={proofPreview} isImage={!proof || proof.mime.startsWith('image/')} fileName={proof?.name ?? null} analyzing={uploading}
+                            onCamera={proofFromCamera} onFile={proofFromFile} onRemove={() => setProof(null)} />
+              <TouchableOpacity style={[s.payBtn, { backgroundColor: color }]} onPress={pay} disabled={busy || uploading} activeOpacity={0.85}>
                 {busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={s.payBtnText}>{t('debts.recordPayment')}</Text>}
               </TouchableOpacity>
             </>
@@ -425,6 +461,11 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
                   {p.walletId ? ` · ${wallets.find(w => w.id === p.walletId)?.name ?? ''}` : ''}
                 </Text>
               </View>
+              {p.receiptUrl ? (
+                <TouchableOpacity accessibilityLabel={t('add.receipt')} hitSlop={8} onPress={() => Linking.openURL(/^https?:/.test(p.receiptUrl!) ? p.receiptUrl! : `${ENV.UPLOADS_URL}/${p.receiptUrl}`)}>
+                  <MaterialIcons name="receipt-long" size={18} color={theme.primary} />
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity onPress={() => confirmRemovePayment(p.id)} hitSlop={8}>
                 <MaterialIcons name="delete-outline" size={18} color={theme.textMuted} />
               </TouchableOpacity>

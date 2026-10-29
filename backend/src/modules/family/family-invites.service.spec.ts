@@ -189,12 +189,17 @@ describe('previewing and joining', () => {
     expect(await codeOf(w.invites.accept('eric', { code: inv.code }))).toBe('FAMILY_GONE');
   });
 
-  test('an unverified account cannot join, and learns nothing about the code', async () => {
+  test('an account without a verified email or phone can still join with a code', async () => {
     const { w, id } = await setup();
     const inv = await w.invites.create('aline', id, { role: 'MEMBER' });
     w.db.tables.client.find(c => c.id === 'eric')!.emailVerifiedAt = null;
-    expect(await codeOf(w.invites.preview('eric', { code: inv.code }))).toBe('NOT_VERIFIED');
-    expect(await codeOf(w.invites.preview('eric', { code: 'ZZZZZZ' }))).toBe('NOT_VERIFIED');
+    expect(await codeOf(w.invites.accept('eric', { code: inv.code }))).toBe('OK');
+  });
+
+  test('a deactivated account cannot join', async () => {
+    const { w, id } = await setup();
+    const inv = await w.invites.create('aline', id, { role: 'MEMBER' });
+    w.db.tables.client.find(c => c.id === 'eric')!.isActive = false;
     expect(await codeOf(w.invites.accept('eric', { code: inv.code }))).toBe('NOT_VERIFIED');
   });
 

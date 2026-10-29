@@ -115,7 +115,7 @@ export class DebtsService {
 
   /** Move money for a debt event and return the transaction id. */
   private async move(prx: Tx, clientId: string, opts: {
-    debtId: string; walletId: string | null; amount: number; direction: 'in' | 'out'; role: DebtRole; title: string; date: Date; note?: string | null;
+    debtId: string; walletId: string | null; amount: number; direction: 'in' | 'out'; role: DebtRole; title: string; date: Date; note?: string | null; receiptUrl?: string | null; receiptReportUrl?: string | null;
   }) {
     const tx = await prx.transaction.create({
       data: {
@@ -129,6 +129,8 @@ export class DebtsService {
         debtId: opts.debtId,
         debtRole: opts.role,
         walletId: opts.walletId,
+        receiptUrl: opts.receiptUrl ?? null,
+        receiptReportUrl: opts.receiptReportUrl ?? null,
       },
     });
     // No wallet (always the case for a debt): the event is recorded, no balance moves.
@@ -485,17 +487,21 @@ export class DebtsService {
     const walletId = d.kind === 'LENT' ? dto.walletId || undefined : undefined;
     if (walletId) await this.wallet(clientId, walletId, d.currency);
     const date = dto.date ? new Date(dto.date) : new Date();
+    // Optional proof of payment: a short text address only, nothing else is accepted.
+    const clean = (v: unknown) => (typeof v === 'string' && v.trim() && v.length <= 191 ? v.trim() : null);
+    const receiptUrl = clean(dto.receiptUrl);
+    const receiptReportUrl = receiptUrl ? clean(dto.receiptReportUrl) : null;
 
     const result = await this.prisma.$transaction(async prx => {
       // Always recorded: repaying what I borrowed is money out, being repaid is money in.
       const transactionId = await this.move(prx, clientId, {
-        debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note,
+        debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note, receiptUrl, receiptReportUrl,
         direction: directionFor(d.kind, 'payment'),
         role: roleFor(d.kind, 'payment'),
         title: d.kind === 'BORROWED' ? `Repaid ${d.person}` : `Repayment from ${d.person}`,
       });
       await prx.debtPayment.create({
-        data: { debtId: d.id, amount, date, walletId: walletId ?? null, transactionId, note: dto.note?.trim() || null },
+        data: { debtId: d.id, amount, date, walletId: walletId ?? null, transactionId, note: dto.note?.trim() || null, receiptUrl, receiptReportUrl },
       });
       return this.recompute(prx, d.id);
     });

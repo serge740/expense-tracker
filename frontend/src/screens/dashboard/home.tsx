@@ -5,7 +5,7 @@ import { MemberAvatar } from '@/components/family/member-avatar';
 import { useScope } from '@/context/scope-context';
 import { detailParams } from '@/utils/tx-nav';
 import React, { ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, RefreshControl } from '@/rn';
+import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, RefreshControl, useWindowDimensions } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { MaterialIcons } from '@/rn';
 import { router, useFocusEffect } from '@/router/router';
@@ -47,6 +47,10 @@ export default function HomeScreen() {
   const { prefs, setPref } = usePreferences();
   const scope = useScope();
   const isFamily = scope.isFamily;
+  // Small phones (320-360 wide): the big numbers shrink to fit their box and the quick actions stack.
+  const { width: screenW } = useWindowDimensions();
+  const compact = screenW < 380;
+  const fitSize = (text: string, boxW: number, max: number, min = 14) => Math.max(min, Math.min(max, Math.floor(boxW / (Math.max(text.length, 1) * 0.6))));
   // A family has no loans, debts or schedules: loans are always "included" (there are none) and only three chips make sense.
   const [familyView, setFamilyView] = useState<FeedView>('all');
   const includeLoans = isFamily ? true : prefs.includeLoans;
@@ -127,6 +131,11 @@ export default function HomeScreen() {
   const netColor = net >= 0 ? '#FFFFFF' : '#FF9D9A';
   const money = (n: number) => `${sym}${Math.round(n).toLocaleString()}`;
   const dim = 'rgba(255,255,255,0.62)';
+  const incomeText = money(summary?.totals.income ?? 0);
+  const spentText = money(summary?.totals.expense ?? budget?.spent ?? 0);
+  // both tiles share one size (the smaller of what each needs) so they look alike
+  const tileFont = Math.min(fitSize(incomeText, (screenW - 36 - 40 - 10) / 2 - 28, 20, 13), fitSize(spentText, (screenW - 36 - 40 - 10) / 2 - 28, 20, 13));
+  // each tile is half the card, less the card's and the tile's padding
 
   return (
     <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
@@ -179,9 +188,9 @@ export default function HomeScreen() {
 
         {/* ── Hero: this month at a glance ── */}
         <FadeInView delay={60} slideFrom="bottom" distance={20}>
-          <LinearGradient colors={heroColors} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={s.hero}>
+          <LinearGradient colors={heroColors} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={[s.hero, compact && { padding: 16, paddingBottom: 14, borderRadius: 26 }]}>
             <View style={s.heroTop}>
-              <Text style={[s.heroLabel, { color: dim }]}>{monthName.toUpperCase()} NET</Text>
+              <Text numberOfLines={2} style={[s.heroLabel, { color: dim, fontSize: compact ? 10 : 11 }]}>{tr('home.netLabel', { month: monthName }).toUpperCase()}</Text>
               {status && !loading ? (
                 <View style={[s.statusChip, { backgroundColor: `${status.color}22` }]}>
                   <Text style={[s.statusText, { color: status.color }]}>{status.label}</Text>
@@ -195,27 +204,29 @@ export default function HomeScreen() {
               const intPart = netAbs.split('.')[0];
               const decPart = netAbs.split('.')[1];
               const sign    = net >= 0 ? `+${sym}` : `-${sym}`;
+              const whole   = `${sign}${parseInt(intPart, 10).toLocaleString()}`;
+              const size    = fitSize(`${whole}.${decPart}`, screenW - 36 - 40, 44, 22);
               return (
-                <Text numberOfLines={1} adjustsFontSizeToFit style={[s.heroAmount, { color: netColor }]}>
-                  {sign}{parseInt(intPart, 10).toLocaleString()}
-                  <Text style={s.heroCents}>.{decPart}</Text>
+                <Text numberOfLines={1} style={[s.heroAmount, { color: netColor, fontSize: size, lineHeight: Math.round(size * 1.15) }]}>
+                  {whole}
+                  <Text style={[s.heroCents, { fontSize: Math.round(size * 0.55) }]}>.{decPart}</Text>
                 </Text>
               );
             })()}
             <View style={s.tiles}>
-              <View style={s.tile}>
+              <View style={[s.tile, compact && s.tileCompact]}>
                 <View style={s.tileHead}>
                   <View style={[s.tileIcon, { backgroundColor: 'rgba(74,222,128,0.16)' }]}><MaterialIcons name="south-west" size={12} color="#4ADE80" /></View>
                   <Text style={[s.tileLabel, { color: dim }]}>INCOME</Text>
                 </View>
-                <Text style={s.tileVal}>{money(summary?.totals.income ?? 0)}</Text>
+                <Text numberOfLines={1} style={[s.tileVal, { fontSize: tileFont }]}>{money(summary?.totals.income ?? 0)}</Text>
               </View>
-              <View style={s.tile}>
+              <View style={[s.tile, compact && s.tileCompact]}>
                 <View style={s.tileHead}>
                   <View style={[s.tileIcon, { backgroundColor: 'rgba(255,157,154,0.16)' }]}><MaterialIcons name="north-east" size={12} color="#FF9D9A" /></View>
                   <Text style={[s.tileLabel, { color: dim }]}>SPENT</Text>
                 </View>
-                <Text style={s.tileVal}>{money(summary?.totals.expense ?? budget?.spent ?? 0)}</Text>
+                <Text numberOfLines={1} style={[s.tileVal, { fontSize: tileFont }]}>{money(summary?.totals.expense ?? budget?.spent ?? 0)}</Text>
               </View>
             </View>
             {summary && !isFamily && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
@@ -234,14 +245,14 @@ export default function HomeScreen() {
             ] as const).map(a => (
               <TouchableOpacity
                 key={a.label}
-                style={[s.quickPill, { backgroundColor: theme.surface }]}
+                style={[s.quickPill, compact && s.quickPillCompact, { backgroundColor: theme.surface }]}
                 activeOpacity={0.75}
                 onPress={() => router.push(a.route as any)}
               >
                 <View style={[s.quickIcon, { backgroundColor: a.bg }]}>
                   <MaterialIcons name={a.icon} size={18} color={a.fg} />
                 </View>
-                <Text style={[s.quickLabel, { color: theme.text }]}>{a.label}</Text>
+                <Text numberOfLines={1} style={[s.quickLabel, compact && { fontSize: 12 }, { color: theme.text }]}>{a.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -395,20 +406,22 @@ const s = StyleSheet.create({
 
   hero:       { marginHorizontal: 18, marginTop: 16, borderRadius: 30, padding: 20, paddingBottom: 16, overflow: 'hidden' },
   heroTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroLabel:  { fontSize: 11, letterSpacing: 0.8, fontWeight: '600' },
-  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
+  heroLabel:  { flex: 1, paddingRight: 8, fontSize: 11, letterSpacing: 0.8, fontWeight: '600' },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, flexShrink: 0 },
   statusText: { fontSize: 11, fontWeight: '600' },
   heroAmount: { fontSize: 44, fontWeight: '800', marginTop: 6, marginBottom: 14 },
   heroCents:  { fontSize: 24, fontWeight: '500', opacity: 0.8 },
   tiles:      { flexDirection: 'row', gap: 10 },
   tile:       { flex: 1, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 14, paddingVertical: 12 },
+  tileCompact:{ paddingHorizontal: 12, paddingVertical: 10 },
   tileHead:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
   tileIcon:   { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   tileLabel:  { fontSize: 11, letterSpacing: 0.5 },
   tileVal:    { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
 
   quickWrap:  { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 14, marginBottom: 14 },
-  quickPill:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingRight: 10, borderRadius: 99 },
+  quickPill:  { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingRight: 10, borderRadius: 99 },
+  quickPillCompact: { flexDirection: 'column', gap: 6, paddingVertical: 10, paddingHorizontal: 4, borderRadius: 22 },
   quickIcon:  { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   quickLabel: { fontSize: 13, fontWeight: '600' },
 

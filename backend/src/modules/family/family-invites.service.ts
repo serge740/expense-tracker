@@ -154,7 +154,9 @@ export class FamilyInvitesService {
   /** Every rule about whether this person may use this invite right now. Throws the matching error. */
   private async check(clientId: string, lookup: InviteLookup, db: any) {
     if (this.limiter.isLocked(clientId)) throw errors.tooManyAttempts();
-    const client = await this.families.assertVerified(clientId, db);     // before looking anything up, so nothing is revealed to unverified accounts
+    // Joining needs no email or phone verification (only an active account). An invite made for one specific email or
+    // phone still checks that identity below.
+    const client = await this.families.assertVerified(clientId, db, { requireVerified: false });
 
     const token = normaliseToken(lookup?.token);
     const code = normaliseCode(lookup?.code);

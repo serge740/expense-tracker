@@ -10,6 +10,9 @@ export interface DebtPayment {
   date: string;
   walletId: string | null;
   note: string | null;
+  /** Optional proof of payment kept with it. */
+  receiptUrl?: string | null;
+  receiptReportUrl?: string | null;
 }
 
 /** OPEN has a balance; SETTLED was paid in full; WRITTEN_OFF (credit) / FORGIVEN (debt) closed with the remainder dropped. */
@@ -135,7 +138,7 @@ export const updateDebt = (id: string, data: {
 }): Promise<Debt> =>
   api.patch(`/debts/${id}`, data).then(r => r.data);
 
-export const addDebtPayment = (id: string, data: { amount: number; walletId?: string; date?: string; note?: string }): Promise<Debt> =>
+export const addDebtPayment = (id: string, data: { amount: number; walletId?: string; date?: string; note?: string; receiptUrl?: string; receiptReportUrl?: string }): Promise<Debt> =>
   api.post(`/debts/${id}/payments`, data).then(r => r.data);
 
 export const removeDebtPayment = (id: string, paymentId: string): Promise<Debt> =>

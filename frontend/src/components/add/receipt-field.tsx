@@ -16,7 +16,8 @@ interface Props {
   fileName: string | null;
   /** The receipt is being read and saved. */
   analyzing: boolean;
-  onScan: () => void;
+  /** Leave out where scanning does not apply (a loan payment only keeps the proof). */
+  onScan?: () => void;
   onCamera: () => void;
   onFile: () => void;
   onRemove: () => void;
@@ -53,7 +54,7 @@ export function ReceiptField({ attached, previewUri, isImage, fileName, analyzin
       </TouchableOpacity>
 
       <OptionSheet visible={open} title={t('add.receipt')} onClose={() => setOpen(false)}>
-        <OptionRow testID="receipt-scan" tile={<Tile icon="document-scanner" color="#FFFFFF" bg={theme.primary} />} title={t('add.scanReceipt')} sub={t('receipt.scanSub')} onPress={pick(onScan)} />
+        {onScan && <OptionRow testID="receipt-scan" tile={<Tile icon="document-scanner" color="#FFFFFF" bg={theme.primary} />} title={t('add.scanReceipt')} sub={t('receipt.scanSub')} onPress={pick(onScan)} />}
         <OptionRow testID="receipt-camera" tile={<Tile icon="photo-camera" color={theme.primary} bg={theme.primaryBg} />} title={t('add.takePhoto')} sub={t('receipt.cameraSub')} onPress={pick(onCamera)} />
         <OptionRow testID="receipt-file" tile={<Tile icon="insert-drive-file" color={theme.primary} bg={theme.primaryBg} />} title={t('add.chooseFile')} sub={t('receipt.fileSub')} onPress={pick(onFile)} />
         {attached && (

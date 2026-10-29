@@ -411,6 +411,8 @@ model DebtPayment {
   walletId      String?
   transactionId String?
   note          String?
+  receiptUrl       String?
+  receiptReportUrl String?
   createdAt     DateTime @default(now())
 
   @@index([debtId])
