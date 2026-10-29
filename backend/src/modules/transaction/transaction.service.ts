@@ -12,6 +12,9 @@ import { Scope, assertCanEditTransaction, assertScopeCan, isFamily, personalScop
 import { displayName } from '../family/family.service';
 import { errors } from '../family/family-errors';
 
+/** Who wrote each row of a family list, and which one is the person asking (so the app can show "you" and know what they may edit). */
+interface Authors { names: Map<string, string>; me: string }
+
 /** The only fields an edit can change. */
 const EDITABLE = ['type', 'category', 'title', 'subCategory', 'description', 'amount', 'date', 'walletId', 'receiptUrl', 'receiptReportUrl'] as const;
 
@@ -364,11 +367,11 @@ export class TransactionService {
     return { success: true };
   }
 
-  private mapTx(t: { id: string; clientId?: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null; debtId?: string | null; debtRole?: string | null }, authors?: Map<string, string>) {
+  private mapTx(t: { id: string; clientId?: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null; debtId?: string | null; debtRole?: string | null }, authors?: Authors) {
     const raw = Number(t.amount);
     return {
       // In a family every row says who added it; Personal rows are all your own, so nothing is added there.
-      ...(authors && t.clientId ? { author: { clientId: t.clientId, name: authors.get(t.clientId) ?? 'Former member' } } : {}),
+      ...(authors && t.clientId ? { author: { clientId: t.clientId, name: authors.names.get(t.clientId) ?? 'Former member', isYou: t.clientId === authors.me } } : {}),
       id: t.id,
       type: t.type,
       category: t.category,
@@ -404,10 +407,11 @@ export class TransactionService {
   }
 
   /** Names of the people who wrote these rows, for a family only. */
-  private async authorsOf(scope: Scope, rows: Array<{ clientId: string }>): Promise<Map<string, string> | undefined> {
-    if (!isFamily(scope) || !rows.length) return isFamily(scope) ? new Map() : undefined;
+  private async authorsOf(scope: Scope, rows: Array<{ clientId: string }>): Promise<Authors | undefined> {
+    if (!isFamily(scope)) return undefined;
+    if (!rows.length) return { names: new Map(), me: scope.clientId };
     const ids = [...new Set(rows.map(r => r.clientId))];
     const people = await this.prisma.client.findMany({ where: { id: { in: ids } }, select: { id: true, firstName: true, lastName: true } });
-    return new Map(people.map(c => [c.id, displayName(c)]));
+    return { names: new Map(people.map(c => [c.id, displayName(c)])), me: scope.clientId };
   }
 }

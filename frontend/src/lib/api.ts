@@ -5,6 +5,7 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import ENV from './env';
 import { storage } from './storage';
+import { FAMILY_HEADER, clearScopeOnSessionLoss, familyHeaderFor, handleScopeError } from '@/utils/family-scope-link';
 
 export const ACCESS_TOKEN_KEY = 'client_access_token';
 export const REFRESH_TOKEN_KEY = 'client_refresh_token';
@@ -19,6 +20,9 @@ const api = axios.create({
 api.interceptors.request.use(config => {
   const token = storage.get(ACCESS_TOKEN_KEY);
   if (token && config.headers) config.headers['Authorization'] = `Bearer ${token}`;
+  // Inside a family, the routes that understand it are told which one. No header always means Personal.
+  const family = familyHeaderFor(config.url);
+  if (family && config.headers) config.headers[FAMILY_HEADER] = family;
   return config;
 });
 
@@ -42,6 +46,8 @@ export const setSessionLostHandler = (fn: (() => void) | null) => { onSessionLos
 api.interceptors.response.use(
   res => res,
   async error => {
+    // "You are not a member of that family (any more)": the scope provider switches back to Personal.
+    if (handleScopeError(error)) return Promise.reject(error);
     const original: AxiosRequestConfig & { _retry?: boolean } = error.config ?? {};
     const is401 = error.response?.status === 401;
     const isRefreshUrl = original.url?.includes('/refresh');
@@ -72,6 +78,7 @@ api.interceptors.response.use(
         drainQueue(refreshErr, null);
         storage.remove(ACCESS_TOKEN_KEY);
         storage.remove(REFRESH_TOKEN_KEY);
+        clearScopeOnSessionLoss();      // a saved family scope belongs to a login that no longer exists
         onSessionLost?.();
         return Promise.reject(refreshErr);
       } finally {

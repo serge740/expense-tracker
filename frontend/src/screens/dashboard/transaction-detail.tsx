@@ -7,6 +7,10 @@ import { router, useLocalSearchParams } from '@/router/router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { deleteTransaction, CATEGORY_ICON, CATEGORY_LABEL, CategorySlug } from '@/services/transaction.service';
+import { useScope } from '@/context/scope-context';
+import { useI18n } from '@/context/language-context';
+import { canEditTransaction } from '@/utils/family-permissions';
+import { errorMessage } from '@/utils/family-errors';
 import { useCurrency } from '@/context/currency-context';
 import { ImageViewerModal } from '@/components/image-viewer-modal';
 import { downloadFromUrl, extensionOf } from '@/lib/download';
@@ -27,6 +31,8 @@ export default function TransactionDetailScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
   const sym = currency.symbol;
+  const scope = useScope();
+  const { t: tr } = useI18n();
   const [deleting,    setDeleting]    = useState(false);
   const [viewerOpen,  setViewerOpen]  = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -36,12 +42,16 @@ export default function TransactionDetailScreen() {
     id: string; type: string; category: string; title: string;
     subCategory: string; description: string; amount: string; date: string;
     walletId: string; receiptUrl: string; receiptReportUrl: string;
+    authorId?: string; authorName?: string; authorIsYou?: string;
   }>();
 
   const { id, type, category, title, subCategory, description, walletId, receiptUrl, receiptReportUrl } = params;
   const amount   = parseFloat(params.amount ?? '0');
   const date     = new Date(params.date ?? Date.now());
   const isIncome = type === 'INCOME';
+  // Inside a family: who added it, and whether this person may change it (their own, with the right role; another person's, owner and admins only).
+  const author = scope.isFamily && params.authorId ? { name: params.authorName ?? '', isYou: params.authorIsYou === '1' } : null;
+  const mayDelete = !scope.isFamily || canEditTransaction(scope.role, !!author?.isYou);
 
   const cat     = (category ?? 'other') as CategorySlug;
   const cfg     = CATEGORY_COLOR[cat] ?? { color: '#94A3B8', bg: 'rgba(148,163,184,0.15)' };
@@ -91,7 +101,7 @@ export default function TransactionDetailScreen() {
               await deleteTransaction(id);
               router.back();
             } catch (e: any) {
-              Alert.alert('Error', e?.response?.data?.message || 'Could not delete transaction.');
+              Alert.alert('Error', errorMessage(e, 'Could not delete transaction.', tr));
               setDeleting(false);
             }
           },
@@ -202,6 +212,12 @@ export default function TransactionDetailScreen() {
             </>
           )}
           <View style={[s.sep, { backgroundColor: theme.border }]} />
+          {author ? (
+            <>
+              <DetailRow icon="person" label={tr('family.tx.by')} value={author.isYou ? `${author.name} (${tr('family.tx.you')})` : author.name} color={theme.primary} theme={theme} />
+              <View style={[s.sep, { backgroundColor: theme.border }]} />
+            </>
+          ) : null}
           <DetailRow icon="calendar-today" label="Date" value={dateStr} color={theme.primary} theme={theme} />
           <View style={[s.sep, { backgroundColor: theme.border }]} />
           <DetailRow icon="access-time" label="Time" value={timeStr} color={theme.primary} theme={theme} />
@@ -219,8 +235,11 @@ export default function TransactionDetailScreen() {
           )}
         </View>
 
-        {/* Delete button */}
+        {/* Delete button (in a family only where the role allows it) */}
+        {!mayDelete ? <Text testID="detail-not-yours" style={{ color: theme.textMuted, fontSize: 12.5, textAlign: 'center', marginTop: 18, lineHeight: 18 }}>{tr('family.tx.notYours')}</Text> : null}
+        {mayDelete ? (
         <TouchableOpacity
+          testID="detail-delete"
           style={s.deleteBtn}
           onPress={handleDelete}
           disabled={deleting}
@@ -234,6 +253,7 @@ export default function TransactionDetailScreen() {
               </>
           }
         </TouchableOpacity>
+        ) : null}
 
         <View style={{ height: 32 }} />
       </ScrollView>

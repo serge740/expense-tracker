@@ -5,6 +5,7 @@ import { Text } from '@/components/text';
 import { MaterialIcons } from '@/rn';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Transaction, CATEGORY_ICON, deleteTransaction } from '@/services/transaction.service';
+import { errorMessage } from '@/utils/family-errors';
 import { useI18n } from '@/context/language-context';
 import { categoryOf, categoryLabelKey } from '@/constants/categories';
 import { useCurrency } from '@/context/currency-context';
@@ -58,7 +59,7 @@ export function TransactionDetailModal({ visible, transaction, onClose, onDelete
               onDeleted(transaction.id);
               onClose();
             } catch (e: any) {
-              Alert.alert(t('common.error'), e?.response?.data?.message || t('txd.errDelete'));
+              Alert.alert(t('common.error'), errorMessage(e, t('txd.errDelete'), t));
             } finally {
               setDeleting(false);
             }

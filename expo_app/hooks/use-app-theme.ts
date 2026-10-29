@@ -1,4 +1,6 @@
 import { useThemePreference } from '@/context/theme-context';
+import { useScope } from '@/context/scope-context';
+import { FAMILY_DARK, FAMILY_LIGHT } from '@/constants/family-theme';
 
 export interface AppTheme {
   background:    string;
@@ -63,7 +65,13 @@ const dark: AppTheme = {
   isDark:        true,
 };
 
+const familyLight: AppTheme = { ...light, ...FAMILY_LIGHT };
+const familyDark: AppTheme = { ...dark, ...FAMILY_DARK };
+
+/** The app's colours. Inside a family the brand teal becomes the family purple, so the two spaces are never confused. */
 export function useAppTheme(): AppTheme {
   const { resolvedScheme } = useThemePreference();
-  return resolvedScheme === 'dark' ? dark : light;
+  const { isFamily } = useScope();
+  if (resolvedScheme === 'dark') return isFamily ? familyDark : dark;
+  return isFamily ? familyLight : light;
 }

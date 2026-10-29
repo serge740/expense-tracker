@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet"><style>body{margin:0;background:#050b0e;font-family:Poppins,sans-serif;display:flex;justify-content:center;padding:24px 0}a{color:#5bb8d6}a:hover{color:#8fd3e8}.sc::-webkit-scrollbar{display:none}</style></helmet>
+<div style="position:relative;width:390px;height:844px;border-radius:40px;background:#0a161c;overflow:hidden;box-shadow:0 0 0 8px #151f24,0 30px 80px #000a;color:#e8f1f4;font-family:Poppins,sans-serif">
+<div class="sc" style="height:100%;overflow-y:auto;padding:20px 18px 130px;box-sizing:border-box;scrollbar-width:none">
+
+<div style="display:flex;align-items:center;gap:12px">
+<div style="width:46px;height:46px;border-radius:50%;background:#1b3a46;border:2px solid #5bb8d6;display:flex;align-items:center;justify-content:center;font-weight:600;color:#5bb8d6">I</div>
+<div style="flex:1"><div style="font-size:11px;letter-spacing:.8px;color:#7d98a3">GOOD MORNING</div><div style="font-size:19px;font-weight:600;line-height:1.2">Ishimwe</div></div>
+<div style="width:42px;height:42px;border-radius:50%;background:#14282f;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8f1f4" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg></div>
+<div style="position:relative;width:42px;height:42px;border-radius:50%;background:#14282f;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8f1f4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17V11a6 6 0 0112 0v6l2 2H4zM10 21h4"></path></svg><span style="position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:#ff9d9a;border:2px solid #14282f"></span></div>
+</div>
+
+<div style="margin-top:20px;border-radius:30px;padding:22px 20px 18px;background:radial-gradient(circle at 90% 0%,#1d3b47 0,#112730 45%,#0d1e25 100%);border:1px solid #1f3a45;position:relative;overflow:hidden">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;letter-spacing:.8px;color:#8aa6b1">OCTOBER NET</span><span style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:99px;background:#ff9d9a22;color:#ff9d9a">▼ Over budget</span></div>
+<div style="margin-top:6px;font-size:46px;font-weight:700;color:#ff9d9a;letter-spacing:-1px;line-height:1.1">-$200<span style="font-size:24px;font-weight:500;opacity:.8">.00</span></div>
+<svg viewBox="0 0 320 54" style="width:100%;height:54px;margin-top:8px"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9d9a" stop-opacity=".35"></stop><stop offset="1" stop-color="#ff9d9a" stop-opacity="0"></stop></linearGradient></defs><path d="M0 40 C40 40 50 38 80 36 S130 40 160 30 S230 34 250 14 S300 10 320 8 V54 H0Z" fill="url(#g)"></path><path d="M0 40 C40 40 50 38 80 36 S130 40 160 30 S230 34 250 14 S300 10 320 8" fill="none" stroke="#ff9d9a" stroke-width="2.5" stroke-linecap="round"></path><circle cx="320" cy="8" r="4.5" fill="#ff9d9a"></circle></svg>
+<div style="display:flex;gap:10px;margin-top:10px">
+<div style="flex:1;border-radius:18px;background:#0a161c99;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#8aa6b1"><span style="width:18px;height:18px;border-radius:50%;background:#4ade8026;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:11px">↓</span>INCOME</div><div style="font-size:20px;font-weight:600;margin-top:4px">$0</div></div>
+<div style="flex:1;border-radius:18px;background:#0a161c99;padding:12px 14px"><div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#8aa6b1"><span style="width:18px;height:18px;border-radius:50%;background:#ff9d9a26;color:#ff9d9a;display:flex;align-items:center;justify-content:center;font-size:11px">↑</span>SPENT</div><div style="font-size:20px;font-weight:600;margin-top:4px">$200</div></div>
+</div>
+<div style="margin-top:10px;border-radius:18px;background:#0a161c99;padding:10px 14px;display:flex;align-items:center;gap:12px">
+<div style="flex:1"><div style="font-size:13px;font-weight:500">Include loans &amp; debts</div><div style="font-size:11px;color:#7d98a3;line-height:1.4;margin-top:2px">Spent 200 · received 0. Borrowed 10,000 is never income.</div></div>
+<div onClick="{{ toggle }}" style="cursor:pointer;width:50px;height:30px;border-radius:99px;background:#4ade80;position:relative;flex:none"><div style="position:absolute;top:3px;left:23px;width:24px;height:24px;border-radius:50%;background:#fff"></div></div>
+</div>
+</div>
+
+<div style="display:flex;gap:10px;margin-top:14px">
+<div style="flex:1;display:flex;align-items:center;gap:8px;padding:6px 14px 6px 6px;border-radius:99px;background:#14282f;cursor:pointer" style-hover="background:#1a3640"><span style="width:34px;height:34px;border-radius:50%;background:#5bb8d6;color:#08222b;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">⇄</span><span style="font-size:13px;font-weight:600">Exchange</span></div>
+<div style="flex:1;display:flex;align-items:center;gap:8px;padding:6px 14px 6px 6px;border-radius:99px;background:#14282f;cursor:pointer"><span style="width:34px;height:34px;border-radius:50%;background:#4ade80;color:#08222b;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700">+</span><span style="font-size:13px;font-weight:600">Add</span></div>
+<div style="flex:1;display:flex;align-items:center;gap:8px;padding:6px 14px 6px 6px;border-radius:99px;background:#14282f;cursor:pointer"><span style="width:34px;height:34px;border-radius:50%;background:#2c4c59;color:#5bb8d6;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="#5bb8d6"><rect x="3" y="12" width="4" height="9" rx="1"></rect><rect x="10" y="4" width="4" height="17" rx="1"></rect><rect x="17" y="9" width="4" height="12" rx="1"></rect></svg></span><span style="font-size:13px;font-weight:600">Reports</span></div>
+</div>
+
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:26px 2px 12px"><span style="font-size:18px;font-weight:600">Loans &amp; debts</span><a href="#" style="font-size:13px;font-weight:600;text-decoration:none">Manage</a></div>
+<div style="display:flex;gap:10px">
+<div style="flex:1.1;border-radius:24px;padding:16px;background:linear-gradient(160deg,#3a1d24 0,#1a1f27 70%);border:1px solid #4a252c">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;color:#c9a0a4;display:flex;align-items:center;gap:6px"><span style="width:7px;height:7px;border-radius:50%;background:#f0524f"></span>You owe</span><span style="width:26px;height:26px;border-radius:50%;background:#f0524f22;color:#ff9d9a;display:flex;align-items:center;justify-content:center;font-size:13px">↗</span></div>
+<div style="font-size:23px;font-weight:700;color:#ff8a86;margin-top:10px;letter-spacing:-.5px">$4,800</div>
+<div style="height:5px;border-radius:9px;background:#ffffff14;margin-top:10px"><div style="width:35%;height:100%;border-radius:9px;background:#f0524f"></div></div>
+<div style="font-size:11px;color:#b69ba0;margin-top:8px">1 open · next Nov 11</div></div>
+<div style="flex:1;border-radius:24px;padding:16px;background:#5bb8d6;color:#07202a;display:flex;flex-direction:column;justify-content:space-between">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;font-weight:600;letter-spacing:.5px">NET WORTH</span><span style="width:26px;height:26px;border-radius:50%;background:#07202a;color:#5bb8d6;display:flex;align-items:center;justify-content:center;font-size:13px">↗</span></div>
+<div><div style="font-size:23px;font-weight:700;letter-spacing:-.5px;margin-top:10px">$95,200</div><div style="font-size:11px;font-weight:500;margin-top:6px;opacity:.8">USD · details ▾</div></div></div>
+</div>
+
+<div style="margin-top:12px;border-radius:22px;padding:14px 16px;background:#0f2128;border:1.5px dashed #2a4a57;display:flex;align-items:center;gap:12px;cursor:pointer">
+<svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="#1f3a45" stroke-width="5"></circle><circle cx="20" cy="20" r="16" fill="none" stroke="#5bb8d6" stroke-width="5" stroke-dasharray="100.5" stroke-dashoffset="75" stroke-linecap="round" transform="rotate(-90 20 20)"></circle></svg>
+<div style="flex:1"><div style="font-size:14px;font-weight:600;color:#5bb8d6">Set a monthly budget</div><div style="font-size:11px;color:#7d98a3">Track your spending against a limit</div></div><span style="color:#7d98a3;font-size:18px">›</span></div>
+
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:26px 2px 12px"><span style="font-size:18px;font-weight:600">Recent</span><a href="#" style="font-size:13px;font-weight:600;text-decoration:none">See all</a></div>
+<div class="sc" style="display:flex;gap:8px;overflow-x:auto;margin:0 -18px;padding:0 18px;scrollbar-width:none">
+<sc-for list="{{ chips }}" as="c" hint-placeholder-count="6"><div onClick="{{ c.pick }}" style="flex:none;cursor:pointer;padding:8px 16px;border-radius:99px;font-size:13px;font-weight:600;background:{{ c.bg }};color:{{ c.fg }}">{{ c.label }}</div></sc-for>
+</div>
+<div style="margin-top:14px;border-radius:24px;background:#0f2128;padding:4px 16px">
+<sc-for list="{{ txs }}" as="t" hint-placeholder-count="2"><div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:{{ t.bd }}">
+<div style="width:44px;height:44px;border-radius:50%;background:#1b3a46;display:flex;align-items:center;justify-content:center;color:#5bb8d6;font-size:18px">{{ t.icon }}</div>
+<div style="flex:1"><div style="font-size:15px;font-weight:600">{{ t.title }}</div><div style="font-size:12px;color:#7d98a3">{{ t.sub }}</div></div>
+<div style="text-align:right"><div style="font-size:15px;font-weight:700;color:{{ t.color }}">{{ t.amt }}</div><div style="font-size:10px;font-weight:500;margin-top:3px;padding:2px 8px;border-radius:99px;display:inline-block;background:{{ t.tagbg }};color:{{ t.color }}">{{ t.tag }}</div></div>
+</div></sc-for>
+</div>
+</div>
+
+<div style="position:absolute;left:14px;right:14px;bottom:14px;height:68px;border-radius:99px;background:#122730ee;border:1px solid #1f3a45;backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-around;padding:0 10px">
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:#5bb8d6;font-size:10px;font-weight:600;width:56px"><span style="font-size:19px">⌂</span>Home</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:#6d8792;font-size:10px;font-weight:500;width:56px"><span style="font-size:17px">▭</span>Wallets</div>
+<div style="width:56px;height:56px;border-radius:50%;background:#5bb8d6;color:#07202a;font-size:30px;font-weight:300;display:flex;align-items:center;justify-content:center;margin-top:-30px;box-shadow:0 0 0 6px #0a161c,0 8px 20px #5bb8d655;cursor:pointer">+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:#6d8792;font-size:10px;font-weight:500;width:56px"><span style="font-size:17px">♡</span>Loans</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:2px;color:#6d8792;font-size:10px;font-weight:500;width:56px"><span style="font-size:17px">⚙</span>Settings</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { chip: 'All' };
+  renderVals() {
+    const labels = ['All','Income','Expense','Loan','Debt','Scheduled'];
+    const chips = labels.map(l => {
+      const on = this.state.chip === l;
+      return { label: l, bg: on ? '#5bb8d6' : '#14282f', fg: on ? '#07202a' : '#8aa6b1', pick: () => this.setState({ chip: l }) };
+    });
+    const all = [
+      { type:'Loan', icon:'♡', title:'Repaid mable', sub:'Loans · Yesterday', amt:'-$200.00', color:'#ff8a86', tag:'Loan payment', tagbg:'#f0524f26' },
+      { type:'Debt', icon:'♡', title:'Borrowed from mable', sub:'Loans · Oct 12', amt:'+$5,000.00', color:'#4ade80', tag:'Borrowed', tagbg:'#4ade8022' },
+    ];
+    const c = this.state.chip;
+    const f = all.filter(t => c === 'All' || t.type === c || (c === 'Expense' && t.amt[0] === '-') || (c === 'Income' && t.amt[0] === '+' && false));
+    const txs = f.map((t, i) => ({ ...t, bd: i < f.length - 1 ? '1px solid #1b333d' : 'none' }));
+    return { chips, txs, toggle: () => {} };
+  }
+}
+</script>
+</body>
+</html>

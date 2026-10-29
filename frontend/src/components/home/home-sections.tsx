@@ -169,12 +169,13 @@ export function NetWorthRows({ netWorth, hidden }: { netWorth: NetWorth[]; hidde
 
 // ── Feed chips ───────────────────────────────────────────────────────────────
 
-export function FeedChips({ value, onChange }: { value: FeedView; onChange: (v: FeedView) => void }) {
+/** `only` limits the chips shown (a family has no loan, debt or scheduled rows). */
+export function FeedChips({ value, onChange, only }: { value: FeedView; onChange: (v: FeedView) => void; only?: FeedView[] }) {
   const theme = useAppTheme();
   const { t } = useI18n();
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-      {FEED_CHIPS.map(c => {
+      {FEED_CHIPS.filter(c => !only || only.includes(c.id)).map(c => {
         const on = c.id === value;
         return (
           <TouchableOpacity key={c.id} onPress={() => onChange(c.id)} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ selected: on }}

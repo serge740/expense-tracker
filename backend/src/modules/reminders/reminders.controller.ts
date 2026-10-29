@@ -1,3 +1,4 @@
+import { PersonalOnlyGuard } from '../family/scope/personal-only.guard';
 import {
   Body, Controller, Get, HttpCode, HttpException, NotFoundException, Param, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
@@ -9,7 +10,7 @@ import { RemindersService } from './reminders.service';
 const fail = (e: any, msg: string) => new HttpException(e?.message || msg, e?.status || 400);
 
 @Controller('reminders')
-@UseGuards(ClientJwtAuthGuard)
+@UseGuards(ClientJwtAuthGuard, PersonalOnlyGuard)
 export class RemindersController {
   constructor(private readonly reminders: RemindersService) {}
 

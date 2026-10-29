@@ -1,3 +1,4 @@
+import { withPersonalOnly } from '@/components/family/personal-only-screen';
 // Ported from expo_app/app/(dashboard)/scheduled.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from '@/rn';
@@ -16,7 +17,7 @@ import { getScheduledList, getWaitingDates, Scheduled, skipOccurrence, WaitingIt
 import { describeRule, TextEnv, wallInZone } from '@/utils/recurrence-text';
 
 /** Scheduled and repeating transactions: what is waiting for an answer, and everything that is set up. */
-export default function ScheduledScreen() {
+function ScheduledScreen() {
   const theme = useAppTheme();
   const { t, locale, language, formatDate } = useI18n();
   const { prefs } = usePreferences();
@@ -172,3 +173,5 @@ const s = StyleSheet.create({
   empty:     { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyText: { fontSize: 12, textAlign: 'center', maxWidth: 270, lineHeight: 17 },
 });
+
+export default withPersonalOnly(ScheduledScreen);

@@ -11,7 +11,7 @@ import { defineConfig } from 'vitest/config';
  * this app itself, which gives the same single address.
  */
 const API_PATHS = [
-  'client-auth', 'budget', 'debts', 'devices', 'health', 'home', 'notifications', 'receipts',
+  'client-auth', 'budget', 'debts', 'devices', 'family', 'health', 'home', 'notifications', 'receipts',
   'reminders', 'reports', 'push-notifications', 'scheduled', 'subcategories', 'transactions', 'wallets', 'uploads', '.well-known', 'socket.io',
 ];
 

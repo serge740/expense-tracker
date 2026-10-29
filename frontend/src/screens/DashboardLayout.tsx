@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
 import { View } from '@/rn';
 import { useAppTheme } from '@/theme/theme-context';
 import { usePreferences } from '@/context/preferences-context';
@@ -8,6 +7,8 @@ import { PushProvider } from '@/context/push-context';
 import { SoundProvider } from '@/context/sound-context';
 import { InstallPrompt, NotificationToaster } from '@/components/push/prompts';
 import { CustomTabBar } from '@/components/custom-tab-bar';
+import { ScopeProvider } from '@/context/scope-context';
+import { ScopedOutlet } from '@/components/family/scoped-outlet';
 import { UpdateBanner } from '@/components/update-banner';
 import { ReminderModalHost } from '@/components/reminders/reminder-host';
 import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
@@ -30,13 +31,15 @@ export default function DashboardLayout() {
     <PushProvider>
       <NotificationProvider>
         <SoundProvider>
-          <View style={{ flex: 1, backgroundColor: theme.background }}>
-            <View style={{ flex: 1 }}>
-              <Outlet />
+          <ScopeProvider>
+            <View style={{ flex: 1, backgroundColor: theme.background }}>
+              <View style={{ flex: 1 }}>
+                <ScopedOutlet />
+              </View>
+              <CustomTabBar />
             </View>
-            <CustomTabBar />
-          </View>
-          <ReminderModalHost />
+            <ReminderModalHost />
+          </ScopeProvider>
           <NotificationToaster />
           <InstallPrompt />
           <UpdateBanner />

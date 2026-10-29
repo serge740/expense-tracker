@@ -1,4 +1,9 @@
 // Ported from expo_app/app/(dashboard)/index.tsx
+import { ScopePill } from '@/components/family/scope-switcher';
+import { FamilyBalanceCard } from '@/components/family/family-balance-card';
+import { MemberAvatar } from '@/components/family/member-avatar';
+import { useScope } from '@/context/scope-context';
+import { detailParams } from '@/utils/tx-nav';
 import React, { ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, RefreshControl } from '@/rn';
 import { SafeAreaView } from '@/rn';
@@ -16,7 +21,7 @@ import { PushBanner } from '@/components/push/prompts';
 import { DebtCreditCards, FeedChips, LoansBar, NeedsAttention, NetWorthRows } from '@/components/home/home-sections';
 import { useI18n } from '@/context/language-context';
 import { usePreferences } from '@/context/preferences-context';
-import { currencyEntries, needsLoansHint } from '@/utils/home';
+import { currencyEntries, needsLoansHint, type FeedView } from '@/utils/home';
 import { ROLE_TAG } from '@/utils/debt';
 import { BudgetModal } from '@/components/budget-modal';
 import { useCurrency } from '@/context/currency-context';
@@ -38,8 +43,12 @@ export default function HomeScreen() {
   const sym = currency.symbol;
   const { t: tr } = useI18n();
   const { prefs, setPref } = usePreferences();
-  const includeLoans = prefs.includeLoans;
-  const view = prefs.homeView;
+  const scope = useScope();
+  const isFamily = scope.isFamily;
+  // A family has no loans, debts or schedules: loans are always "included" (there are none) and only three chips make sense.
+  const [familyView, setFamilyView] = useState<FeedView>('all');
+  const includeLoans = isFamily ? true : prefs.includeLoans;
+  const view = isFamily ? familyView : prefs.homeView;
 
   const [firstName,      setFirstName]      = useState('');
   const [budget,         setBudget]         = useState<BudgetStatus | null>(null);
@@ -93,7 +102,7 @@ export default function HomeScreen() {
     if (it.source === 'SCHEDULED') router.push({ pathname: '/(dashboard)/scheduled', params: { id: it.scheduleId } } as any);
     else router.push({ pathname: '/(dashboard)/debts', params: { openId: it.debtId } } as any);
   };
-  const showDebtSection = !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0 || summary.scheduled.waiting > 0 || !!summary.scheduled.next);
+  const showDebtSection = !isFamily && !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0 || summary.scheduled.waiting > 0 || !!summary.scheduled.next);
 
   const pct      = budget?.percentage ?? 0;
   const pctLabel = `${Math.min(pct, 100)}% used`;
@@ -138,6 +147,7 @@ export default function HomeScreen() {
               <View>
                 <Text style={s.greeting}>GOOD MORNING</Text>
                 <Text style={s.userName}>{firstName || 'Welcome'}</Text>
+                <View style={{ marginTop: 8 }}><ScopePill onHeader /></View>
               </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
@@ -192,7 +202,7 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
-              {summary && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
+              {summary && !isFamily && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
             </View>
           </FadeInView>
         </View>
@@ -222,6 +232,8 @@ export default function HomeScreen() {
           </View>
         </FadeInView>
 
+        {isFamily ? <FamilyBalanceCard hidden={prefs.hideBalances} /> : null}
+
         {/* ── Debts, credits, scheduled, what needs you, net worth ── */}
         {showDebtSection && summary && (
           <FadeInView delay={150} slideFrom="bottom" distance={16}>
@@ -249,9 +261,11 @@ export default function HomeScreen() {
                 <Text style={[s.budgetTitle, { color: theme.text }]}>{monthName} Budget</Text>
                 <View style={s.budgetTopRight}>
                   <Text style={[s.budgetPct, { color: pct >= 100 ? '#F87171' : theme.primary }]}>{pctLabel}</Text>
-                  <TouchableOpacity onPress={() => setShowBudget(true)} style={s.editBudgetBtn} activeOpacity={0.7}>
-                    <MaterialIcons name="edit" size={14} color={theme.textMuted} />
-                  </TouchableOpacity>
+                  {scope.can('budget.set') ? (
+                    <TouchableOpacity testID="edit-budget" onPress={() => setShowBudget(true)} style={s.editBudgetBtn} activeOpacity={0.7}>
+                      <MaterialIcons name="edit" size={14} color={theme.textMuted} />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
               <View style={[s.track, { backgroundColor: theme.border }]}>
@@ -264,9 +278,10 @@ export default function HomeScreen() {
               <Text style={[s.budgetSub, { color: theme.textMuted, marginTop: 6 }]}>{tr('home.budgetNoLoans')}</Text>
             </View>
           </FadeInView>
-        ) : !loading ? (
+        ) : !loading && scope.can('budget.set') ? (
           <FadeInView delay={180} slideFrom="bottom" distance={16}>
             <TouchableOpacity
+              testID="set-budget"
               style={[s.setBudgetRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
               onPress={() => setShowBudget(true)}
               activeOpacity={0.75}
@@ -289,8 +304,8 @@ export default function HomeScreen() {
               <Text style={[s.seeAll, { color: theme.primary }]}>{tr('home.seeAll')}</Text>
             </TouchableOpacity>
           </View>
-          <FeedChips value={view} onChange={v => setPref('homeView', v)} />
-          {needsLoansHint(view, includeLoans) && (
+          <FeedChips value={view} only={isFamily ? FAMILY_FEED : undefined} onChange={v => (isFamily ? setFamilyView(v) : setPref('homeView', v))} />
+          {!isFamily && needsLoansHint(view, includeLoans) && (
             <Text style={[s.hint, { color: theme.textMuted }]}>{tr('home.loansHint')}</Text>
           )}
         </FadeInView>
@@ -310,24 +325,18 @@ export default function HomeScreen() {
               <TouchableOpacity
                 style={[s.txRow, { backgroundColor: theme.surface }]}
                 activeOpacity={0.75}
-                onPress={() => router.push({
-                  pathname: '/(dashboard)/transaction-detail',
-                  params: {
-                    id: t.id, type: t.type, category: t.category,
-                    title: t.title, subCategory: t.subCategory ?? '',
-                    description: t.description ?? '',
-                    amount: String(t.amount), date: String(t.date),
-                    walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
-                    receiptReportUrl: t.receiptReportUrl ?? '',
-                  },
-                } as any)}
+                onPress={() => router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(t) } as any)}
               >
-                <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
-                  <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={20} color={theme.primary} />
-                </View>
+                {t.author ? (
+                  <MemberAvatar id={t.author.clientId} name={t.author.name} size={40} />
+                ) : (
+                  <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
+                    <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={20} color={theme.primary} />
+                  </View>
+                )}
                 <View style={s.txText}>
                   <Text style={[s.txTitle, { color: theme.text }]}>{t.title}</Text>
-                  <Text style={[s.txSub, { color: theme.textSecondary }]}>{formatSubtitle(t)}</Text>
+                  <Text style={[s.txSub, { color: theme.textSecondary }]}>{formatSubtitle(t)}{t.author ? ` · ${t.author.isYou ? tr('family.tx.you') : t.author.name}` : ''}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 3 }}>
                   <Text style={[s.txAmount, { color: t.debtRole === 'BORROW_IN' ? theme.textSecondary : t.amount >= 0 ? theme.income : theme.expense }]}>
@@ -345,6 +354,8 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
+
+const FAMILY_FEED: FeedView[] = ['all', 'income', 'expense'];
 
 const s = StyleSheet.create({
   safe:   { flex: 1 },

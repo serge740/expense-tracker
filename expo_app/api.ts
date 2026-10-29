@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import ENV from './env';
+import { FAMILY_HEADER, clearScopeOnSessionLoss, familyHeaderFor, handleScopeError } from '@/utils/family-scope-link';
 
 const api = axios.create({
   baseURL: ENV.API_URL,
@@ -15,6 +16,9 @@ api.interceptors.request.use(async (config) => {
   if (token && config.headers) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
+  // Inside a family, the routes that understand it are told which one. No header always means Personal.
+  const family = familyHeaderFor(config.url);
+  if (family && config.headers) config.headers[FAMILY_HEADER] = family;
   return config;
 });
 
@@ -30,6 +34,8 @@ function drainQueue(err: any, token: string | null) {
 api.interceptors.response.use(
   res => res,
   async (error) => {
+    // "You are not a member of that family (any more)": the scope provider switches back to Personal.
+    if (handleScopeError(error)) return Promise.reject(error);
     const original: AxiosRequestConfig & { _retry?: boolean } = error.config ?? {};
 
     const is401 = error.response?.status === 401;
@@ -72,6 +78,7 @@ api.interceptors.response.use(
         drainQueue(refreshErr, null);
         await SecureStore.deleteItemAsync('client_access_token');
         await SecureStore.deleteItemAsync('client_refresh_token');
+        clearScopeOnSessionLoss();      // a saved family scope belongs to a login that no longer exists
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

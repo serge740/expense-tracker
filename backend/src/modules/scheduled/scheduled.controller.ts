@@ -1,3 +1,4 @@
+import { PersonalOnlyGuard } from '../family/scope/personal-only.guard';
 import {
   Body, Controller, Delete, Get, HttpCode, HttpException, Param, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
@@ -9,7 +10,7 @@ import { ConfirmOccurrenceDto, CreateScheduledDto, UpdateScheduledDto } from './
 const fail = (e: any, msg: string) => new HttpException(e?.message || msg, e?.status || 400);
 
 @Controller('scheduled')
-@UseGuards(ClientJwtAuthGuard)
+@UseGuards(ClientJwtAuthGuard, PersonalOnlyGuard)
 export class ScheduledController {
   constructor(private readonly scheduled: ScheduledService) {}
 

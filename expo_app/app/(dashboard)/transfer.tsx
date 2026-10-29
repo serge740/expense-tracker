@@ -8,6 +8,9 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { getWallets, getTransferQuote, transferBetweenWallets, Wallet } from '@/services/wallet.service';
+import { useScope } from '@/context/scope-context';
+import { ViewerCannotAdd } from '@/components/family/scope-banner';
+import { errorMessage } from '@/utils/family-errors';
 import { formatMoney, currencyByCode, useCurrency } from '@/context/currency-context';
 import { useI18n } from '@/context/language-context';
 import { tint, WALLET_TYPE_ICON } from '@/components/wallet/wallet-card';
@@ -25,6 +28,7 @@ export default function TransferScreen() {
   const { currency: mainCurrency } = useCurrency();
   const params = useLocalSearchParams<{ mode?: string; from?: string }>();
 
+  const scope = useScope();
   const [mode, setMode]       = useState<Mode>('transfer');
   const [visit, setVisit]     = useState(0);
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -122,7 +126,7 @@ export default function TransferScreen() {
         [{ text: t('tx.done'), onPress: () => router.navigate('/(dashboard)/wallets') }],
       );
     } catch (e: any) {
-      Alert.alert(t('tx.failed'), e?.response?.data?.message || t('tx.retry'));
+      Alert.alert(t('tx.failed'), errorMessage(e, t('tx.retry'), t));
     } finally {
       setSending(false);
     }
@@ -131,6 +135,15 @@ export default function TransferScreen() {
   const fromCur = from ? currencyByCode(from.currency) : null;
   const toCur = to ? currencyByCode(to.currency) : null;
   const startCurrency = wallets.find(w => w.id === params.from)?.currency ?? mainCurrency.code;
+
+  // Moving money inside a family is for people who may add to it; a Viewer only looks.
+  if (scope.isFamily && !scope.can('tx.add')) {
+    return (
+      <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
+        <ViewerCannotAdd onClose={() => (router.canGoBack() ? router.back() : router.navigate('/(dashboard)/wallets'))} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>

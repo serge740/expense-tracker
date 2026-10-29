@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { useI18n } from '@/context/language-context';
+import { useScope } from '@/context/scope-context';
 import { ComponentProps } from 'react';
 
 type IconName = ComponentProps<typeof MaterialIcons>['name'];
@@ -24,6 +25,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const theme = useAppTheme();
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  const scope = useScope();
 
   const visibleRoutes = state.routes.filter(r => VISIBLE_TABS.includes(r.name));
   const leftRoutes  = visibleRoutes.slice(0, 2);
@@ -62,15 +64,18 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     >
       {leftRoutes.map(renderTab)}
 
-      {/* FAB */}
+      {/* FAB: in a family it is only for people who may add (a Viewer only looks) */}
       <View style={styles.fabWrapper}>
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: theme.primary }]}
-          activeOpacity={0.85}
-          onPress={() => router.push('/(dashboard)/add')}
-        >
-          <MaterialIcons name="add" size={30} color="#FFFFFF" />
-        </TouchableOpacity>
+        {scope.can('tx.add') ? (
+          <TouchableOpacity
+            testID="tab-add"
+            style={[styles.fab, { backgroundColor: theme.primary }]}
+            activeOpacity={0.85}
+            onPress={() => router.push('/(dashboard)/add')}
+          >
+            <MaterialIcons name="add" size={30} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {rightRoutes.map(renderTab)}

@@ -34,6 +34,20 @@ async function main() {
     const { r, text } = await get(p);
     check(`${p} serves the web app`, r.status === 200 && text.includes('<div id="root">'), `(${r.status})`);
   }
+  // The family invite page: served like the other pages, but never cached and never leaking its address.
+  for (const p of ['/join', '/join/abcDEF123_-abcDEF123_-abcd']) {
+    const { r, text } = await get(p);
+    check(`${p} serves the web app`, r.status === 200 && text.includes('<div id="root">'), `(${r.status})`);
+    check(`${p} is never cached`, r.headers.get('cache-control') === 'no-store', r.headers.get('cache-control') ?? '');
+    check(`${p} sends no Referer onwards`, r.headers.get('referrer-policy') === 'no-referrer', r.headers.get('referrer-policy') ?? '');
+  }
+  const plainLogin = await get('/login');
+  check('other pages keep their normal headers', plainLogin.r.headers.get('referrer-policy') === null && plainLogin.r.headers.get('cache-control') === 'no-cache');
+  for (const p of ['/joinx', '/family/join', '/family/invites/preview?code=K7M2QX']) {
+    const { r, text } = await get(p);
+    check(`${p} is not the web app`, r.status === 404 && !text.includes('<div id="root">'), `(${r.status})`);
+  }
+
   const api = await get('/debts');
   check('GET /debts is still the API', api.text.includes('"api":true'));
   const post = await get('/client-auth/login', { method: 'POST' });

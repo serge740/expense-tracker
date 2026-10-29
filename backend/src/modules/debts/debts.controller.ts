@@ -1,3 +1,4 @@
+import { PersonalOnlyGuard } from '../family/scope/personal-only.guard';
 import {
   Body, Controller, Delete, Get, HttpCode, HttpException, Param, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
@@ -10,7 +11,7 @@ import { CreateDebtDto, DebtPaymentDto, InstallmentDto, UpdateDebtDto } from './
 const fail = (e: any, msg: string) => new HttpException(e?.message || msg, e?.status || 400);
 
 @Controller('debts')
-@UseGuards(ClientJwtAuthGuard)
+@UseGuards(ClientJwtAuthGuard, PersonalOnlyGuard)
 export class DebtsController {
   constructor(private readonly debts: DebtsService) {}
 

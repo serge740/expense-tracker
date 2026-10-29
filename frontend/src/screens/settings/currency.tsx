@@ -6,7 +6,7 @@ import { useSettingsBack } from '@/hooks/use-settings-back';
 import { MaterialIcons } from '@/rn';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
-import { CURRENCIES, Currency, useCurrency } from '@/context/currency-context';
+import { CURRENCIES, Currency, useCurrencySetting as useCurrency } from '@/context/currency-context';
 import { FadeInView } from '@/components/fade-in-view';
 
 export default function CurrencyScreen() {

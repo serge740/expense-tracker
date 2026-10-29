@@ -1,4 +1,4 @@
-import { isWebAppPath } from './web-app';
+import { isJoinPath, isWebAppPath, joinPageHeaders } from './web-app';
 
 describe('isWebAppPath', () => {
   it('claims the web app\'s own pages', () => {
@@ -17,9 +17,29 @@ describe('isWebAppPath', () => {
     }
   });
 
+  it('claims the family invite page, with or without a token', () => {
+    for (const p of ['/join', '/join/', '/join/abcDEF123_-abcDEF123_-abcd', '/join/abc/']) expect(isWebAppPath(p)).toBe(true);
+  });
+
+  it('does not claim look-alikes of the invite page, or the API route that joins a family', () => {
+    for (const p of ['/joinx', '/join-us', '/family/join', '/family/invites/preview', '/api/join', '/join/a/b']) expect(isWebAppPath(p)).toBe(false);
+  });
+
   it('does not mistake a path that merely starts with "app" for the web app', () => {
     expect(isWebAppPath('/apple')).toBe(false);
     expect(isWebAppPath('/application/x')).toBe(false);
+  });
+});
+
+describe('the invite page', () => {
+  it('knows its own addresses', () => {
+    expect(isJoinPath('/join')).toBe(true);
+    expect(isJoinPath('/join/tok')).toBe(true);
+    expect(isJoinPath('/login')).toBe(false);
+    expect(isJoinPath('/app/join')).toBe(false);
+  });
+  it('is never cached and never leaks its address in a Referer', () => {
+    expect(joinPageHeaders()).toEqual({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
   });
 });
 

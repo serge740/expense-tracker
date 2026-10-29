@@ -82,7 +82,7 @@ describe('family transactions', () => {
   test('a Member adds one: the family owns it, the Member is its author, the family wallet moves', async () => {
     const { w, fam, fid, house, balance } = await setup();
     const res: any = await w.transactions.create(await fam('grace'), spend(house.id, 300, 'Groceries'));
-    expect(res.author).toEqual({ clientId: 'grace', name: 'Grace Uwase' });
+    expect(res.author).toEqual({ clientId: 'grace', name: 'Grace Uwase', isYou: true });
     expect(w.db.tables.transaction[0]).toMatchObject({ clientId: 'grace', familyId: fid, walletId: house.id });
     expect(balance(house.id)).toBe(9700);
   });
@@ -139,7 +139,9 @@ describe('family transactions', () => {
     await w.transactions.create(await fam('eric'), spend(house.id, 20, 'Eric item'));
     await w.transactions.create(await personal('grace'), spend(mine.grace.id, 30, 'Grace private'));
     const list: any = await w.transactions.findAll(await fam('kevin'), { limit: 50 } as any);
-    expect(list.data.map((t: any) => [t.title, t.author.name]).sort()).toEqual([['Eric item', 'Eric Uwase'], ['Grace item', 'Grace Uwase']]);
+    expect(list.data.map((t: any) => [t.title, t.author.name, t.author.isYou]).sort()).toEqual([['Eric item', 'Eric Uwase', false], ['Grace item', 'Grace Uwase', false]]);
+    const asGrace: any = await w.transactions.findAll(await fam('grace'), { limit: 50 } as any);
+    expect(asGrace.data.map((t: any) => [t.title, t.author.isYou]).sort()).toEqual([['Eric item', false], ['Grace item', true]]);       // "you" is whoever is asking
     expect(list.total).toBe(2);
     const mineOnly: any = await w.transactions.findAll(await personal('grace'), { limit: 50 } as any);
     expect(mineOnly.data.map((t: any) => t.title)).toEqual(['Grace private']);

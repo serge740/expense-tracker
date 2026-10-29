@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { darkTheme, lightTheme, type AppTheme } from './theme';
 import { storage } from '@/lib/storage';
+import { useScope } from '@/context/scope-context';
+import { FAMILY_DARK, FAMILY_LIGHT } from '@/constants/family-theme';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -42,6 +44,13 @@ export function ThemePreferenceProvider({ children }: { children: ReactNode }) {
 
 export const useThemePreference = () => useContext(ThemeContext);
 
+const familyLight: AppTheme = { ...lightTheme, ...FAMILY_LIGHT };
+const familyDark: AppTheme = { ...darkTheme, ...FAMILY_DARK };
+
+/** The app's colours. Inside a family the brand teal becomes the family purple, so the two spaces are never confused. */
 export function useAppTheme(): AppTheme {
-  return useThemePreference().resolvedScheme === 'dark' ? darkTheme : lightTheme;
+  const dark = useThemePreference().resolvedScheme === 'dark';
+  const { isFamily } = useScope();
+  if (dark) return isFamily ? familyDark : darkTheme;
+  return isFamily ? familyLight : lightTheme;
 }

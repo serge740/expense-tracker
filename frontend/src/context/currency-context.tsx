@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { storage } from '@/lib/storage';
+import { useScope } from '@/context/scope-context';
 
 export interface Currency {
   code: string;
@@ -67,8 +68,17 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useCurrency() {
+/** The person's own setting, whatever space they are in (for the Settings screens). */
+export function useCurrencySetting() {
   return useContext(CurrencyContext);
+}
+
+/** What amounts are shown in: inside a family that is the family's currency, otherwise the person's own. */
+export function useCurrency() {
+  const own = useContext(CurrencyContext);
+  const { isFamily, family } = useScope();
+  if (!isFamily || !family?.currency) return own;
+  return { ...own, currency: currencyByCode(family.currency) };
 }
 
 // Currencies normally shown without decimals.

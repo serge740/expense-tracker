@@ -2,6 +2,7 @@
  * Development only. Replaces the network with sample data so every screen can be looked at without a backend
  * or a database: open any address with ?mock=1 (remembered for the tab). Never part of a production build.
  */
+import { respondFamily, type MockError } from './mock-family';
 import api from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { endpointHash } from '@/lib/push';
@@ -244,9 +245,19 @@ export function enableMock() {
     await new Promise(r => setTimeout(r, 40));
     const path = (config.url ?? '').split('?')[0];
     const body = typeof config.data === 'string' ? JSON.parse(config.data || '{}') : (config.data ?? {});
-    const data = path.startsWith('/push-notifications')
-      ? await respondPush(config.method ?? 'get', path, body)
-      : respond(config.method ?? 'get', config.url ?? '', (config.params ?? {}) as Record<string, any>);
+    const params = (config.params ?? {}) as Record<string, any>;
+    // The family header, exactly as the real server would see it (the request interceptor has already added it).
+    const header = config.headers && typeof (config.headers as any).get === 'function' ? (config.headers as any).get('X-Family-Id') : (config.headers as any)?.['X-Family-Id'];
+    const familyAnswer = respondFamily(config.method ?? 'get', path, params, body, typeof header === 'string' ? header : undefined);
+    const data = familyAnswer !== undefined
+      ? familyAnswer
+      : path.startsWith('/push-notifications')
+        ? await respondPush(config.method ?? 'get', path, body)
+        : respond(config.method ?? 'get', config.url ?? '', params);
+    if (data && typeof data === 'object' && '__error' in (data as object)) {
+      const e = (data as MockError).__error;
+      throw Object.assign(new Error(`Request failed with status code ${e.status}`), { isAxiosError: true, config, response: { status: e.status, statusText: String(e.status), data: e.data, headers: {}, config } });
+    }
     return { data, status: 200, statusText: 'OK', headers: {}, config };
   };
 }

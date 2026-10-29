@@ -44,6 +44,18 @@ const click = label => ev(`(() => {
     : nodes.filter(n => (n.getAttribute('aria-label') || n.textContent || '').trim().toLowerCase() === want).pop();
   if (!hit) return false; hit.click(); return true;
 })()`);
+/** Clicks a button whose label contains some text (the scope pill's label includes the current space's name). */
+const clickContaining = sub => ev(`(() => {
+  const want = ${JSON.stringify(sub)}.toLowerCase();
+  const hit = [...document.querySelectorAll('[role=button],button,a')].filter(n => n.getBoundingClientRect().width > 0)
+    .find(n => (n.getAttribute('aria-label') || n.textContent || '').toLowerCase().includes(want));
+  if (!hit) return false; hit.click(); return true;
+})()`);
+/** Clicks a tab-bar tab by its label. */
+const clickTab = label => ev(`(() => {
+  const hit = [...document.querySelectorAll('[role=tab]')].find(n => n.getAttribute('aria-label') === ${JSON.stringify(label)});
+  if (!hit) return false; hit.click(); return true;
+})()`);
 const go = async (label, expectPath, expectText) => {
   const clicked = await click(label);
   const shown = clicked && await seen(expectText);
@@ -85,6 +97,61 @@ try {
     await send('Page.navigate', { url: `${origin}${url}` });
     check(`deep link ${url}`, await seen(needle), await path());
   }
+
+  // ── Family: the switcher, the screens that follow the space, the hub, and the invite page ──
+  const TOKEN = 'abcDEF123_-abcDEF123_-abcd';
+  await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
+  check('Home in Personal shows the scope pill and the loan switch', await seen('Include loans') && await seen('Personal'), await path());
+  check('the pill opens the "Where are you?" sheet', (await clickContaining('where are you')) && await seen('Mwiza Family'), await path());
+  check('choosing the family rebuilds Home as the family (balance card, no loan switch)', (await clickContaining('mwiza family')) && await seen('FAMILY BALANCE') && !(await text()).includes('Include loans'), await path());
+  check('the family has its own bar: Home, Wallets, Add and Settings (no Loans, no big button)', await ev(`(() => {
+    const bar = document.querySelector('[data-testid="family-tab-bar"]') || document.querySelector('[role=tablist]');
+    const labels = [...document.querySelectorAll('[role=tab]')].map(n => n.getAttribute('aria-label'));
+    return !!bar && labels.join(',') === 'Home,Wallets,Add,Settings' && !!document.querySelector('[data-testid="tab-add"]');
+  })()`), await path());
+  check('Settings in the family bar opens the family settings (the hub)', (await clickTab('Settings')) && await seen('MEMBERS') && (await path()) === '/app/family', await path());
+  check('the hub has a way to the app settings', (await clickContaining('app settings')) && (await path()) === '/app/profile', await path());
+  const s1 = await clickTab('Home'), s2 = await seen('FAMILY BALANCE'), s3 = await clickContaining('where are you'), s4 = await seen('Only you'), s5 = await clickContaining('personal'), s6 = await seen('Include loans');
+  const s7 = await ev(`!![...document.querySelectorAll('[role=tab]')].find(n => n.getAttribute('aria-label') === 'Loans')`);
+  check('the pill brings Personal back with its own bar (Loans is there again)', s1 && s2 && s3 && s4 && s5 && s6 && s7, `${await path()} steps ${[s1, s2, s3, s4, s5, s6, s7].map(Number).join('')}`);
+  await go('Home', '/app', 'Include loans');
+  check('Settings has a Family row that opens the hub', (await go('Settings', '/app/profile', 'Profile'), await clickContaining('family')) && await seen('MEMBERS') && (await path()) === '/app/family', await path());
+  check('the hub lists the members and the invite button (Owner)', await seen('Grace Uwase') && await seen('Invite someone'), await path());
+  check('Invite someone opens the invite sheet', (await click('Invite someone')) && await seen('Choose what they can do'), await path());
+  check('a Member cannot invite: the button is replaced by a note', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/family?mock=1&role=MEMBER` });
+    return (await seen('Only the owner and admins can invite people.')) && !(await text()).includes('Invite someone');
+  })(), await path());
+  check('a Viewer has no big + on the tab bar', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app?mock=1&role=VIEWER` });
+    await seen('Personal');
+    await clickContaining('where are you'); await seen('Mwiza Family');
+    await clickContaining('mwiza family'); await seen('FAMILY BALANCE');
+    return !(await ev(`!!document.querySelector('[aria-label="Add"]')`));
+  })(), await path());
+  await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
+
+  // someone with no family: the create and join screens, and an invite code
+  await send('Page.navigate', { url: `${origin}/app/family-create?mock=1&nofamily=1` });
+  check('Create a family opens', await seen('Create family') && await seen('FAMILY NAME'), await path());
+  check('an empty name is refused in words', (await click('Create family')) && await seen('Enter a family name.'), await path());
+  await send('Page.navigate', { url: `${origin}/app/family-join?nofamily=1` });
+  check('Join a family opens', await seen('Join a family') && await seen('INVITE CODE OR LINK'), await path());
+
+  // an invite link, signed in: the secret leaves the address bar and the invite is shown
+  await send('Page.navigate', { url: `${origin}/join/${TOKEN}` });
+  check('the invite link lands on the Join screen', await seen('Join Mwiza Family') && (await path()).startsWith('/app/family-join'), await path());
+  check('the secret is not in the address bar', !(await path()).includes(TOKEN) && !(await ev('JSON.stringify(history.state)')).includes(TOKEN), await path());
+  check('the preview says who invited and the privacy notice', await seen('Invited by Aline Uwase') && await seen('They can never see your personal money'), await path());
+  check('Join takes the person into the family', (await click('Join Mwiza Family')) && await seen('FAMILY BALANCE'), await path());
+
+  // signed out: the invite link asks for sign-in first, and still keeps the secret out of the address bar
+  await send('Page.navigate', { url: `${origin}/login` });
+  await ev(`sessionStorage.clear(); localStorage.clear(); true`);
+  await send('Page.navigate', { url: `${origin}/join/${TOKEN}` });
+  check('signed out, the invite page asks to sign in or create an account', await seen("You're invited") && await seen('Sign in') && await seen('Create an account'), await path());
+  check('and the address is plain /join', (await path()) === '/join', await path());
+  check('Sign in goes to the sign-in screen', (await click('Sign in')) && (await path()) === '/login', await path());
 
   // signed out: the app address sends you to sign in
   await send('Page.navigate', { url: `${origin}/login` });

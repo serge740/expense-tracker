@@ -26,6 +26,8 @@ import { ActivityRow } from '@/components/wallet/activity-row';
 import { TransactionDetailModal } from '@/components/transaction-detail-modal';
 import { FadeInView } from '@/components/fade-in-view';
 import { WalletFormModal } from '@/components/wallet-form-modal';
+import { useScope } from '@/context/scope-context';
+import { errorMessage } from '@/utils/family-errors';
 
 
 
@@ -47,6 +49,9 @@ export default function WalletDetailScreen() {
   const [showNumber, setShowNumber] = useState(false);
   const [detailTx, setDetailTx] = useState<Transaction | null>(null);
   const [recolor, setRecolor]   = useState(false);
+  const scope = useScope();
+  const canManage = scope.can('wallet.manage');
+  const canDelete = scope.can('wallet.delete');
   const [editing, setEditing]   = useState(false);
 
   const loadChart = useCallback(async (d: number) => {
@@ -93,7 +98,7 @@ export default function WalletDetailScreen() {
   const confirmDelete = () =>
     Alert.alert(t('wallet.delete'), t('wallet.deleteMsg', { name: wallet.name }), [
       { text: t('common.cancel'), style: 'cancel' },
-      { text: t('wallet.deleteBtn'), style: 'destructive', onPress: () => deleteWallet(wallet.id).then(back).catch(() => Alert.alert(t('common.error'), t('wallet.errDelete'))) },
+      { text: t('wallet.deleteBtn'), style: 'destructive', onPress: () => deleteWallet(wallet.id).then(back).catch((e: unknown) => Alert.alert(t('common.error'), errorMessage(e, t('wallet.errDelete'), t))) },
     ]);
 
   const menu = () => Alert.alert(wallet.name, undefined, [
@@ -101,7 +106,7 @@ export default function WalletDetailScreen() {
     ...(!wallet.isDefault ? [{ text: t('wallet.makeDefault'), onPress: () => updateWallet(wallet.id, { isDefault: true }).then(load) }] : []),
     { text: t('wallet.changeColor'), onPress: () => setRecolor(true) },
     { text: t(wallet.archived ? 'wallet.unarchive' : 'wallet.archive'), onPress: () => updateWallet(wallet.id, { archived: !wallet.archived }).then(load) },
-    { text: t('wallet.delete'), style: 'destructive' as const, onPress: confirmDelete },
+    ...(canDelete ? [{ text: t('wallet.delete'), style: 'destructive' as const, onPress: confirmDelete }] : []),
     { text: t('common.cancel'), style: 'cancel' as const },
   ]);
 
@@ -155,7 +160,7 @@ export default function WalletDetailScreen() {
           <MaterialIcons name="arrow-back" size={18} color={theme.text} />
         </TouchableOpacity>
         <Text style={[s.topTitle, { color: theme.text }]} numberOfLines={1}>{wallet.name}</Text>
-        <TouchableOpacity style={[s.roundBtn, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={menu} hitSlop={6}>
+        <TouchableOpacity testID="wallet-menu" style={[s.roundBtn, { backgroundColor: theme.surface, borderColor: theme.border, opacity: canManage ? 1 : 0 }]} onPress={canManage ? menu : undefined} disabled={!canManage} hitSlop={6}>
           <MaterialIcons name="more-horiz" size={18} color={theme.text} />
         </TouchableOpacity>
       </View>
@@ -226,19 +231,23 @@ export default function WalletDetailScreen() {
           ))}
         </View>
 
-        {/* Manage */}
+        {/* Manage: in a family only the owner and admins archive a wallet, and only the owner deletes it */}
+        {canManage ? (
         <View style={s.manage}>
-          <TouchableOpacity style={[s.manageBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} activeOpacity={0.8}
+          <TouchableOpacity testID="wallet-archive" style={[s.manageBtn, { borderColor: theme.border, backgroundColor: theme.surface }]} activeOpacity={0.8}
                             onPress={() => updateWallet(wallet.id, { archived: !wallet.archived }).then(load)}>
             <MaterialIcons name={wallet.archived ? 'unarchive' : 'archive'} size={16} color={theme.textSecondary} />
             <Text style={[s.manageText, { color: theme.textSecondary }]}>{t(wallet.archived ? 'wallet.unarchive' : 'wallet.archive')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.manageBtn, { borderColor: 'rgba(220,38,38,0.35)', backgroundColor: theme.isDark ? 'rgba(248,113,113,0.12)' : '#FEF2F2' }]}
+          {canDelete ? (
+          <TouchableOpacity testID="wallet-delete" style={[s.manageBtn, { borderColor: 'rgba(220,38,38,0.35)', backgroundColor: theme.isDark ? 'rgba(248,113,113,0.12)' : '#FEF2F2' }]}
                             activeOpacity={0.8} onPress={confirmDelete}>
             <MaterialIcons name="delete-outline" size={16} color={theme.isDark ? '#F87171' : '#DC2626'} />
             <Text style={[s.manageText, { color: theme.isDark ? '#F87171' : '#DC2626' }]}>{t('wallet.delete')}</Text>
           </TouchableOpacity>
+          ) : null}
         </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

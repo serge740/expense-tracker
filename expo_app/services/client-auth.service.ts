@@ -1,3 +1,4 @@
+import { clearScopeOnSessionLoss } from '@/utils/family-scope-link';
 import * as SecureStore from 'expo-secure-store';
 import api from '../api';
 import { unregisterPush } from './device.service';
@@ -44,6 +45,7 @@ export async function getRefreshToken(): Promise<string | null> {
 export async function clearTokens() {
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  clearScopeOnSessionLoss();     // logging out ends a family scope too: the next login starts in Personal
 }
 
 function authHeader(token: string) {

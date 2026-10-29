@@ -7,6 +7,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { FeedChips } from '@/components/home/home-sections';
+import { useScope } from '@/context/scope-context';
+import { detailParams } from '@/utils/tx-nav';
+import { useI18n } from '@/context/language-context';
+import { MemberFilter } from '@/components/family/member-filter';
+import { MemberAvatar } from '@/components/family/member-avatar';
+import { getMembers, type FamilyMemberRow } from '@/services/family.service';
+import { canEditTransaction } from '@/utils/family-permissions';
+import { errorMessage } from '@/utils/family-errors';
 import { asFeedView, FeedView } from '@/utils/home';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
@@ -70,12 +78,19 @@ export default function HistoryScreen() {
   const { currency } = useCurrency();
   const sym = currency.symbol;
   const params = useLocalSearchParams<{ openSearch?: string; view?: string; includeLoans?: string }>();
+  const scope = useScope();
+  const { t: tr } = useI18n();
+  const isFamily = scope.isFamily;
+  // Inside a family: only what one member added can be asked for, and a person may delete only what their role allows.
+  const [members, setMembers] = useState<FamilyMemberRow[]>([]);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  useEffect(() => { if (isFamily && scope.family) getMembers(scope.family.id).then(setMembers).catch(() => setMembers([])); }, [isFamily, scope.family?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // The same chip as Home (and its "Include loans" choice), carried over by "See all".
   const [view, setView] = useState<FeedView>(asFeedView(params.view));
   const [includeLoans, setIncludeLoans] = useState(params.includeLoans !== 'false');
   useEffect(() => { setView(asFeedView(params.view)); setIncludeLoans(params.includeLoans !== 'false'); }, [params.view, params.includeLoans]);
-  const feedRef = useRef({ view, includeLoans });
-  feedRef.current = { view, includeLoans };
+  const feedRef = useRef<{ view: FeedView; includeLoans: boolean; memberId: string | null }>({ view, includeLoans, memberId });
+  feedRef.current = { view, includeLoans, memberId };
 
   const [active,       setActive]       = useState('All');
   const [dateFilter,   setDateFilter]   = useState<DateFilter>('Month');
@@ -102,10 +117,10 @@ export default function HistoryScreen() {
     try {
       const slug = cat === 'All' ? undefined : CAT_SLUG[cat];
       const range = getDateRange(df, cStart, cEnd);
-      const { view: v, includeLoans: loans } = feedRef.current;
+      const { view: v, includeLoans: loans, memberId: who } = feedRef.current;
       const data = await getTransactionHistory({
         category: slug, ...range, search: search || undefined,
-        ...(v !== 'all' ? { view: v } : {}), ...(loans ? {} : { includeLoans: 'false' }),
+        ...(v !== 'all' ? { view: v } : {}), ...(loans ? {} : { includeLoans: 'false' }), ...(who ? { memberId: who } : {}),
       });
       setGroups(data);
     } catch {
@@ -116,7 +131,7 @@ export default function HistoryScreen() {
     }
   }, []);
 
-  useEffect(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, [active, dateFilter, customStart, customEnd, view, includeLoans]);
+  useEffect(() => { load(active, dateFilter, customStart, customEnd, searchQuery); }, [active, dateFilter, customStart, customEnd, view, includeLoans, memberId]);
 
   // Debounce search query changes. (Not on the first run: that one would fire 300 ms after opening with the
   // filters of that moment, and undo a chip or category tapped in the meantime.)
@@ -127,7 +142,7 @@ export default function HistoryScreen() {
     return () => clearTimeout(t);
   }, [searchQuery]);
 
-  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, searchQuery, true); }, [active, dateFilter, customStart, customEnd, view, includeLoans, load]));
+  useFocusEffect(useCallback(() => { load(active, dateFilter, customStart, customEnd, searchQuery, true); }, [active, dateFilter, customStart, customEnd, view, includeLoans, memberId, load]));
 
   const handleDateFilter = (df: DateFilter) => {
     if (df === 'Custom') {
@@ -170,7 +185,7 @@ export default function HistoryScreen() {
                   .filter(g => g.items.length > 0),
               );
             } catch (e: any) {
-              Alert.alert('Error', e?.response?.data?.message || 'Could not delete transaction.');
+              Alert.alert('Error', errorMessage(e, 'Could not delete transaction.', tr));
             }
           },
         },
@@ -188,17 +203,7 @@ export default function HistoryScreen() {
     : 'Custom';
 
   const goToDetail = (t: Transaction) => {
-    router.push({
-      pathname: '/(dashboard)/transaction-detail',
-      params: {
-        id: t.id, type: t.type, category: t.category,
-        title: t.title, subCategory: t.subCategory ?? '',
-        description: t.description ?? '',
-        amount: String(t.amount), date: String(t.date),
-        walletId: t.walletId ?? '', receiptUrl: t.receiptUrl ?? '',
-        receiptReportUrl: t.receiptReportUrl ?? '',
-      },
-    });
+    router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(t) });
   };
 
   return (
@@ -288,8 +293,9 @@ export default function HistoryScreen() {
 
         {/* Kind chips: All / Income / Expense / Debt / Credit / Scheduled (same as Home) */}
         <View style={{ paddingTop: 12 }}>
-          <FeedChips value={view} onChange={setView} />
+          <FeedChips value={view} onChange={setView} only={isFamily ? ['all', 'income', 'expense'] : undefined} />
         </View>
+        {isFamily ? <View style={{ paddingTop: 8 }}><MemberFilter members={members} value={memberId} onChange={setMemberId} /></View> : null}
 
         {/* Date filter chips */}
         <FadeInView delay={80} slideFrom="none">
@@ -359,15 +365,19 @@ export default function HistoryScreen() {
                       style={s.txRow}
                       activeOpacity={0.75}
                       onPress={() => goToDetail(t)}
-                      onLongPress={() => handleDelete(t)}
+                      onLongPress={!isFamily || canEditTransaction(scope.role, !!t.author?.isYou) ? () => handleDelete(t) : undefined}
                     >
+                      {t.author ? (
+                        <View style={{ marginRight: 12 }}><MemberAvatar id={t.author.clientId} name={t.author.name} size={38} /></View>
+                      ) : (
                       <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
                         <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={18} color={theme.primary} />
                       </View>
+                      )}
                       <View style={s.txMid}>
                         <Text style={[s.txTitle, { color: theme.text }]}>{t.title}</Text>
                         <Text style={[s.txSub, { color: theme.textSecondary }]}>
-                          {t.description ?? `${t.category} · ${new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                          {t.description ?? `${t.category} · ${new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}{t.author ? ` · ${t.author.isYou ? tr('family.tx.you') : t.author.name}` : ''}
                         </Text>
                       </View>
                       <Text style={[s.txAmount, { color: t.amount >= 0 ? theme.income : theme.expense }]}>

@@ -27,6 +27,9 @@ import { PayFromField } from '@/components/add/pay-from';
 import { ReceiptField } from '@/components/add/receipt-field';
 import { getDebts, Debt } from '@/services/debt.service';
 import ENV from '@/env';
+import { useScope } from '@/context/scope-context';
+import { AddingToBanner, ViewerCannotAdd } from '@/components/family/scope-banner';
+import { FamilyNote } from '@/components/family/family-screen';
 
 type Kind = 'EXPENSE' | 'INCOME';
 const KINDS: { id: Kind; icon: string; label: 'add.expense' | 'add.income' }[] = [
@@ -38,6 +41,8 @@ export default function AddTransactionScreen() {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
   const { currency: mainCurrency } = useCurrency();
+  const scope = useScope();
+  const inFamily = scope.isFamily;
   const params = useLocalSearchParams<{
     type?: string; walletId?: string; amount?: string; category?: string;
     description?: string; merchant?: string; date?: string; receiptUrl?: string; receiptReportUrl?: string;
@@ -53,6 +58,7 @@ export default function AddTransactionScreen() {
   const [wallets, setWallets]     = useState<Wallet[]>([]);
   const [walletId, setWalletId]   = useState<string | null>(null);
   const [pots, setPots]           = useState<Debt[]>([]);
+  const [walletsReady, setWalletsReady] = useState(false);
   const [potId, setPotId]         = useState<string | null>(null);
   const [date, setDate]           = useState(new Date());
   const [pickDate, setPickDate]   = useState(false);
@@ -71,10 +77,13 @@ export default function AddTransactionScreen() {
   useFocusEffect(useCallback(() => {
     const k: Kind = params.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
     reloadMine();
-    getDebts().then(ds => setPots(ds.filter(d => d.kind === 'BORROWED' && d.status === 'OPEN' && !d.archived && (d.unspent ?? 0) > 0))).catch(() => setPots([]));
+    // Borrowed money (loans) is personal: it is never offered, nor even asked for, inside a family.
+    if (inFamily) setPots([]);
+    else getDebts().then(ds => setPots(ds.filter(d => d.kind === 'BORROWED' && d.status === 'OPEN' && !d.archived && (d.unspent ?? 0) > 0))).catch(() => setPots([]));
     getWallets().then(list => {
       const usable = list.filter(w => !w.archived);
       setWallets(usable);
+      setWalletsReady(true);
       setKind(k);
       setAmount(params.amount ?? '');
       // A category sent in from another screen (the scanner, an older link) may be a retired name: it becomes its new home.
@@ -91,15 +100,16 @@ export default function AddTransactionScreen() {
       setReceiptName(null);
       const pre = usable.find(w => w.id === params.walletId) ?? usable.find(w => w.isDefault) ?? usable[0];
       setWalletId(pre?.id ?? null);
-    }).catch(() => {});
-  }, [reloadMine, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl]));
+    }).catch(() => { setWalletsReady(true); });
+  }, [reloadMine, inFamily, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl]));
 
   const wallet = wallets.find(w => w.id === walletId) ?? null;
   const currency = wallet?.currency ?? mainCurrency.code;
   const catDef = categoryOf(category);
   const catName = t(categoryLabelKey(category, kind) as any);
   const accent = kind === 'INCOME' ? '#16A34A' : theme.primary;
-  const scheduled = isScheduledForm(date, rule);
+  // A family has no scheduled transactions yet: everything saved there is a real transaction, dated now or earlier.
+  const scheduled = !inFamily && isScheduledForm(date, rule);
 
   React.useEffect(() => {
     if (potId && (kind !== 'EXPENSE' || scheduled)) setPotId(null);
@@ -197,6 +207,7 @@ export default function AddTransactionScreen() {
   const save = async () => {
     const value = parseFloat(amount.replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
+    if (inFamily && date.getTime() > Date.now() + 5 * 60_000) return Alert.alert(t('add.date'), t('family.add.noFuture'));
 
     if (scheduled) {
       if (scheduleStartError(date, rule)) return Alert.alert(t('sched.repeat'), t('sched.errPast'));
@@ -238,6 +249,15 @@ export default function AddTransactionScreen() {
     ? (/^https?:/.test(receiptUrl) ? receiptUrl : `${ENV.UPLOADS_URL}/${receiptUrl}`)
     : null;
 
+  // A Viewer can look at the family's money but not add to it (the server refuses too; this just explains it).
+  if (inFamily && !scope.can('tx.add')) {
+    return (
+      <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
+        <ViewerCannotAdd onClose={leave} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
@@ -270,6 +290,8 @@ export default function AddTransactionScreen() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <AddingToBanner />
+
           {/* Expense / Income */}
           <View style={[s.kinds, { backgroundColor: theme.inputBg }]}>
             {KINDS.map(k => {
@@ -324,8 +346,9 @@ export default function AddTransactionScreen() {
 
           {/* Wallet: one field; its sheet lists the wallets and, for an expense, the loans to spend borrowed money from */}
           <Label text={t('add.wallet')} />
-          <PayFromField wallets={wallets} loans={kind === 'EXPENSE' && !scheduled ? pots : []} walletId={walletId} loanId={potId}
+          <PayFromField wallets={wallets} loans={kind === 'EXPENSE' && !scheduled && !inFamily ? pots : []} walletId={walletId} loanId={potId}
                         onWallet={id => { setPotId(null); setWalletId(id); }} onLoan={id => setPotId(id)} />
+          {inFamily && walletsReady && wallets.length === 0 ? <FamilyNote tone="warn" testID="family-no-wallet" text={t('family.add.noWallet')} /> : null}
 
           {/* Date */}
           <Label text={t('add.date')} />
@@ -337,9 +360,13 @@ export default function AddTransactionScreen() {
             <MaterialIcons name="expand-more" size={18} color={theme.textMuted} />
           </TouchableOpacity>
 
-          {/* Repeat (transactions only) */}
-          <Label text={t('sched.repeat')} />
-          <RepeatRow start={date} rule={rule} onPress={() => setPickRepeat(true)} />
+          {/* Repeat (personal transactions only: a family has no scheduled transactions yet) */}
+          {!inFamily && (
+            <>
+              <Label text={t('sched.repeat')} />
+              <RepeatRow start={date} rule={rule} onPress={() => setPickRepeat(true)} />
+            </>
+          )}
 
           {scheduled && (
             <>

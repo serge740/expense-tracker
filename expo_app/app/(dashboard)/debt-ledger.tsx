@@ -1,3 +1,4 @@
+import { withPersonalOnly } from '@/components/family/personal-only-screen';
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,7 +19,7 @@ type Filter = 'ALL' | 'OPEN' | 'CLOSED';
  * The Debt wallet (what I owe) or Credit wallet (owed to me): the totals, then one card for each debt or
  * credit that was created, with how much is paid and how much is left. Tapping a card opens its details.
  */
-export default function DebtLedgerScreen() {
+function DebtLedgerScreen() {
   const theme = useAppTheme();
   const { t } = useI18n();
   const { prefs } = usePreferences();
@@ -109,3 +110,5 @@ const s = StyleSheet.create({
   tabText: { fontSize: 12, fontWeight: '700' },
   empty:   { fontSize: 12, textAlign: 'center', paddingVertical: 24 },
 });
+
+export default withPersonalOnly(DebtLedgerScreen);

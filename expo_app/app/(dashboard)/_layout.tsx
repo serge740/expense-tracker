@@ -1,17 +1,17 @@
-import { Tabs, useSegments, router } from 'expo-router';
+import { useSegments, router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { registerDevice } from '@/services/device.service';
 import { NotificationProvider } from '@/context/notification-context';
 import { prepareNotificationChannel, pushSoundConfig } from '@/services/local-notifications';
 import { usePreferences } from '@/context/preferences-context';
-import { resetSettingsOnBlur } from '@/hooks/use-settings-back';
 import React, { useEffect, useRef } from 'react';
 import { BackHandler, Alert } from 'react-native';
-import { CustomTabBar } from '@/components/custom-tab-bar';
+import { ScopedTabs } from '@/components/family/scoped-tabs';
 import { ReminderModalHost } from '@/components/reminders/reminder-host';
 import { handleReminderResponse, setupReminderCategory } from '@/services/reminder-push';
 import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
 import { useI18n } from '@/context/language-context';
+import { ScopeProvider } from '@/context/scope-context';
 
 // Segment names that correspond to the four visible tabs
 const MAIN_TAB_SEGMENTS = new Set(['index', 'wallets', 'debts', 'profile']);
@@ -85,25 +85,10 @@ export default function DashboardLayout() {
 
   return (
     <NotificationProvider>
-    <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="index"   />
-      <Tabs.Screen name="wallets" />
-      <Tabs.Screen name="debts"   />
-      <Tabs.Screen name="profile" />
-      {/* Hidden from tab bar — navigated to programmatically */}
-      <Tabs.Screen name="add"        options={{ href: null }} />
-      <Tabs.Screen name="scan"       options={{ href: null }} />
-      <Tabs.Screen name="history"    options={{ href: null }} />
-      <Tabs.Screen name="expense"       options={{ href: null }} />
-      <Tabs.Screen name="wallet-detail" options={{ href: null }} />
-      <Tabs.Screen name="transfer"      options={{ href: null }} />
-      <Tabs.Screen name="reports"       options={{ href: null }} />
-      <Tabs.Screen name="debt-ledger"   options={{ href: null }} />
-      <Tabs.Screen name="scheduled"     options={{ href: null }} />
-      {/* Leaving settings resets its stack so Back never hits a page from an earlier visit */}
-      <Tabs.Screen name="(settings)" options={{ href: null }} listeners={resetSettingsOnBlur as any} />
-    </Tabs>
-    <ReminderModalHost />
+    <ScopeProvider>
+      <ScopedTabs />
+      <ReminderModalHost />
+    </ScopeProvider>
     </NotificationProvider>
   );
 }

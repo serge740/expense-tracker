@@ -1,3 +1,4 @@
+import { withPersonalOnly } from '@/components/family/personal-only-screen';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, RefreshControl, Modal, TextInput, Alert,
@@ -33,7 +34,7 @@ type Tab = 'BORROWED' | 'LENT' | 'SETTLED';
 const OWE = '#DC2626';
 const OWED = '#16A34A';
 
-export default function DebtsScreen() {
+function DebtsScreen() {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
   const { prefs } = usePreferences();
@@ -700,3 +701,5 @@ const s = StyleSheet.create({
   deleteBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 42, borderRadius: 14, borderWidth: 1, marginTop: 18 },
   deleteText: { fontSize: 12, fontWeight: '700' },
 });
+
+export default withPersonalOnly(DebtsScreen);

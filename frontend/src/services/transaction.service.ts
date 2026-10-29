@@ -38,7 +38,11 @@ export interface Transaction {
   /** Set when this money belongs to a debt or credit (see Debts & loans). */
   debtId: string | null;
   debtRole: DebtRole | null;
+  /** Only in a family: who added it, and whether that is the person looking. */
+  author?: TransactionAuthor;
 }
+
+export interface TransactionAuthor { clientId: string; name: string; isYou: boolean }
 
 /** BORROW_IN is borrowed cash (never income); the others are loan flows. */
 export type DebtRole = 'BORROW_IN' | 'LEND_OUT' | 'REPAY_OUT' | 'REPAY_IN';

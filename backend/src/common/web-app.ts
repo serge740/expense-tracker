@@ -25,7 +25,20 @@ function setStaticHeaders(res: express.Response, path: string) {
 const WEB_PAGES = new Set(['/', '/login', '/register', '/forgot-password']);
 
 export function isWebAppPath(path: string): boolean {
-  return WEB_PAGES.has(path) || /^\/app(\/|$)/.test(path);
+  return WEB_PAGES.has(path) || /^\/app(\/|$)/.test(path) || isJoinPath(path);
+}
+
+/**
+ * The page a family invite link opens: /join, or /join/<token>. The token is a secret, so this page is never cached and never
+ * passes the address on to another site (see joinPageHeaders). "/family/join" and "/joinx" are not this page.
+ */
+export function isJoinPath(path: string): boolean {
+  return /^\/join(\/[^/]*)?\/?$/.test(path);
+}
+
+/** Headers for the join page: keep the invite token out of caches and out of the Referer a link click would send. */
+export function joinPageHeaders(): Record<string, string> {
+  return { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' };
 }
 
 /**
@@ -59,6 +72,7 @@ export function serveWebApp(app: INestApplication): boolean {
   server.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
     if ((req.method !== 'GET' && req.method !== 'HEAD') || !isWebAppPath(req.path)) return next();
     res.setHeader('Cache-Control', 'no-cache');
+    if (isJoinPath(req.path)) for (const [k, v] of Object.entries(joinPageHeaders())) res.setHeader(k, v);
     res.sendFile(index);
   });
   return true;

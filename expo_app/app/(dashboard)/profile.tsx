@@ -1,3 +1,4 @@
+import { useScope } from '@/context/scope-context';
 import React, { useCallback, useState } from 'react';
 import {
   View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, ActivityIndicator, RefreshControl,
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const { currency } = useCurrency();
   const { prefs, formatTime } = usePreferences();
   const { t, language, formatDate } = useI18n();
+  const scope = useScope();
 
   const [profile, setProfile]       = useState<ClientProfile | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -226,6 +228,9 @@ export default function ProfileScreen() {
             <Section title={t('section.money')}>
               <Row icon="account-balance-wallet" title={t('row.wallets')}
                    sub={t('row.walletsSub', { w: walletCount ?? 0, t: txCount ?? 0 })} onPress={go('/(dashboard)/wallets')} />
+              <Row icon="groups" title={t('family.row.title')}
+                   sub={scope.family ? t('family.row.sub', { family: scope.family.name, role: scope.role ? t(`role.${scope.role}` as any).toLowerCase() : '' }) : t('family.row.subNone')}
+                   onPress={go('/(dashboard)/family')} />
               <Row icon="handshake" title={t('debts.title')} sub={t('debts.manageSub')} onPress={go('/(dashboard)/debts')} />
               <Row icon="event-repeat" title={t('sched.title')} sub={t('sched.rowSub')} onPress={go('/(dashboard)/scheduled')} />
               <Row icon="payments" title={t('row.currency')} value={`${currency.flag} ${currency.code}`} onPress={go('/(dashboard)/(settings)/currency')} />

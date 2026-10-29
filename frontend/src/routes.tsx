@@ -24,6 +24,10 @@ import DebtLedger from '@/screens/dashboard/debt-ledger';
 import Scheduled from '@/screens/dashboard/scheduled';
 import Budget from '@/screens/dashboard/budget';
 import TransactionDetail from '@/screens/dashboard/transaction-detail';
+import Family from '@/screens/dashboard/family';
+import FamilyCreate from '@/screens/dashboard/family-create';
+import FamilyJoin from '@/screens/dashboard/family-join';
+import JoinPage from '@/screens/JoinPage';
 
 import About from '@/screens/settings/about';
 import AppUpdates from '@/screens/settings/app-updates';
@@ -66,6 +70,9 @@ const dashboardScreens: RouteObject[] = [
   { path: 'scheduled', element: <Scheduled /> },
   { path: 'budget', element: <Budget /> },
   { path: 'transaction-detail', element: <TransactionDetail /> },
+  { path: 'family', element: <Family /> },
+  { path: 'family-create', element: <FamilyCreate /> },
+  { path: 'family-join', element: <FamilyJoin /> },
   // Settings
   { path: 'about', element: <About /> },
   { path: 'app-updates', element: <AppUpdates /> },
@@ -90,6 +97,9 @@ export function createRoutes(): RouteObject[] {
     { path: '/login', element: <Login /> },
     { path: '/register', element: <Register /> },
     { path: '/forgot-password', element: <ForgotPassword /> },
+    // The page a family invite link opens. Public: the person may not have an account yet.
+    { path: '/join', element: <JoinPage /> },
+    { path: '/join/:token', element: <JoinPage /> },
     // Development only: look at the dashboard without signing in. Not part of the production build.
     ...(import.meta.env.DEV ? [{ path: '/__preview', element: <Outlet />, children: [{ path: 'app', element: <DashboardLayout />, children: dashboardScreens }] }] : []),
     { element: <RequireAuth />, children: [{ path: '/app', element: <DashboardLayout />, children: dashboardScreens }] },

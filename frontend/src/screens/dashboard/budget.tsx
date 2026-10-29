@@ -8,6 +8,9 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
 import { BudgetModal } from '@/components/budget-modal';
+import { useScope } from '@/context/scope-context';
+import { useI18n } from '@/context/language-context';
+import { FamilyNote } from '@/components/family/family-screen';
 import { useCurrency } from '@/context/currency-context';
 import { getCurrentBudget, BudgetStatus } from '@/services/budget.service';
 import {
@@ -110,6 +113,10 @@ export default function BudgetScreen() {
   const [refreshing,     setRefreshing]     = useState(false);
   const [loadingInsights,setLoadingInsights]= useState(false);
   const [showBudget,     setShowBudget]     = useState(false);
+  const scope = useScope();
+  const { t: tr } = useI18n();
+  // In a family only the owner and admins set the budget; everyone can read it.
+  const canSet = scope.can('budget.set');
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -209,8 +216,9 @@ export default function BudgetScreen() {
               <Text style={s.headerSub}>MONTHLY</Text>
               <Text style={s.headerTitle}>Budget</Text>
             </View>
-            {isCurrentMonth && (
+            {isCurrentMonth && canSet && (
               <TouchableOpacity
+                testID="budget-set-limit"
                 style={[s.editBtn, { backgroundColor: 'rgba(255,255,255,0.15)' }]}
                 onPress={() => setShowBudget(true)}
                 activeOpacity={0.8}
@@ -280,13 +288,16 @@ export default function BudgetScreen() {
                         <Text style={[s.footNote, { color: theme.textMuted }]}>
                           Monthly limit: {fmtMoney(budget.limit, sym)}
                         </Text>
-                        <TouchableOpacity onPress={() => setShowBudget(true)} activeOpacity={0.7}>
-                          <Text style={[s.footNote, { color: theme.primary }]}>Edit</Text>
-                        </TouchableOpacity>
+                        {canSet ? (
+                          <TouchableOpacity testID="budget-edit" onPress={() => setShowBudget(true)} activeOpacity={0.7}>
+                            <Text style={[s.footNote, { color: theme.primary }]}>Edit</Text>
+                          </TouchableOpacity>
+                        ) : null}
                       </View>
                     </>
                   ) : (
-                    <TouchableOpacity style={s.setBudgetRow} onPress={() => setShowBudget(true)} activeOpacity={0.8}>
+                    canSet ? (
+                    <TouchableOpacity testID="budget-set" style={s.setBudgetRow} onPress={() => setShowBudget(true)} activeOpacity={0.8}>
                       <View style={[s.setBudgetIcon, { backgroundColor: theme.primaryBg }]}>
                         <MaterialIcons name="add-circle-outline" size={22} color={theme.primary} />
                       </View>
@@ -298,6 +309,9 @@ export default function BudgetScreen() {
                       </View>
                       <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
                     </TouchableOpacity>
+                    ) : (
+                      <FamilyNote testID="budget-read-only" text={tr('family.budget.readOnly')} />
+                    )
                   )}
                 </View>
               </FadeInView>

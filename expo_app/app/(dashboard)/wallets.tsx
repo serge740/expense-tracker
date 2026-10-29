@@ -1,3 +1,7 @@
+import { ScopePill } from '@/components/family/scope-switcher';
+import { useScope } from '@/context/scope-context';
+import { errorMessage } from '@/utils/family-errors';
+import { FamilyNote } from '@/components/family/family-screen';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, ScrollView, FlatList, TouchableOpacity, StyleSheet, StatusBar, Alert, RefreshControl, useWindowDimensions,
@@ -42,6 +46,11 @@ export default function WalletsScreen() {
   const [activity, setActivity]     = useState<ActivityItem[]>([]);
   const [dayChange, setDayChange]   = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const scope = useScope();
+  // In a family only the owner and admins manage wallets, and only the owner deletes them (the server enforces the same).
+  const canManage = scope.can('wallet.manage');
+  const canDelete = scope.can('wallet.delete');
+  const canMove   = scope.can('tx.add');
   const [showForm, setShowForm]     = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [relabel, setRelabel]       = useState<Wallet | null>(null);
@@ -103,21 +112,22 @@ export default function WalletsScreen() {
       {
         text: t('wallet.deleteBtn'), style: 'destructive', onPress: async () => {
           try { await deleteWallet(w.id); goToIndex(0); loadWallets(); }
-          catch (e: any) { Alert.alert(t('common.error'), e?.response?.data?.message || t('wallet.errDelete')); }
+          catch (e: any) { Alert.alert(t('common.error'), errorMessage(e, t('wallet.errDelete'), t)); }
         },
       },
     ]);
   };
 
   const walletMenu = (w: Wallet) => {
+    if (!canManage) return;
     Alert.alert(w.name, `${w.bank} · ${w.currency}`, [
       { text: t('wallet.edit'), onPress: () => setEditing(w) },
       ...(!w.isDefault && !w.archived ? [{ text: t('wallet.makeDefault'), onPress: () => updateWallet(w.id, { isDefault: true }).then(loadWallets) }] : []),
       { text: t('wallet.changeColor'), onPress: () => setRecolor(w) },
       { text: t('wallet.changeCurrencyLabel'), onPress: () => setRelabel(w) },
       { text: t(w.archived ? 'wallet.unarchive' : 'wallet.archive'), onPress: () => updateWallet(w.id, { archived: !w.archived }).then(loadWallets) },
-      { text: t('wallet.delete'), style: 'destructive', onPress: () => confirmDelete(w) },
-      { text: t('common.cancel'), style: 'cancel' },
+      ...(canDelete ? [{ text: t('wallet.delete'), style: 'destructive' as const, onPress: () => confirmDelete(w) }] : []),
+      { text: t('common.cancel'), style: 'cancel' as const },
     ]);
   };
 
@@ -126,11 +136,11 @@ export default function WalletsScreen() {
     setRelabel(null);
     if (!w || code === w.currency) return;
     try { await updateWallet(w.id, { currency: code }); loadWallets(); }
-    catch (e: any) { Alert.alert(t('common.error'), e?.response?.data?.message || t('wallet.errUpdate')); }
+    catch (e: any) { Alert.alert(t('common.error'), errorMessage(e, t('wallet.errUpdate'), t)); }
   };
 
   const accent = selected ? cardTheme(selected.color).accent : theme.primary;
-  const ACTIONS = selected ? [
+  const ACTIONS = selected && canMove ? [
     { icon: 'add' as const,               label: t('wallet.addMoney'), onPress: () => go('/(dashboard)/add', { type: 'INCOME', walletId: selected.id }) },
     { icon: 'remove' as const,            label: t('wallet.spend'),    onPress: () => go('/(dashboard)/add', { type: 'EXPENSE', walletId: selected.id }) },
     { icon: 'swap-horiz' as const,        label: t('wallet.transfer'), onPress: () => go('/(dashboard)/transfer', { mode: 'transfer', from: selected.id }) },
@@ -168,16 +178,21 @@ export default function WalletsScreen() {
           <View>
             <Text style={[s.title, { color: theme.text }]}>{t('wallet.title')}</Text>
             <Text style={[s.subtitle, { color: theme.textMuted }]}>{t('wallet.subtitle')}</Text>
+            <View style={{ marginTop: 8 }}><ScopePill /></View>
           </View>
           <View style={s.headerActions}>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                              onPress={() => go('/(dashboard)/transfer', { mode: 'exchange' })} activeOpacity={0.8}>
-              <MaterialIcons name="currency-exchange" size={17} color={theme.text} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.iconBtn, { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
-                              onPress={() => setShowForm(true)} activeOpacity={0.85}>
-              <MaterialIcons name="add" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
+            {canMove ? (
+              <TouchableOpacity testID="wallets-exchange" style={[s.iconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                                onPress={() => go('/(dashboard)/transfer', { mode: 'exchange' })} activeOpacity={0.8}>
+                <MaterialIcons name="currency-exchange" size={17} color={theme.text} />
+              </TouchableOpacity>
+            ) : null}
+            {canManage ? (
+              <TouchableOpacity testID="wallets-add" style={[s.iconBtn, { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
+                                onPress={() => setShowForm(true)} activeOpacity={0.85}>
+                <MaterialIcons name="add" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 
@@ -203,7 +218,7 @@ export default function WalletsScreen() {
         {/* Wallet carousel */}
         <FlatList
           ref={listRef}
-          data={[...visible, null]}
+          data={canManage ? [...visible, null] : visible}
           keyExtractor={(w, i) => w?.id ?? `add-${i}`}
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -232,7 +247,7 @@ export default function WalletsScreen() {
 
         {/* Dots */}
         <View style={s.dots}>
-          {[...visible, null].map((w, i) => (
+          {(canManage ? [...visible, null] : visible).map((w, i) => (
             <TouchableOpacity key={w?.id ?? 'add'} onPress={() => goToIndex(i)} hitSlop={6}>
               <View style={[s.dot, i === index
                 ? { width: 18, backgroundColor: w ? cardTheme(w.color).accent : theme.primary }
@@ -283,13 +298,15 @@ export default function WalletsScreen() {
         ) : (
           <View style={[s.emptyBlock, { paddingHorizontal: SIDE }]}>
             <Text style={[s.emptyText, { color: theme.textMuted }]}>
-              {t(visible.length ? 'wallet.swipeBack' : 'wallet.createFirst')}
+              {t(visible.length ? 'wallet.swipeBack' : canManage ? 'wallet.createFirst' : 'family.wallet.empty')}
             </Text>
           </View>
         )}
 
-        {/* Protected summaries of debts and credits (not real wallets) */}
-        <LedgerCards hidden={hidden} />
+        {scope.isFamily && !canManage ? <View style={{ paddingHorizontal: SIDE }}><FamilyNote testID="wallets-manage-note" text={t('family.wallet.manageOnly')} /></View> : null}
+
+        {/* Protected summaries of debts and credits (not real wallets). They are personal: a family has none. */}
+        {!scope.isFamily ? <LedgerCards hidden={hidden} /> : null}
       </ScrollView>
     </SafeAreaView>
   );

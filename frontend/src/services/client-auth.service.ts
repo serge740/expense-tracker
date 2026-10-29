@@ -1,4 +1,5 @@
 // Ported from expo_app/services/client-auth.service.ts
+import { clearScopeOnSessionLoss } from '@/utils/family-scope-link';
 import api, { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { unregisterPush } from './device.service';
@@ -39,6 +40,7 @@ export const getRefreshToken = (): string | null => storage.get(REFRESH_TOKEN_KE
 export function clearTokens() {
   storage.remove(ACCESS_TOKEN_KEY);
   storage.remove(REFRESH_TOKEN_KEY);
+  clearScopeOnSessionLoss();     // logging out ends a family scope too: the next login starts in Personal
 }
 
 function authHeader(token: string) {

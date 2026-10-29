@@ -10,6 +10,11 @@ import {
   CATEGORY_ICON, CATEGORY_LABEL, CategorySlug,
 } from '@/services/transaction.service';
 import { useCurrency } from '@/context/currency-context';
+import { useScope } from '@/context/scope-context';
+import { useI18n } from '@/context/language-context';
+import { MemberAvatar } from '@/components/family/member-avatar';
+import { canEditTransaction } from '@/utils/family-permissions';
+import { errorMessage } from '@/utils/family-errors';
 import { ALL_CATEGORY_SLUGS, categoryOf } from '@/constants/categories';
 
 type FilterType = 'all' | 'income' | 'expense';
@@ -30,6 +35,8 @@ const FILTERS: { key: FilterType; label: string }[] = [
 export default function ExpenseScreen() {
   const theme = useAppTheme();
   const { currency } = useCurrency();
+  const scope = useScope();
+  const { t: tr } = useI18n();
   const sym = currency.symbol;
 
   const [filter,       setFilter]       = useState<FilterType>('all');
@@ -76,7 +83,7 @@ export default function ExpenseScreen() {
               await deleteTransaction(t.id);
               setTransactions(prev => prev.filter(tx => tx.id !== t.id));
             } catch (e: any) {
-              Alert.alert('Error', e?.response?.data?.message || 'Could not delete transaction.');
+              Alert.alert('Error', errorMessage(e, 'Could not delete transaction.', tr));
             }
           },
         },
@@ -105,13 +112,16 @@ export default function ExpenseScreen() {
 
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Expenses</Text>
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.primary }]}
-            activeOpacity={0.7}
-            onPress={() => router.push('/(dashboard)/add')}
-          >
-            <MaterialIcons name="add" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
+          {scope.can('tx.add') ? (
+            <TouchableOpacity
+              testID="expense-add"
+              style={[styles.addButton, { backgroundColor: theme.primary }]}
+              activeOpacity={0.7}
+              onPress={() => router.push('/(dashboard)/add')}
+            >
+              <MaterialIcons name="add" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Summary Card */}
@@ -176,15 +186,19 @@ export default function ExpenseScreen() {
                   key={t.id}
                   style={[styles.transactionCard, { backgroundColor: theme.surface }]}
                   activeOpacity={0.75}
-                  onLongPress={() => handleDelete(t)}
+                  onLongPress={!scope.isFamily || canEditTransaction(scope.role, !!t.author?.isYou) ? () => handleDelete(t) : undefined}
                 >
+                  {t.author ? (
+                    <View style={{ marginRight: 12 }}><MemberAvatar id={t.author.clientId} name={t.author.name} size={44} /></View>
+                  ) : (
                   <View style={[styles.transactionIconContainer, { backgroundColor: cfg.bg }]}>
                     <MaterialIcons name={icon} size={22} color={cfg.color} />
                   </View>
+                  )}
                   <View style={styles.transactionTextBlock}>
                     <Text style={[styles.transactionTitle, { color: theme.text }]}>{t.title}</Text>
                     <Text style={[styles.transactionDescription, { color: theme.textSecondary }]}>
-                      {t.description || `${CATEGORY_LABEL[t.category] ?? t.category} · ${dateStr}`}
+                      {t.description || `${CATEGORY_LABEL[t.category] ?? t.category} · ${dateStr}`}{t.author ? ` · ${t.author.isYou ? tr('family.tx.you') : t.author.name}` : ''}
                     </Text>
                   </View>
                   <Text style={[styles.transactionAmount, { color: t.amount > 0 ? theme.income : theme.expense }]}>
