@@ -89,21 +89,54 @@ export const EXPENSE_CATALOG: Catalog = {
   other: [],
 };
 
-/** Income has one short list per category, so there are no group tabs. */
-const flat = (items: string[]): CatalogGroup[] => [group('all', items)];
-
+/** Income is grouped like spending (a tab per group). Only "Other" has no list: the person types their own. */
 export const INCOME_CATALOG: Catalog = {
-  salary: flat(['Monthly salary', 'Bonus', 'Overtime', 'Allowance', 'Commission', 'Pension & benefits']),
-  business: flat(['Sales', 'Services', 'Contracts']),
-  freelance: flat(['Design', 'Writing & translation', 'Software', 'Consulting', 'Photography', 'Tutoring']),
-  investment: flat(['Dividends', 'Interest', 'Rental income', 'Capital gains']),
-  gifts: flat(['Gift received', 'Family support', 'Contribution']),
-  refund: flat(['Product refund', 'Tax refund', 'Deposit returned', 'Reimbursement']),
-  savings: flat(['Withdrawal from savings', 'Interest']),
+  salary: [
+    group('pay', ['Monthly salary', 'Weekly wage', 'Daily wage', 'Part-time job', 'Casual work', 'Internship stipend']),
+    group('extra', ['Overtime', 'Bonus', '13th month', 'Commission', 'Tips', 'Back pay', 'Leave pay']),
+    group('allowances', ['Transport allowance', 'Housing allowance', 'Meal allowance', 'Airtime allowance', 'Per diem', 'Mission allowance']),
+    group('leaving', ['Severance', 'Final pay', 'Pension']),
+  ],
+  business: [
+    group('sales', ['Shop sales', 'Market stall', 'Online sales', 'Wholesale', 'Instagram sales', 'WhatsApp orders']),
+    group('services', ['Service payment', 'Customer payment', 'Contract payment', 'Catering', 'Delivery fees', 'Repairs']),
+    group('transport', ['Moto-taxi earnings', 'Taxi earnings', 'Ride app driver|Uber,Bolt,Yego', 'Truck hire']),
+    group('farming', ['Crop harvest', 'Livestock sale', 'Milk sales', 'Eggs sales', 'Poultry sales', 'Coffee sales']),
+  ],
+  freelance: [
+    group('tech', ['Web project', 'Mobile app', 'Software project', 'IT support', 'Maintenance fee']),
+    group('creative', ['Design', 'Logo', 'Photography', 'Videography', 'Video editing', 'Music production', 'DJ gig', 'MC gig']),
+    group('writing', ['Writing', 'Translation', 'Transcription']),
+    group('expertise', ['Consulting', 'Tutoring', 'Training session', 'Coaching']),
+    group('platforms', ['Upwork', 'Fiverr', 'Toptal']),
+    group('content', ['YouTube', 'TikTok', 'Instagram', 'Sponsorship', 'Brand deal', 'Affiliate', 'Donations from fans']),
+  ],
+  investment: [
+    group('interest', ['Savings interest', 'Fixed deposit interest', 'Bond interest', 'Treasury bills']),
+    group('markets', ['Dividends', 'Stock sale', 'Crypto sale', 'Unit trust', 'Profit share']),
+    group('property', ['Rental income', 'House rent received', 'Room rent', 'Shop rent received', 'Airbnb host', 'Land sale', 'Property sale']),
+  ],
+  gifts: [
+    group('gifts', ['Birthday money', 'Wedding gift', 'Graduation gift', 'Christmas gift', 'Baby shower gift']),
+    group('family', ['From parents', 'From siblings', 'From partner', 'Pocket money', 'Allowance', 'Remittance from abroad']),
+    group('community', ['Wedding contribution', 'Church support', 'Donation received', 'Fundraiser', 'Crowdfunding']),
+    group('support', ['Scholarship', 'Bursary', 'Grant', 'Student loan', 'Government support', 'Social aid', 'Child support', 'NGO support']),
+    group('winnings', ['Sports betting win', 'Lottery', 'Prize', 'Competition', 'Raffle', 'Quiz show']),
+  ],
+  refund: [
+    group('shopping', ['Store refund', 'Online order refund', 'Returned item', 'Cancelled order', 'Cashback']),
+    group('services', ['Cancelled flight', 'Cancelled booking', 'Overpayment refund', 'MoMo reversal', 'Bank reversal']),
+    group('claims', ['Insurance claim', 'Tax refund', 'Rent deposit returned', 'Work reimbursement']),
+    group('people', ['Friend paid back', 'Family paid back']),
+  ],
+  savings: [
+    group('groups', ['Ikimina payout', 'Tontine', 'SACCO', 'Savings group share-out']),
+    group('accounts', ['Savings withdrawal', 'Fixed deposit matured', 'Emergency fund', 'Savings goal', 'Piggy bank', 'Mobile savings']),
+  ],
   other: [],
 };
 
 export const catalogFor = (kind: 'EXPENSE' | 'INCOME'): Catalog => (kind === 'INCOME' ? INCOME_CATALOG : EXPENSE_CATALOG);
 export const groupsOf = (kind: 'EXPENSE' | 'INCOME', category: CategorySlug): CatalogGroup[] => catalogFor(kind)[category] ?? [];
-/** The translation key for a group's name. Income's single group has none and is never shown as a tab. */
+/** The translation key for a group's name. */
 export const groupKey = (category: CategorySlug, groupId: string) => `grp.${category}.${groupId}`;

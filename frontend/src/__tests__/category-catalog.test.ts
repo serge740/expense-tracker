@@ -88,8 +88,8 @@ describe.each(CATALOGS)('the %s catalog', (kind, catalog) => {
 });
 
 describe('group names are translated', () => {
-  test.each(codes)('%s names every group of the spending categories', code => {
-    for (const [category, groups] of Object.entries(EXPENSE_CATALOG)) {
+  test.each(codes)('%s names every group of the spending and income categories', code => {
+    for (const [category, groups] of [...Object.entries(EXPENSE_CATALOG), ...Object.entries(INCOME_CATALOG)]) {
       for (const g of groups ?? []) {
         const key = groupKey(category as never, g.id) as keyof typeof STRINGS.en;
         expect(STRINGS[code][key]?.trim()).toBeTruthy();
