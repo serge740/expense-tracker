@@ -17,6 +17,7 @@ import { Response } from 'express';
 import { DataExportService } from './data-export.service';
 import { DataImportService } from './data-import.service';
 import { ITAdminJwtAuthGuard } from '../../guards/itAdminGuard.guard';
+import { ITAdminOrBackupKeyGuard } from '../../guards/itAdminOrBackupKeyGuard.guard';
 import { RequestWithITAdmin } from '../../common/interfaces/it-admin.interface';
 
 // Import/rollback already get a durable audit trail via ImportSnapshot (actor, timestamp,
@@ -28,7 +29,12 @@ import { RequestWithITAdmin } from '../../common/interfaces/it-admin.interface';
 // would intercept the browser's GET for those page URLs and forward them here, 404ing on a page
 // load/refresh. Keeping the API prefix disjoint from the frontend's route prefix avoids that
 // entirely, same reasoning as /it-support-auth already (correctly) uses.
-@UseGuards(ITAdminJwtAuthGuard)
+//
+// No class-level @UseGuards here — ITAdminOrBackupKeyGuard is applied per-route below (export
+// only). A class-level guard ANDs with a method-level one in Nest rather than ORing them, so a
+// class-level ITAdminJwtAuthGuard would silently require BOTH a valid cookie AND the backup key
+// to pass export, 401'ing every machine-to-machine call from Backup-auto regardless of a correct
+// key (same mistake mimi_project's own DataExportController comment documents having made once).
 @Controller('it-support-api/data-export')
 export class DataExportController {
   private readonly logger = new Logger(DataExportController.name);
@@ -39,10 +45,13 @@ export class DataExportController {
   ) {}
 
   @Post('export')
+  @UseGuards(ITAdminOrBackupKeyGuard)
   async export(@Body() options: any, @Req() req: RequestWithITAdmin, @Res() res: Response) {
     const format: string = options.format ?? 'json';
     const dateStr = new Date().toISOString().split('T')[0];
-    const actor = { id: req.itAdmin.id, name: req.itAdmin.name };
+    const actor = req.isBackupServiceCall
+      ? { id: 'backup-service', name: 'Backup Service' }
+      : { id: req.itAdmin!.id, name: req.itAdmin!.name };
 
     if (format === 'json') {
       const payload = await this.exportService.buildJsonExport(options, actor);
@@ -73,6 +82,7 @@ export class DataExportController {
   }
 
   @Post('import/preview')
+  @UseGuards(ITAdminJwtAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async importPreview(@UploadedFile() file: Express.Multer.File, @Body() body: any) {
     if (!file) return { error: 'No file uploaded' };
@@ -83,13 +93,14 @@ export class DataExportController {
   }
 
   @Post('import')
+  @UseGuards(ITAdminJwtAuthGuard)
   @UseInterceptors(FileInterceptor('file', { storage: memoryStorage() }))
   async importData(@UploadedFile() file: Express.Multer.File, @Body() body: any, @Req() req: RequestWithITAdmin) {
     if (!file) return { error: 'No file uploaded' };
     const payload = JSON.parse(file.buffer.toString('utf-8'));
     const groups: string[] | undefined = body.groups ? JSON.parse(body.groups) : undefined;
     const options = { conflictStrategy: body.conflictStrategy ?? 'SKIP', groups };
-    const actor = { id: req.itAdmin.id, name: req.itAdmin.name, fileName: file.originalname };
+    const actor = { id: req.itAdmin!.id, name: req.itAdmin!.name, fileName: file.originalname };
     const results = await this.importService.commit(payload, options, actor);
 
     const summary = results.reduce(
@@ -100,19 +111,21 @@ export class DataExportController {
       { total: 0, created: 0, updated: 0, skipped: 0, failed: 0 },
     );
 
-    this.logger.log(`${req.itAdmin.name} restored self-backup "${file.originalname}": +${summary.created} created, ${summary.updated} updated, ${summary.skipped} skipped, ${summary.failed} failed`);
+    this.logger.log(`${req.itAdmin!.name} restored self-backup "${file.originalname}": +${summary.created} created, ${summary.updated} updated, ${summary.skipped} skipped, ${summary.failed} failed`);
     return { results, summary };
   }
 
   @Get('import/history')
+  @UseGuards(ITAdminJwtAuthGuard)
   async importHistory() {
     return this.importService.listSnapshots();
   }
 
   @Post('import/rollback/:id')
+  @UseGuards(ITAdminJwtAuthGuard)
   async rollbackImport(@Param('id') id: string, @Req() req: RequestWithITAdmin) {
-    await this.importService.rollback(id, { id: req.itAdmin.id, name: req.itAdmin.name });
-    this.logger.log(`${req.itAdmin.name} rolled back import ${id}`);
+    await this.importService.rollback(id, { id: req.itAdmin!.id, name: req.itAdmin!.name });
+    this.logger.log(`${req.itAdmin!.name} rolled back import ${id}`);
     return { success: true };
   }
 }

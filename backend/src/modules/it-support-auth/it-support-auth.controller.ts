@@ -38,6 +38,6 @@ export class ITSupportAuthController {
   @Get('me')
   @UseGuards(ITAdminJwtAuthGuard)
   async me(@Req() req: RequestWithITAdmin) {
-    return this.itSupportAuthService.me(req.itAdmin.id);
+    return this.itSupportAuthService.me(req.itAdmin!.id);
   }
 }
