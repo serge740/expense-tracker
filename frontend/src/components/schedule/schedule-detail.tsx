@@ -20,15 +20,15 @@ import { sameRule } from '@/utils/schedule-form';
 const errorText = (e: any, fallback: string) => e?.response?.data?.message || fallback;
 
 /** One schedule: what it is, when it happens next, what it did, and how to change or stop it. */
-export function ScheduleDetail({ id, onClose, onChanged }: { id: string | null; onClose: () => void; onChanged: () => void }) {
+export function ScheduleDetail({ id, onClose, onChanged, readOnly = false }: { id: string | null; onClose: () => void; onChanged: () => void; readOnly?: boolean }) {
   return (
     <Modal visible={!!id} transparent animationType="slide" onRequestClose={onClose}>
-      {id && <DetailBody key={id} id={id} onClose={onClose} onChanged={onChanged} />}
+      {id && <DetailBody key={id} id={id} onClose={onClose} onChanged={onChanged} readOnly={readOnly} />}
     </Modal>
   );
 }
 
-function DetailBody({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+function DetailBody({ id, onClose, onChanged, readOnly }: { id: string; onClose: () => void; onChanged: () => void; readOnly: boolean }) {
   const theme = useAppTheme();
   const { t, locale, language, formatDate } = useI18n();
   const env: TextEnv = useMemo(() => ({ t, locale, language }), [t, locale, language]);
@@ -158,7 +158,7 @@ function DetailBody({ id, onClose, onChanged }: { id: string; onClose: () => voi
                       <Text style={[s.lineText, { color: theme.text }]}>{when(h.dueAt)}</Text>
                       {h.status === 'FAILED' && !!h.failReason && <Text style={[s.muted, { color: '#DC2626' }]}>{t('sched.reason', { reason: h.failReason })}</Text>}
                     </View>
-                    {h.status === 'FAILED' && d.status !== 'ENDED' && (
+                    {h.status === 'FAILED' && d.status !== 'ENDED' && !readOnly && (
                       <TouchableOpacity onPress={() => run(() => confirmOccurrence(h.id))} disabled={busy} style={[s.retry, { backgroundColor: theme.primaryBg }]} accessibilityRole="button">
                         <Text style={[s.retryText, { color: theme.primary }]}>{t('sched.retry')}</Text>
                       </TouchableOpacity>
@@ -168,7 +168,7 @@ function DetailBody({ id, onClose, onChanged }: { id: string; onClose: () => voi
                   </View>
                 ))}
 
-                {d.status !== 'ENDED' && (
+                {d.status !== 'ENDED' && !readOnly && (
                   <View style={s.actions}>
                     <TouchableOpacity style={[s.btn, { backgroundColor: theme.primaryBg }]} onPress={startEdit} accessibilityRole="button"><Text style={[s.btnText, { color: theme.primary }]}>{t('sched.edit')}</Text></TouchableOpacity>
                     <TouchableOpacity style={[s.btn, { backgroundColor: theme.primaryBg }]} disabled={busy} accessibilityRole="button"

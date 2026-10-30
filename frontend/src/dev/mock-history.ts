@@ -8,6 +8,38 @@ type BaseTx = Record<string, any>;
 const walletTag = (w?: Wallet) => (w ? { name: w.name, color: w.color, currency: w.currency, archived: w.archived } : null);
 
 /** Turns the ordinary sample transactions into feed rows, and adds one of every kind History can show. */
+/** Tags and notes the person set during this session (the sample data starts with one tag). */
+export const annotations: Record<string, { tags: string[]; note: string | null }> = { t4: { tags: ['trip'], note: null } };
+const dupKept = new Set<string>();
+
+/** Annotations, the tag list, the duplicate groups and the export file, as the server answers them. */
+export function toolsAnswer(method: string, path: string, body: any, rows: () => FeedRow[]): unknown | undefined {
+  if (!path.startsWith('/transactions/')) return undefined;
+  if (path === '/transactions/tags') {
+    const counts = new Map<string, number>();
+    for (const a of Object.values(annotations)) for (const t of a.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return { items: [...counts.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count) };
+  }
+  const ann = path.match(/^\/transactions\/([^/]+)\/annotate$/);
+  if (ann) {
+    const cur = annotations[ann[1]] ?? { tags: [], note: null };
+    if (method === 'patch') {
+      const tags = body.tags !== undefined ? [...new Set<string>((body.tags as string[]).map(x => String(x).replace(/^#+/, '').trim()).filter(Boolean))].slice(0, 10) : cur.tags;
+      annotations[ann[1]] = { tags, note: body.note !== undefined ? (String(body.note).trim() || null) : cur.note };
+    }
+    return { id: ann[1], ...(annotations[ann[1]] ?? cur) };
+  }
+  if (path === '/transactions/duplicates' && method === 'get') {
+    const first = rows().find(r => r.possibleDuplicate && !gone.has(r.id));
+    if (!first || dupKept.has(first.id)) return { groups: [], truncated: false };
+    const twin = { ...first, id: first.id + '-copy', date: new Date(new Date(first.date).getTime() + 3_600_000).toISOString() };
+    return { groups: gone.has(twin.id) ? [] : [{ id: first.id, rows: [first, twin] }], truncated: false };
+  }
+  if (path === '/transactions/duplicates/keep' && method === 'post') { for (const id of body.ids ?? []) dupKept.add(String(id)); return { kept: (body.ids ?? []).length }; }
+  if (path === '/transactions/export/file' && method === 'get') return { filename: 'history.xlsx', base64: 'UEsDBA==', count: 3, truncated: false };
+  return undefined;
+}
+
 export function personalFeedRows(transactions: BaseTx[], wallets: Wallet[], iso: (days: number, hour?: number) => string, many: boolean): FeedRow[] {
   const byId = new Map(wallets.map(w => [w.id, w]));
   const row = (t: BaseTx, extra: Partial<FeedRow> = {}): FeedRow => {
@@ -43,7 +75,7 @@ export function personalFeedRows(transactions: BaseTx[], wallets: Wallet[], iso:
   const filler: FeedRow[] = many
     ? Array.from({ length: 150 }, (_, i) => row({ id: `f${i}`, type: 'EXPENSE', category: ['food', 'transport', 'bills', 'shopping'][i % 4], title: `Sample purchase ${i + 1}`, subCategory: null, description: null, amount: -(1000 + i * 37), date: iso(-14 - Math.floor(i / 3), 8 + (i % 10)), walletId: i % 2 ? 'w2' : 'w1', receiptUrl: null, receiptReportUrl: null, debtId: null, debtRole: null }))
     : [];
-  return [...base, ...extras, ...filler].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
+  return [...base, ...extras, ...filler].map(r => ({ ...r, tags: annotations[r.id]?.tags ?? [], note: annotations[r.id]?.note ?? null })).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
 }
 
 const KIND: Record<string, (r: FeedRow) => boolean> = {
@@ -70,16 +102,18 @@ export function filterRows(all: FeedRow[], params: Record<string, any>, ignoreCa
   const min = params.minAmount !== undefined ? Number(params.minAmount) : null, max = params.maxAmount !== undefined ? Number(params.maxAmount) : null;
   const schedIds = params.schedules ? String(params.schedules).split(',') : [];
   const flags = params.flags ? String(params.flags).split(',') : [];
+  const tagList = params.tags ? String(params.tags).split(',') : [];
   return all.filter(r =>
     !gone.has(r.id)
     && (!kinds.length || kinds.some(k => KIND[k](r)))
     && (params.includeLoans !== 'false' || !r.debtRole)
     && (!ids.length || (r.walletId && ids.includes(r.walletId)) || (r.transfer?.toWalletId && ids.includes(r.transfer.toWalletId)))
-    && (!q || `${r.title} ${r.description ?? ''} ${r.subCategory ?? ''} ${r.wallet?.name ?? ''}`.toLowerCase().includes(q))
+    && (!q || `${r.title} ${r.description ?? ''} ${r.subCategory ?? ''} ${r.wallet?.name ?? ''} ${r.note ?? ''} ${(r.tags ?? []).join(' ')}`.toLowerCase().includes(q))
     && (!inc.length || inc.some(p => matchPick(r, p)))
     && !exc.some(p => matchPick(r, p))
     && (min === null || Math.abs(r.amount) >= min) && (max === null || Math.abs(r.amount) <= max)
     && (params.receipt !== 'with' || !!r.receiptUrl) && (params.receipt !== 'without' || !r.receiptUrl)
+    && (!tagList.length || tagList.some(tg => (r.tags ?? []).map(x => x.toLowerCase()).includes(tg.toLowerCase())))
     && (!schedIds.length || (r.schedule && schedIds.includes(r.schedule.id)))
     && (!flags.length || flags.every(f => (f === 'uncategorised' ? !r.subCategory && canon(r.category) === 'other' : f === 'duplicates' ? !!r.possibleDuplicate : true)))
     && (params.source !== 'schedule' || !!r.schedule) && (params.source !== 'debt' || !!r.debtId) && (params.source !== 'transfer' || r.type === 'TRANSFER')

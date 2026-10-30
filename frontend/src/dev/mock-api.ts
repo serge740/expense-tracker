@@ -3,7 +3,7 @@
  * or a database: open any address with ?mock=1 (remembered for the tab). Never part of a production build.
  */
 import { respondFamily, type MockError } from './mock-family';
-import { activityAnswer, facetsAnswer, feedAnswer, groupsAnswer, personalFeedRows, statementAnswer, suggestAnswer, summaryAnswer, trashAnswer, viewsAnswer, withBalances } from './mock-history';
+import { activityAnswer, toolsAnswer, facetsAnswer, feedAnswer, groupsAnswer, personalFeedRows, statementAnswer, suggestAnswer, summaryAnswer, trashAnswer, viewsAnswer, withBalances } from './mock-history';
 import api from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { endpointHash } from '@/lib/push';
@@ -18,7 +18,7 @@ const iso = (offsetDays: number, hour = 10) => {
 
 const me = {
   id: 'u1', firstName: 'Aline', lastName: 'Uwase', email: 'aline@example.com', phone: '+250788123456', googleId: null, appleId: null, facebookId: null,
-  isVerified: true, emailVerifiedAt: iso(-30), phoneVerifiedAt: null, profileImage: null, isActive: true, isBiometric: false, isFaceRecognition: false,
+  isVerified: true, emailVerifiedAt: iso(-30), phoneVerifiedAt: null, profileImage: null, isActive: true, isBiometric: false,
   createdAt: iso(-90), updatedAt: iso(-1),
 };
 
@@ -187,7 +187,13 @@ function respond(method: string, url: string, params: Record<string, any> = {}, 
   const m = method.toLowerCase();
   let g: RegExpMatchArray | null;
 
+  if ((g = path.match(/^\/wallets\/([^/]+)\/reconcile$/)) && m === 'post') {
+    const w: any = (wallets as any[]).find(x => x.id === g![1]); const expected = Number(w?.balance ?? 0); const actual = Number(body.actualBalance); const difference = Math.round((actual - expected) * 100) / 100;
+    return { walletId: g[1], currency: w?.currency ?? 'RWF', expected, actual, difference, matches: difference === 0, adjusted: !!body.adjust && difference !== 0 };
+  }
+  if (path === '/transactions/export' && m === 'get') return { csv: 'Date,Type,Title\r\n2026-10-01,EXPENSE,Lunch\r\n', count: 1, truncated: false };
   if (path === '/activity' && m === 'get') return activityAnswer(params, iso);
+  { const tools = toolsAnswer(m, path, body, () => personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many'))); if (tools !== undefined) return tools; }
   if (path.startsWith('/transactions/views')) return viewsAnswer(m, path, body);
   if (path === '/transactions/bulk' || path.startsWith('/transactions/trash') || (m === 'delete' && /^\/transactions\/[^/]+$/.test(path))) return trashAnswer(m, path, body, personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many')));
   if (m !== 'get') {
@@ -252,6 +258,10 @@ function respond(method: string, url: string, params: Record<string, any> = {}, 
     { category: 'food', label: 'Food', amount: 18_000, percentage: 4 }, { category: 'utilities', label: 'Utilities', amount: 25_000, percentage: 5 },
     { category: 'shopping', label: 'Shopping', amount: 65_000, percentage: 14 }, { category: 'other', label: 'Other', amount: 23_900, percentage: 5 },
   ];
+  if (path === '/reports/by-member') return [
+    { clientId: 'u1', name: 'Aline Uwase', isYou: true, spent: 310_000, earned: 900_000, count: 21, share: 65 },
+    { clientId: 'u2', name: 'Eric Mwiza', isYou: false, spent: 164_200, earned: 0, count: 9, share: 35 },
+  ];
   if (path === '/reports/top-expenses') return transactions.filter(t => t.amount < 0).slice(0, Number(params.limit) || 4).map(t => ({ ...t, amount: Math.abs(t.amount) }));
   if (path === '/reports/ai-advice') return { verdict: 'fair', summary: 'You spent 82% of your budget with a week to go.', advice: 'Rent is most of your spending, which is normal. Trim shopping this week to stay under budget.', tips: ['Set a weekly shopping limit', 'Move 50,000 to savings after payday', 'Review your subscriptions'] };
 
@@ -266,7 +276,7 @@ function respond(method: string, url: string, params: Record<string, any> = {}, 
   if ((g = path.match(/^\/scheduled\/([^/]+)$/))) return { ...(scheduled.find(s => s.id === g![1]) ?? scheduled[0]), upcoming: [iso(10, 9), iso(40, 9), iso(70, 9)], history: [{ id: 'h1', dueAt: iso(-20, 9), status: 'POSTED', failReason: null, transactionId: 't12' }] };
 
   if (path === '/reminders/pending') return new URLSearchParams(location.search).has('reminder') || storage.get('mock_reminder') === '1'
-    ? [{ id: 'r1', source: 'DEBT', debtId: 'd2', kind: 'BORROWED', person: 'Marie Claire', currency: 'RWF', remaining: 80_000, dueAt: iso(-2, 9), overdue: true, fireCount: 2, lastFiredAt: iso(0, 7), walletId: null }]
+    ? [{ id: 'r1', source: 'DEBT', debtId: 'd2', kind: 'BORROWED', person: 'Marie Claire', currency: 'RWF', remaining: 80_000, dueAt: iso(-2, 9), overdue: true, fireCount: 2, lastFiredAt: iso(0, 7), walletId: null, familyId: new URLSearchParams(location.search).get('reminder') === 'family' ? 'fam_somewhere_else' : null }]
     : [];
 
   if (path === '/notifications') return { items: notifications, total: notifications.length, unreadCount: notifications.filter(n => !n.read).length, page: 1, limit: 30 };

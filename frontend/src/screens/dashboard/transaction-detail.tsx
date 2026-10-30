@@ -9,6 +9,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { deleteTransaction, CATEGORY_ICON, CATEGORY_LABEL, CategorySlug } from '@/services/transaction.service';
 import { useScope } from '@/context/scope-context';
+import { Comments } from '@/components/family/comments';
 import { useI18n } from '@/context/language-context';
 import { canEditTransaction } from '@/utils/family-permissions';
 import { errorMessage } from '@/utils/family-errors';
@@ -237,6 +238,7 @@ export default function TransactionDetailScreen() {
           )}
         </View>
 
+        {scope.isFamily && id ? <Comments transactionId={id} /> : null}
         <TouchableOpacity testID="detail-activity" onPress={() => router.push({ pathname: '/(dashboard)/activity' as any, params: { entity: 'transaction', entityId: id } })} accessibilityRole="button"
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
           <MaterialIcons name="history" size={20} color={theme.primary} />

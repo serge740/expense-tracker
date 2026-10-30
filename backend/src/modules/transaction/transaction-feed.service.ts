@@ -1,3 +1,12 @@
+import { FEED_PAGE_MAX } from './feed';
+import { EXPORT_MAX, rowsToCsv, type CsvRow } from './feed-csv';
+import { buildXlsx } from './feed-xlsx';
+import { buildHistoryPdf } from './feed-pdf';
+import { cleanNote, cleanTags, packTags, unpackTags } from './annotations';
+import { assertCanEditTransaction, assertScopeCan } from '../family/scope/scope';
+import { recordActivity } from '../activity/activity';
+import { errors } from '../family/family-errors';
+import { parseFeedFilter } from './feed';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../../generated/prisma';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -58,7 +67,7 @@ export class TransactionFeedService {
       SELECT DISTINCT a.id FROM \`Transaction\` a
       JOIN \`Transaction\` b ON a.id <> b.id AND ${same} AND a.type = b.type AND a.amount = b.amount AND a.walletId <=> b.walletId
         AND LOWER(a.title) = LOWER(b.title) AND ABS(TIMESTAMPDIFF(HOUR, a.date, b.date)) <= 24
-      WHERE ${mine} AND a.type <> 'TRANSFER'${range}${only}
+      WHERE ${mine} AND a.type <> 'TRANSFER' AND a.dupeKept = 0${range}${only}
       LIMIT 2000`);
     return rows.map(r => r.id);
   }
@@ -101,11 +110,12 @@ export class TransactionFeedService {
     if (f.walletIds.length) and.push({ OR: [{ walletId: { in: f.walletIds } }, { toWalletId: { in: f.walletIds } }] });
     if (f.search) {
       const or: Prisma.TransactionWhereInput[] = [
-        { title: { contains: f.search } }, { description: { contains: f.search } }, { subCategory: { contains: f.search } }, { wallet: { name: { contains: f.search } } },
+        { title: { contains: f.search } }, { description: { contains: f.search } }, { subCategory: { contains: f.search } }, { wallet: { name: { contains: f.search } } }, { note: { contains: f.search } }, { tags: { contains: f.search } },
       ];
       if (/^\d+(\.\d{1,2})?$/.test(f.search)) or.push({ amount: Number(f.search) });
       and.push({ OR: or });
     }
+    if (f.tags.length) and.push({ OR: f.tags.map(t => ({ tags: { contains: `|${t}|` } })) });
     if (f.include.length) and.push({ OR: f.include.map(p => this.pickWhere(p)) });
     for (const p of f.exclude) and.push(this.notPick(p));
     if (f.minAmount !== null || f.maxAmount !== null) and.push({ amount: { ...(f.minAmount !== null ? { gte: f.minAmount } : {}), ...(f.maxAmount !== null ? { lte: f.maxAmount } : {}) } });
@@ -124,6 +134,103 @@ export class TransactionFeedService {
       ...(period ? { date: dateFilter(period) } : {}),
       AND: and,
     };
+  }
+
+  /** Every row of the filter (up to a cap) as a CSV: what is on screen, not more. */
+  async exportCsv(scope: Scope, f: FeedFilter) {
+    const { rows, truncated } = await this.exportRows(scope, f);
+    return { csv: rowsToCsv(rows), count: rows.length, truncated };
+  }
+
+  /** The same rows as a spreadsheet (.xlsx) or a printable PDF, as base64 so the page can save them. */
+  async exportFile(scope: Scope, f: FeedFilter, format: 'xlsx' | 'pdf') {
+    const { rows, truncated } = await this.exportRows(scope, f);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const buf = format === 'xlsx'
+      ? buildXlsx('History', ['Date', 'Type', 'Title', 'Category', 'Subcategory', 'Amount', 'Currency', 'Wallet', 'To wallet', 'Note', 'Tags', 'Private note'],
+        rows.map(r => [new Date(r.date).toISOString().slice(0, 10), r.type, r.title, r.category, r.subCategory, r.amount, r.currency, r.wallet?.name, r.transfer?.toWallet?.name, r.description, (r.tags ?? []).join(' '), r.note]))
+      : await buildHistoryPdf(rows, { title: 'History', subtitle: `${rows.length} rows · exported ${stamp}`, truncated });
+    return { filename: `history-${stamp}.${format}`, base64: buf.toString('base64'), count: rows.length, truncated };
+  }
+
+  private async exportRows(scope: Scope, f: FeedFilter): Promise<{ rows: CsvRow[]; truncated: boolean }> {
+    const rows: CsvRow[] = [];
+    let cursor: string | null = null;
+    let truncated = false;
+    for (;;) {
+      const page: { items: CsvRow[]; nextCursor: string | null } = await this.feed(scope, { ...f, limit: FEED_PAGE_MAX, cursor });
+      rows.push(...page.items);
+      if (!page.nextCursor) break;
+      if (rows.length >= EXPORT_MAX) { truncated = true; break; }
+      cursor = page.nextCursor;
+    }
+    return { rows: rows.slice(0, EXPORT_MAX), truncated };
+  }
+
+  // ── Tags and notes ─────────────────────────────────────────────────────────
+
+  /** The tags in use in this space, most used first. */
+  async tagsInUse(scope: Scope) {
+    const rows = await this.prisma.transaction.findMany({ where: { ...scopeWhere(scope), tags: { not: null } }, select: { tags: true }, take: 5000 });
+    const counts = new Map<string, { tag: string; count: number }>();
+    for (const r of rows) for (const t of unpackTags(r.tags)) {
+      const key = t.toLowerCase();
+      const c = counts.get(key) ?? { tag: t, count: 0 };
+      c.count++; counts.set(key, c);
+    }
+    return { items: [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)).slice(0, 100) };
+  }
+
+  /** The tags and note of one row (the detail screen asks for them). */
+  async annotation(scope: Scope, id: string) {
+    const t = await this.prisma.transaction.findFirst({ where: { id, ...scopeWhere(scope) }, select: { id: true, tags: true, note: true } });
+    if (!t) throw errors.notFound();
+    return { id: t.id, tags: unpackTags(t.tags), note: t.note ?? null };
+  }
+
+  /** Sets the tags and / or the private note of one row. Allowed on any row the person may edit, including loan and transfer rows (no money moves). */
+  async annotate(scope: Scope, id: string, dto: { tags?: unknown; note?: unknown }) {
+    const t = await this.prisma.transaction.findFirst({ where: { id, ...scopeWhere(scope) } });
+    if (!t) throw errors.notFound();
+    assertCanEditTransaction(scope, t.clientId);
+    const data: { tags?: string | null; note?: string | null } = {};
+    const changes: Array<{ field: string; from: string | null; to: string | null }> = [];
+    if (dto.tags !== undefined) { data.tags = packTags(cleanTags(dto.tags)); changes.push({ field: 'tags', from: unpackTags(t.tags).join(' ') || null, to: unpackTags(data.tags).join(' ') || null }); }
+    if (dto.note !== undefined) { data.note = cleanNote(dto.note); changes.push({ field: 'note', from: t.note ? 'set' : null, to: data.note ? 'set' : null }); }
+    const out = await this.prisma.transaction.update({ where: { id }, data });
+    await recordActivity(this.prisma as never, scope, { kind: 'transaction.edited', entity: 'transaction', entityId: id, title: t.title, amount: Number(t.amount), changes });
+    return { id, tags: unpackTags(out.tags), note: out.note ?? null };
+  }
+
+  // ── Possible duplicates, side by side ──────────────────────────────────────
+
+  /** Groups of rows that look like the same payment entered twice (same title, amount, wallet and kind, a day apart at most). */
+  async duplicateGroups(scope: Scope) {
+    const f = parseFeedFilter({ all: 'true', flags: 'duplicates', sort: 'oldest', limit: '200' } as never);
+    const page = await this.feed(scope, f);
+    const key = (r: any) => [String(r.title).toLowerCase(), r.amount, r.walletId ?? '', r.type].join('|');
+    const byKey = new Map<string, any[]>();
+    for (const r of page.items as any[]) byKey.set(key(r), [...(byKey.get(key(r)) ?? []), r]);
+    const groups: Array<{ id: string; rows: any[] }> = [];
+    for (const list of byKey.values()) {
+      let run: any[] = [];
+      for (const r of list) {
+        if (run.length && new Date(r.date).getTime() - new Date(run[run.length - 1].date).getTime() > 24 * 3_600_000) { if (run.length > 1) groups.push({ id: run[0].id, rows: run }); run = []; }
+        run.push(r);
+      }
+      if (run.length > 1) groups.push({ id: run[0].id, rows: run });
+    }
+    groups.sort((a, b) => new Date(b.rows[0].date).getTime() - new Date(a.rows[0].date).getTime());
+    return { groups, truncated: !!page.nextCursor };
+  }
+
+  /** "These are not duplicates": the rows stop being flagged. */
+  async keepDuplicates(scope: Scope, ids: unknown) {
+    assertScopeCan(scope, 'tx.edit.own');
+    const list = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)).slice(0, 50) : [];
+    if (!list.length) throw errors.invalid('Choose the rows to keep');
+    const r = await this.prisma.transaction.updateMany({ where: { id: { in: list }, ...scopeWhere(scope) }, data: { dupeKept: true } });
+    return { kept: r.count };
   }
 
   async feed(scope: Scope, f: FeedFilter) {
@@ -179,6 +286,8 @@ export class TransactionFeedService {
         title: t.title,
         subCategory: t.subCategory ?? null,
         description: t.description,
+        note: t.note ?? null,
+        tags: unpackTags(t.tags),
         // Income is positive, spending negative; a transfer is neither, so it keeps its plain size.
         amount: t.type === 'INCOME' ? raw : t.type === 'TRANSFER' ? raw : -raw,
         date: t.date,
@@ -207,7 +316,7 @@ export class TransactionFeedService {
   /** True when the filter hides nothing inside the wallet's own timeline, so a running balance is honest. */
   private plainWalletTimeline(f: FeedFilter): boolean {
     return f.walletIds.length === 1 && !f.kinds.length && f.includeLoans && !f.memberId && !f.search && !f.include.length && !f.exclude.length
-      && f.minAmount === null && f.maxAmount === null && f.receipt === 'any' && f.source === 'any' && !f.schedules.length && f.schedMode === 'any' && !f.flags.length && f.groupBy === 'none' && f.sort === 'newest';
+      && f.minAmount === null && f.maxAmount === null && f.receipt === 'any' && f.source === 'any' && !f.schedules.length && f.schedMode === 'any' && !f.flags.length && !f.tags.length && f.groupBy === 'none' && f.sort === 'newest';
   }
 
   /** What a set of rows does to one wallet: money in (income, transfers in) and out (spending, transfers out), as numbers in the wallet's currency. */

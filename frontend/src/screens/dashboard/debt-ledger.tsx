@@ -1,4 +1,3 @@
-import { withPersonalOnly } from '@/components/family/personal-only-screen';
 // Ported from expo_app/app/(dashboard)/debt-ledger.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from '@/rn';
@@ -112,4 +111,4 @@ const s = StyleSheet.create({
   empty:   { fontSize: 12, textAlign: 'center', paddingVertical: 24 },
 });
 
-export default withPersonalOnly(DebtLedgerScreen);
+export default DebtLedgerScreen;

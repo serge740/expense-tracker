@@ -17,6 +17,7 @@ export function connectRealtime(onEvent: (event: string, payload: any) => void):
     auth: cb => cb({ token: getToken() ?? '' }),
   });
   socket.on('new-notification', payload => onEvent('new-notification', payload));
+  socket.on('family-changed', payload => onEvent('family-changed', payload));
   socket.on('connect_error', () => { /* it keeps retrying on its own */ });
   return () => { socket.removeAllListeners(); socket.disconnect(); };
 }

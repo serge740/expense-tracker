@@ -19,6 +19,7 @@ export function feedParams(f: HistoryFilter, extra: Record<string, string | numb
   if (f.schedules.length) out.schedules = f.schedules.join(',');
   if (f.schedMode !== 'any') out.schedMode = f.schedMode;
   if (f.flags.length) out.flags = f.flags.join(',');
+  if (f.tags.length) out.tags = f.tags.join(',');
   if (isServerGroup(f.group) && f.sort !== 'largest' && f.sort !== 'smallest') out.groupBy = f.group;
   if (f.sort !== 'newest') out.sort = f.sort;
   for (const [k, v] of Object.entries(extra)) if (v !== undefined && v !== '') out[k] = v;
@@ -46,7 +47,7 @@ export const getSuggestions = (q: string): Promise<{ titles: Array<{ title: stri
   api.get('/transactions/suggest', { params: { q } }).then(r => r.data);
 
 export interface Statement {
-  wallet: { id: string; name: string; color: string; currency: string; archived: boolean; balance: number };
+  wallet: { id: string; name: string; color: string; currency: string; archived: boolean; balance: number; reconciledAt?: string | null; reconciledBalance?: number | null };
   period: { from: string | null; to: string | null };
   opening: number; in: number; out: number; closing: number;
   parts: { income: number; transfersIn: number; spending: number; transfersOut: number };
@@ -67,3 +68,23 @@ export interface ActivityPage { since: string | null; week?: ActivityWeek; next:
 /** What changed, newest first. `entity` narrows it to transactions or wallets; `entityId` to one item's own history. */
 export const getActivity = (p: { cursor?: string | null; entity?: string; entityId?: string } = {}): Promise<ActivityPage> =>
   api.get('/activity', { params: { limit: 30, ...(p.cursor ? { cursor: p.cursor } : {}), ...(p.entity ? { entity: p.entity } : {}), ...(p.entityId ? { entityId: p.entityId } : {}) } }).then(r => r.data);
+
+export interface ReconcileResult { walletId: string; currency: string; expected: number; actual: number; difference: number; matches: boolean; adjusted: boolean; transactionId?: string }
+/** Compares the balance with what the real account shows; `adjust` also adds the Balance adjustment that puts it right. */
+export const reconcileWallet = (walletId: string, actualBalance: number, adjust = false): Promise<ReconcileResult> =>
+  api.post(`/wallets/${walletId}/reconcile`, { actualBalance, adjust }).then(r => r.data);
+
+/** The rows the filter shows, as CSV text (up to 5,000). */
+export const getExport = (f: HistoryFilter): Promise<{ csv: string; count: number; truncated: boolean }> =>
+  api.get('/transactions/export', { params: feedParams(f) }).then(r => r.data);
+
+/** The same rows as a spreadsheet or a PDF: the file comes back as base64 so the page can save it. */
+export const getExportFile = (f: HistoryFilter, format: 'xlsx' | 'pdf'): Promise<{ filename: string; base64: string; count: number; truncated: boolean }> =>
+  api.get('/transactions/export/file', { params: feedParams(f, { format }) }).then(r => r.data);
+
+export const getTags = (): Promise<{ items: Array<{ tag: string; count: number }> }> => api.get('/transactions/tags').then(r => r.data);
+export const getAnnotation = (id: string): Promise<{ id: string; tags: string[]; note: string | null }> => api.get(`/transactions/${id}/annotate`).then(r => r.data);
+export const annotateRow = (id: string, data: { tags?: string[]; note?: string }): Promise<{ id: string; tags: string[]; note: string | null }> => api.patch(`/transactions/${id}/annotate`, data).then(r => r.data);
+
+export const getDuplicateGroups = (): Promise<{ groups: Array<{ id: string; rows: FeedRow[] }>; truncated: boolean }> => api.get('/transactions/duplicates').then(r => r.data);
+export const keepDuplicates = (ids: string[]): Promise<{ kept: number }> => api.post('/transactions/duplicates/keep', { ids }).then(r => r.data);

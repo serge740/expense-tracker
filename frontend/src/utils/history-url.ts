@@ -71,6 +71,7 @@ export function filterToQuery(f: HistoryFilter, now = new Date()): Record<string
   if (f.schedules.length) q.sch = f.schedules.join(',');
   if (f.schedMode !== d.schedMode) q.sm = f.schedMode;
   if (f.flags.length) q.fl = f.flags.join(',');
+  if (f.tags.length) q.tg = f.tags.join(',');
   if (f.phase !== d.phase) q.ph = f.phase;
   if (f.due.length) q.due = f.due.join(',');
   if (f.sort !== d.sort) q.sort = f.sort;
@@ -80,7 +81,7 @@ export function filterToQuery(f: HistoryFilter, now = new Date()): Record<string
 }
 
 /** The keys that mean "this address carries a filter". */
-export const FILTER_KEYS = ['p', 'k', 'w', 'mem', 'q', 'inc', 'exc', 'min', 'max', 'rc', 'src', 'sch', 'sm', 'fl', 'ph', 'due', 'sort', 'grp', 'loans'];
+export const FILTER_KEYS = ['p', 'k', 'w', 'mem', 'q', 'inc', 'exc', 'min', 'max', 'rc', 'src', 'sch', 'sm', 'fl', 'tg', 'ph', 'due', 'sort', 'grp', 'loans'];
 export const hasFilterQuery = (q: Record<string, unknown>): boolean => FILTER_KEYS.some(k => q[k] !== undefined);
 
 export function filterFromQuery(q: Record<string, unknown>, base: HistoryFilter): HistoryFilter {
@@ -101,6 +102,7 @@ export function filterFromQuery(q: Record<string, unknown>, base: HistoryFilter)
     schedules: ids(q.sch),
     schedMode: oneOf(q.sm, MODES, 'any'),
     flags: list(q.fl, FLAGS),
+    tags: typeof q.tg === 'string' ? q.tg.split(',').map(x => x.trim()).filter(x => /^[^|,]{1,24}$/.test(x)).slice(0, 10) : [],
     phase: oneOf(q.ph, PHASES, 'both'),
     due: list(q.due, DUES),
     sort: oneOf(q.sort, SORTS, 'newest'),

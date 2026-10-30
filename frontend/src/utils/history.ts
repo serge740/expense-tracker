@@ -31,6 +31,9 @@ export interface FeedRow {
   debtRole: DebtRole | null;
   debt: { person: string; kind: 'BORROWED' | 'LENT'; status: string; amount: number; paid: number; currency: string; payments: number; installments: number } | null;
   fundedBy: { debtId: string | null; person: string } | null;
+  /** A private note and tags (from the server; older rows have none). */
+  note?: string | null;
+  tags?: string[];
   schedule: { id: string; title: string; repeat: { unit?: 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' } | null; mode: string; status: string } | null;
   transfer: { toWalletId: string | null; toWallet: FeedWallet | null; toAmount: number | null; exchangeRate: number | null } | null;
   author?: { clientId: string; name: string; isYou: boolean };
@@ -93,6 +96,8 @@ export interface HistoryFilter {
   schedules: string[];
   schedMode: SchedMode;
   flags: Flag[];
+  /** Rows carrying any of these tags. */
+  tags: string[];
   phase: Phase;
   due: Due[];
   sort: Sort;
@@ -100,7 +105,7 @@ export interface HistoryFilter {
 }
 
 export const emptyFilter = (period: Period): HistoryFilter => ({
-  period, kinds: [], includeLoans: true, walletIds: [], memberId: null, search: '', include: [], exclude: [], minAmount: null, maxAmount: null, receipt: 'any', source: 'any', schedules: [], schedMode: 'any', flags: [], phase: 'both', due: [], sort: 'newest', group: 'day',
+  period, kinds: [], includeLoans: true, walletIds: [], memberId: null, search: '', include: [], exclude: [], minAmount: null, maxAmount: null, receipt: 'any', source: 'any', schedules: [], schedMode: 'any', flags: [], tags: [], phase: 'both', due: [], sort: 'newest', group: 'day',
 });
 
 const samePick = (a: Pick, b: Pick) => a.c === b.c && (a.s ?? '').toLowerCase() === (b.s ?? '').toLowerCase() && !!a.none === !!b.none;
@@ -131,7 +136,7 @@ export function cyclePick(f: HistoryFilter, p: Pick): HistoryFilter {
   return { ...f, include: [...tidy(cleared.include), p], exclude: tidy(cleared.exclude) };
 }
 
-export type ChipKind = 'kind' | 'wallet' | 'member' | 'category' | 'amount' | 'receipt' | 'source' | 'loans' | 'schedule' | 'mode' | 'flag' | 'phase' | 'due';
+export type ChipKind = 'kind' | 'wallet' | 'member' | 'category' | 'amount' | 'receipt' | 'source' | 'loans' | 'schedule' | 'mode' | 'flag' | 'tag' | 'phase' | 'due';
 export interface FilterChip {
   key: string;
   kind: ChipKind;
@@ -154,6 +159,7 @@ export function filterChips(f: HistoryFilter): FilterChip[] {
   for (const id of f.schedules) out.push({ key: `schedule:${id}`, kind: 'schedule', ref: id });
   if (f.schedMode !== 'any') out.push({ key: 'mode', kind: 'mode', ref: f.schedMode });
   for (const x of f.flags) out.push({ key: `flag:${x}`, kind: 'flag', ref: x });
+  for (const x of f.tags) out.push({ key: `tag:${x}`, kind: 'tag', ref: x });
   if (f.phase !== 'both') out.push({ key: 'phase', kind: 'phase', ref: f.phase });
   for (const d of f.due) out.push({ key: `due:${d}`, kind: 'due', ref: d });
   if (!f.includeLoans) out.push({ key: 'loans', kind: 'loans' });
@@ -180,6 +186,7 @@ export function removeChip(f: HistoryFilter, chip: FilterChip): HistoryFilter {
     case 'schedule': return { ...f, schedules: f.schedules.filter(id => id !== chip.ref) };
     case 'mode': return { ...f, schedMode: 'any' };
     case 'flag': return { ...f, flags: f.flags.filter(x => x !== chip.ref) };
+    case 'tag': return { ...f, tags: f.tags.filter(x => x !== chip.ref) };
     case 'phase': return { ...f, phase: 'both' };
     case 'due': return { ...f, due: f.due.filter(x => x !== chip.ref) };
   }

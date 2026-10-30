@@ -8,11 +8,13 @@ import { WalletModule } from '../wallet/wallet.module';
 import { TransactionFeedService } from './transaction-feed.service';
 import { SavedViewsService } from './saved-views.service';
 import { TrashService } from './trash.service';
+import { ApprovalsService } from './approvals.service';
+import { ApprovalsController } from './approvals.controller';
 
 @Module({
   imports: [ClientAuthModule, NotificationsModule, FamilyModule, WalletModule],
-  controllers: [TransactionController],
-  providers: [TransactionService, TransactionFeedService, SavedViewsService, TrashService],
+  controllers: [TransactionController, ApprovalsController],
+  providers: [TransactionService, TransactionFeedService, SavedViewsService, TrashService, ApprovalsService],
   exports: [TransactionService],
 })
 export class TransactionModule {}

@@ -38,10 +38,11 @@ export class NotificationsService {
     remindersEmail?: boolean;
     dailyPushCap?: number;
     language?: string;
+    notifyFamily?: boolean;
   }) {
     // Only known fields are stored, each checked, so a bad value can never break reminder delivery later.
     const data: Record<string, unknown> = {};
-    for (const k of ['pushEnabled', 'emailEnabled', 'inAppEnabled', 'quietEnabled', 'remindersPush', 'remindersEmail'] as const) {
+    for (const k of ['pushEnabled', 'emailEnabled', 'inAppEnabled', 'quietEnabled', 'remindersPush', 'remindersEmail', 'notifyFamily'] as const) {
       if (dto[k] !== undefined) data[k] = !!dto[k];
     }
     if (dto.timezone !== undefined) {
@@ -134,6 +135,11 @@ export class NotificationsService {
     }
 
     return notification;
+  }
+
+  /** A silent "something changed, refresh" for one account (no inbox row, no push). Never throws. */
+  nudge(clientId: string, event: string, payload: Record<string, unknown> = {}) {
+    this.realtime?.emitToClient(clientId, event, payload);
   }
 
   /** Fire-and-forget helper for other modules: never throws. */

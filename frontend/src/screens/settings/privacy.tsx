@@ -14,51 +14,46 @@ const SECTIONS = [
   {
     icon: 'info-outline' as const,
     title: '1. Information We Collect',
-    body: 'We collect information you provide when creating an account: your name, email address, and phone number. We also collect your facial biometric data solely for authentication purposes. Usage data such as transaction records and spending categories are stored securely and are only accessible to you.',
+    body: 'We collect information you provide when creating an account: your name, email address, and phone number. Usage data such as transaction records and spending categories are stored securely and are only accessible to you.',
   },
   {
     icon: 'lock-outline' as const,
     title: '2. How We Use Your Information',
-    body: 'Your information is used to:\n• Authenticate your identity using Face Recognition\n• Personalize your expense tracking experience\n• Send account-related notifications\n• Improve app performance and features\n\nWe do not sell, rent, or share your personal information with third parties for marketing purposes.',
-  },
-  {
-    icon: 'face' as const,
-    title: '3. Biometric Data',
-    body: 'Facial recognition data is encrypted and stored securely. It is used exclusively for identity verification and is never shared with third parties. You may delete your facial data at any time by removing face recognition from your account settings.',
+    body: 'Your information is used to:\n• Authenticate your identity\n• Personalize your expense tracking experience\n• Send account-related notifications\n• Improve app performance and features\n\nWe do not sell, rent, or share your personal information with third parties for marketing purposes.',
   },
   {
     icon: 'storage' as const,
-    title: '4. Data Storage & Security',
+    title: '3. Data Storage & Security',
     body: 'All data is stored on secure, encrypted servers. We use industry-standard SSL/TLS encryption for all data in transit. Access tokens are short-lived and stored in your device\'s secure storage. We regularly audit our security practices to protect your data.',
   },
   {
     icon: 'share' as const,
-    title: '5. Third-Party Services',
+    title: '4. Third-Party Services',
     body: 'AbyExpense uses the following trusted third-party services:\n• Google Sign-In for authentication\n• Expo Notifications for push notifications\n\nThese services have their own privacy policies. We only share the minimum data necessary for them to function.',
   },
   {
     icon: 'notifications-none' as const,
-    title: '6. Push Notifications',
+    title: '5. Push Notifications',
     body: 'With your permission, we may send push notifications for important account activity. You can manage notification preferences in Settings → Notifications. You may disable notifications at any time without affecting your account.',
   },
   {
     icon: 'person-outline' as const,
-    title: '7. Your Rights',
+    title: '6. Your Rights',
     body: 'You have the right to:\n• Access the personal data we hold about you\n• Request correction of inaccurate data\n• Request deletion of your account and associated data\n• Export your transaction history\n\nTo exercise any of these rights, contact us at privacy@abyexpense.com.',
   },
   {
     icon: 'child-care' as const,
-    title: '8. Children\'s Privacy',
+    title: '7. Children\'s Privacy',
     body: 'AbyExpense is not intended for users under the age of 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us immediately.',
   },
   {
     icon: 'update' as const,
-    title: '9. Changes to This Policy',
+    title: '8. Changes to This Policy',
     body: 'We may update this Privacy Policy from time to time. We will notify you of significant changes through the app or via email. Your continued use of AbyExpense after changes constitutes acceptance of the updated policy.',
   },
   {
     icon: 'mail-outline' as const,
-    title: '10. Contact Us',
+    title: '9. Contact Us',
     body: 'If you have any questions about this Privacy Policy or how we handle your data, please reach out:\n\nEmail: privacy@abyexpense.com\nWebsite: www.abyexpense.com\nAddress: ABY Tech Hub LLC, Financial District, USA',
   },
 ];

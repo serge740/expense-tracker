@@ -25,6 +25,7 @@ export type NotificationPreference = {
   remindersPush: boolean;
   remindersEmail: boolean;
   dailyPushCap: number;
+  notifyFamily: boolean;
 };
 
 export type NotificationList = {

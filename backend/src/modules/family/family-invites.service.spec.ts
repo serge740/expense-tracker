@@ -60,7 +60,7 @@ describe('creating invites', () => {
     const { w, id } = await setup();
     for (let i = 0; i < 20; i++) w.db.tables.familyInvite.push({ id: `x${i}`, familyId: id, status: 'PENDING', expiresAt: new Date(Date.now() + 1e9), code: `AAAA${String(i).padStart(2, '2')}`, tokenHash: `h${i}`, role: 'MEMBER', invitedBy: 'aline' });
     w.db.tables.familyMember.length = 0;          // an empty member count so only the invite cap can refuse
-    w.db.tables.familyMember.push({ id: 'm', familyId: id, clientId: 'aline', role: 'OWNER', status: 'ACTIVE', activeKey: 'aline' });
+    w.db.tables.familyMember.push({ id: 'm', familyId: id, clientId: 'aline', role: 'OWNER', status: 'ACTIVE', activeKey: `aline:${id}` });
     expect(await codeOf(w.invites.create('aline', id, { role: 'MEMBER' }))).toBe('TOO_MANY_PENDING_INVITES');
   });
 
@@ -129,7 +129,7 @@ describe('previewing and joining', () => {
     const joined = await w.invites.accept('eric', { token: inv.token });
     expect(joined).toMatchObject({ family: { id, name: 'Mwiza Family' }, role: 'VIEWER' });
     expect(row(w, inv.id)).toMatchObject({ status: 'ACCEPTED', acceptedBy: 'eric' });
-    expect(w.db.tables.familyMember.find(m => m.clientId === 'eric')).toMatchObject({ role: 'VIEWER', status: 'ACTIVE', activeKey: 'eric' });
+    expect(w.db.tables.familyMember.find(m => m.clientId === 'eric')).toMatchObject({ role: 'VIEWER', status: 'ACTIVE', activeKey: expect.stringMatching(/^eric:/) });
     expect(w.db.tables.familyActivity.some(a => a.action === 'member.joined' && a.actorId === 'eric')).toBe(true);
   });
 
@@ -174,12 +174,18 @@ describe('previewing and joining', () => {
     expect(row(w, inv.id).status).toBe('PENDING');
   });
 
-  test('someone in another family must leave it first', async () => {
+  test('someone already in another family can join this one too, up to three, and the fourth is refused without using the invite up', async () => {
     const { w, id } = await setup();
     await w.families.create('divine', { name: 'Other' });
     const inv = await w.invites.create('aline', id, { role: 'MEMBER' });
-    expect(await codeOf(w.invites.accept('divine', { code: inv.code }))).toBe('ALREADY_IN_FAMILY');
-    expect(row(w, inv.id).status).toBe('PENDING');                       // nothing was used up
+    expect(await codeOf(w.invites.accept('divine', { code: inv.code }))).toBe('OK');
+    await w.families.create('divine', { name: 'Third' });
+    const again = await w.invites.create('aline', id, { role: 'MEMBER' });
+    const fam4 = (await w.families.create('kevin', { name: 'K' })).family.id;
+    const inv4 = await w.invites.create('kevin', fam4, { role: 'MEMBER' });
+    expect(await codeOf(w.invites.accept('divine', { code: inv4.code }))).toBe('TOO_MANY_FAMILIES');
+    expect(row(w, inv4.id).status).toBe('PENDING');                      // nothing was used up
+    expect(again.id).toBeTruthy();
   });
 
   test('an invite to a family that has been deleted says so', async () => {
@@ -205,7 +211,7 @@ describe('previewing and joining', () => {
 
   test('a full family refuses new people', async () => {
     const { w, id } = await setup();
-    for (let i = 0; i < 11; i++) w.db.tables.familyMember.push({ id: `f${i}`, familyId: id, clientId: `x${i}`, role: 'MEMBER', status: 'ACTIVE', activeKey: `x${i}` });
+    for (let i = 0; i < 11; i++) w.db.tables.familyMember.push({ id: `f${i}`, familyId: id, clientId: `x${i}`, role: 'MEMBER', status: 'ACTIVE', activeKey: `x${i}:${id}` });
     const inv = { id: 'i', familyId: id, invitedBy: 'aline', role: 'MEMBER', tokenHash: 'h', code: 'AAAAAA', status: 'PENDING', expiresAt: new Date(Date.now() + 1e9) };
     w.db.tables.familyInvite.push(inv);
     expect(await codeOf(w.invites.accept('eric', { code: 'AAAAAA' }))).toBe('FAMILY_FULL');
@@ -253,22 +259,22 @@ describe('two people at once', () => {
     expect(w.db.tables.familyMember.find(m => m.clientId === 'eric')).toBeUndefined();
   });
 
-  test('the same person accepting two different invites at once ends up in one family only', async () => {
+  test('the same person accepting two different invites at once ends up in both families', async () => {
     const w = makeWorld();
     const a = (await w.families.create('aline', { name: 'A' })).family.id;
     const b = (await w.families.create('divine', { name: 'B' })).family.id;
     const ia = await w.invites.create('aline', a, { role: 'MEMBER' });
     const ib = await w.invites.create('divine', b, { role: 'MEMBER' });
     const results = await Promise.all([w.invites.accept('eric', { code: ia.code }), w.invites.accept('eric', { code: ib.code })].map(codeOf));
-    expect(results.sort()).toEqual(['ALREADY_IN_FAMILY', 'OK']);
-    expect(w.db.tables.familyMember.filter(m => m.clientId === 'eric' && m.status === 'ACTIVE')).toHaveLength(1);
+    expect(results).toEqual(['OK', 'OK']);
+    expect(w.db.tables.familyMember.filter(m => m.clientId === 'eric' && m.status === 'ACTIVE')).toHaveLength(2);
   });
 
   test('a failed join leaves no half-used invite behind', async () => {
     const { w, id } = await setup();
     const inv = await w.invites.create('aline', id, { role: 'MEMBER' });
-    w.db.tables.familyMember.push({ id: 'ghost', familyId: 'elsewhere', clientId: 'x', role: 'MEMBER', status: 'ACTIVE', activeKey: 'eric' });      // eric's key is taken
-    expect(await codeOf(w.invites.accept('eric', { code: inv.code }))).toBe('ALREADY_IN_FAMILY');
+    w.db.tables.familyMember.push({ id: 'ghost', familyId: 'elsewhere', clientId: 'x', role: 'MEMBER', status: 'ACTIVE', activeKey: `eric:${id}` });      // eric's key for this family is taken
+    expect(await codeOf(w.invites.accept('eric', { code: inv.code }))).toBe('ALREADY_MEMBER');
     expect(row(w, inv.id).status).toBe('PENDING');
   });
 });
@@ -282,7 +288,7 @@ describe('coming back', () => {
     await w.invites.accept('grace', { code: inv.code });
     const rows = w.db.tables.familyMember.filter(m => m.clientId === 'grace');
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ role: 'VIEWER', status: 'ACTIVE', activeKey: 'grace', leftAt: null });
+    expect(rows[0]).toMatchObject({ role: 'VIEWER', status: 'ACTIVE', activeKey: expect.stringMatching(/^grace:/), leftAt: null });
   });
   test('a removed person can be invited again', async () => {
     const { w, id } = await setup();

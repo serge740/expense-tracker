@@ -20,7 +20,7 @@ describe('creating a family', () => {
     expect(res.role).toBe('OWNER');
     expect(res.family).toMatchObject({ name: 'Mwiza Family', currency: 'RWF', timezone: 'Africa/Kigali' });
     const member = w.db.tables.familyMember[0];
-    expect(member).toMatchObject({ clientId: 'aline', role: 'OWNER', status: 'ACTIVE', activeKey: 'aline' });
+    expect(member).toMatchObject({ clientId: 'aline', role: 'OWNER', status: 'ACTIVE', activeKey: expect.stringMatching(/^aline:/) });
     expect(w.db.tables.familyActivity.map(a => a.action)).toEqual(['family.created']);
   });
 
@@ -39,19 +39,23 @@ describe('creating a family', () => {
     expect(await codeOf(makeWorld().families.create('aline', input as any))).toBe('INVALID_INPUT');
   });
 
-  test('a second family for the same person is refused', async () => {
+  test('a person can be in several families, up to three', async () => {
     const w = makeWorld();
-    await w.families.create('aline', { name: 'One' });
-    expect(await codeOf(w.families.create('aline', { name: 'Two' }))).toBe('ALREADY_IN_FAMILY');
-    expect(w.db.tables.family).toHaveLength(1);
+    for (const n of ['One', 'Two', 'Three']) await w.families.create('aline', { name: n });
+    expect(w.db.tables.family).toHaveLength(3);
+    expect(await codeOf(w.families.create('aline', { name: 'Four' }))).toBe('TOO_MANY_FAMILIES');
+    expect(w.db.tables.family).toHaveLength(3);
+    const mine: any = await w.families.mine('aline');
+    expect(mine.families.map((f: any) => f.family.name)).toEqual(['One', 'Two', 'Three']);
+    expect(mine.family.name).toBe('One');
   });
 
-  test('two creations at the same moment make exactly one family', async () => {
+  test('two creations at the same moment make two families, each with one owner row', async () => {
     const w = makeWorld();
     const results = await Promise.all([w.families.create('aline', { name: 'One' }), w.families.create('aline', { name: 'Two' })].map(p => codeOf(p)));
-    expect(results.sort()).toEqual(['ALREADY_IN_FAMILY', 'OK']);
-    expect(w.db.tables.family).toHaveLength(1);
-    expect(w.db.tables.familyMember).toHaveLength(1);
+    expect(results).toEqual(['OK', 'OK']);
+    expect(w.db.tables.family).toHaveLength(2);
+    expect(w.db.tables.familyMember).toHaveLength(2);
   });
 });
 
@@ -237,6 +241,6 @@ describe('the rules that must always hold', () => {
     expect(owners(w, id)).toHaveLength(1);
     const active = w.db.tables.familyMember.filter(m => m.status === 'ACTIVE');
     expect(new Set(active.map(m => m.clientId)).size).toBe(active.length);
-    for (const m of w.db.tables.familyMember) expect(m.activeKey).toBe(m.status === 'ACTIVE' ? m.clientId : null);
+    for (const m of w.db.tables.familyMember) expect(m.activeKey).toBe(m.status === 'ACTIVE' ? `${m.clientId}:${m.familyId}` : null);
   });
 });

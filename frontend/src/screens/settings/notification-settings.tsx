@@ -120,6 +120,8 @@ export default function NotificationSettingsScreen() {
       <Section title={t('rem.section')}>
         <Row icon="notifications-active" title={t('rem.push')} sub={t('rem.pushSub')}
              toggle={{ value: !!channels?.remindersPush, onChange: v => toggleChannel('remindersPush', v), disabled: channelDisabled }} />
+        <Row icon="family-restroom" title={t('fam.notify')} sub={t('fam.notifySub')}
+             toggle={{ value: channels?.notifyFamily !== false, onChange: v => toggleChannel('notifyFamily', v), disabled: channelDisabled }} />
         <Row icon="email" title={t('rem.email')} sub={t('rem.emailSub')}
              toggle={{ value: !!channels?.remindersEmail, onChange: v => toggleChannel('remindersEmail', v), disabled: channelDisabled }} />
         <OptionBlock icon="timer" title={t('rem.limit')} sub={t('rem.limitSub')}>

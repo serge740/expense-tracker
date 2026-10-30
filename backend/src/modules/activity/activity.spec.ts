@@ -54,6 +54,23 @@ describe('Activity timeline', () => {
     expect(e.changes).toEqual([{ field: 'role', from: 'MEMBER', to: 'VIEWER' }]);
   });
 
+  test('checking a balance: a match is remembered, a difference changes nothing until asked, then a visible adjustment puts it right', async () => {
+    const w = makeWorld();
+    const me = await w.scopeOf('aline');
+    const a = await w.wallets.create(me, wallet('A', 1000));
+    const bal = () => Number(w.db.tables.wallet.find(x => x.id === a.id)!.balance);
+    const ok: any = await w.wallets.reconcile(me, a.id, { actualBalance: 1000 });
+    expect(ok.matches).toBe(true);
+    expect(w.db.tables.wallet.find(x => x.id === a.id)!.reconciledAt).toBeTruthy();
+    const diff: any = await w.wallets.reconcile(me, a.id, { actualBalance: 900 });
+    expect([diff.matches, diff.difference, diff.adjusted, bal()]).toEqual([false, -100, false, 1000]);
+    const fixed: any = await w.wallets.reconcile(me, a.id, { actualBalance: 900, adjust: true });
+    expect([fixed.adjusted, bal()]).toEqual([true, 900]);
+    const tx = w.db.tables.transaction.find(t => t.id === fixed.transactionId)!;
+    expect([tx.type, Number(tx.amount), tx.title]).toEqual(['EXPENSE', 100, 'Balance adjustment']);
+    await expect(w.wallets.reconcile(me, a.id, { actualBalance: NaN })).rejects.toThrow();
+  });
+
   test('diffFields only reports what really changed', () => {
     expect(diffFields({ a: 1, b: 'x', c: null }, { a: 1, b: 'y', c: '' }, ['a', 'b', 'c'])).toEqual([{ field: 'b', from: 'x', to: 'y' }]);
   });

@@ -37,7 +37,7 @@ async function main() {
   const { reminders } = makeReminders(prisma);
   const transactions = new TransactionService(prisma, notifications);
   const debts = new DebtsService(prisma, notifications, reminders, new DebtPlanService(prisma));
-  const scheduled = new ScheduledService(prisma, transactions, notifications, reminders);
+  const scheduled = new ScheduledService(prisma, transactions, notifications, reminders, null as never);
   const home = new HomeService(prisma, debts, scheduled, new AgendaService(prisma, debts, scheduled));
 
   await prisma.reminder.deleteMany({});

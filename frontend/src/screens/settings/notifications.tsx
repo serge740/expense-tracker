@@ -9,6 +9,7 @@ import { MaterialIcons } from '@/rn';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { useNotifications } from '@/context/notification-context';
+import { useScope } from '@/context/scope-context';
 import {
   getNotifications, getNotificationPreferences, updateNotificationPreferences,
   markNotificationRead, markAllRead, sendTestPush,
@@ -47,6 +48,7 @@ export default function NotificationsScreen() {
   const [prefs, setPrefs]             = useState<NotificationPreference | null>(null);
   const [loading, setLoading]         = useState(true);
   const [refreshing, setRefreshing]   = useState(false);
+  const scope = useScope();
   const { unread, setUnread } = useNotifications();
   const [savingPref, setSavingPref]   = useState(false);
 
@@ -73,10 +75,18 @@ export default function NotificationsScreen() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   // A reminder opens the debt or schedule it is about; everything else just becomes read.
-  const handlePress = (item: NotificationItem) => {
+  const handlePress = async (item: NotificationItem) => {
     handleMarkRead(item);
     const debtId = item.type === 'reminder' ? item.data?.debtId : null;
     const scheduleId = item.type === 'reminder' ? item.data?.scheduleId : null;
+    // A reminder about a family's money opens inside that family.
+    const familyId = item.type === 'reminder' && typeof item.data?.familyId === 'string' ? item.data.familyId : null;
+    if (debtId || scheduleId) {
+      try {
+        if (familyId && scope.family?.id !== familyId) await scope.switchTo('family', familyId);
+        else if (!familyId && scope.isFamily) await scope.switchTo('personal');
+      } catch { /* open it where we are */ }
+    }
     if (typeof debtId === 'string') router.push({ pathname: '/(dashboard)/debts' as any, params: { openId: debtId } });
     else if (typeof scheduleId === 'string') router.push({ pathname: '/(dashboard)/scheduled' as any, params: { id: scheduleId } });
   };

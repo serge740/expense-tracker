@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DebtsService } from '../debts/debts.service';
 import { ScheduledService } from '../scheduled/scheduled.service';
 import { AgendaItem, LastScheduled, sortAgenda } from './agenda';
+import { Scope, isFamily, personalScope, scopeWhere } from '../family/scope/scope';
 
 /** Scheduled transactions and loan / credit pay dates, as one list of "what is coming" (personal only). */
 @Injectable()
@@ -13,23 +14,25 @@ export class AgendaService {
     private readonly scheduled: ScheduledService,
   ) {}
 
-  async build(clientId: string, now = new Date()): Promise<{ items: AgendaItem[]; last: LastScheduled | null; scheduleCount: number }> {
+  async build(who: string | Scope, now = new Date()): Promise<{ items: AgendaItem[]; last: LastScheduled | null; scheduleCount: number }> {
+    const scope = typeof who === 'string' ? personalScope(who) : who;
+    const where = scopeWhere(scope);
     const [waiting, failedRows, upcoming, debts, lastOcc, scheduleCount] = await Promise.all([
-      this.scheduled.waiting(clientId, now),
+      this.scheduled.waiting(scope, now),
       this.prisma.scheduledOccurrence.findMany({
-        where: { status: 'FAILED', schedule: { clientId, status: 'ACTIVE' } },
+        where: { status: 'FAILED', schedule: { ...where, status: 'ACTIVE' } },
         include: { schedule: { include: { wallet: { select: { currency: true } } } } }, orderBy: { dueAt: 'desc' }, take: 20,
       }),
       this.prisma.scheduledTransaction.findMany({
-        where: { clientId, status: 'ACTIVE', nextDueAt: { not: null } },
+        where: { ...where, status: 'ACTIVE', nextDueAt: { not: null } },
         include: { wallet: { select: { currency: true } } },
       }),
-      this.debts.list(clientId, 'OPEN'),
+      this.debts.list(scope, 'OPEN'),
       this.prisma.scheduledOccurrence.findFirst({
-        where: { status: { in: ['POSTED', 'SKIPPED', 'FAILED'] }, dueAt: { lt: now }, schedule: { clientId } },
+        where: { status: { in: ['POSTED', 'SKIPPED', 'FAILED'] }, dueAt: { lt: now }, schedule: { ...where } },
         orderBy: { dueAt: 'desc' }, include: { schedule: { select: { title: true } } },
       }),
-      this.prisma.scheduledTransaction.count({ where: { clientId, status: { in: ['ACTIVE', 'PAUSED'] } } }),
+      this.prisma.scheduledTransaction.count({ where: { ...where, status: { in: ['ACTIVE', 'PAUSED'] } } }),
     ]);
 
     const items: AgendaItem[] = [];
@@ -70,7 +73,7 @@ export class AgendaService {
     let last: LastScheduled | null = null;
     if (lastOcc) last = { title: lastOcc.schedule.title, at: lastOcc.dueAt, status: lastOcc.status as LastScheduled['status'] };
     else {
-      const newest = await this.prisma.scheduledTransaction.findFirst({ where: { clientId }, orderBy: { createdAt: 'desc' }, select: { title: true, createdAt: true } });
+      const newest = await this.prisma.scheduledTransaction.findFirst({ where: { ...where }, orderBy: { createdAt: 'desc' }, select: { title: true, createdAt: true } });
       if (newest) last = { title: newest.title, at: newest.createdAt, status: 'CREATED' };
     }
     return { items: sortAgenda(items), last, scheduleCount };

@@ -21,7 +21,6 @@ export type ClientProfile = {
   profileImage: string | null;
   isActive: boolean;
   isBiometric: boolean;
-  isFaceRecognition: boolean;
   createdAt: string;
   updatedAt: string;
 };

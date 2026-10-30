@@ -67,7 +67,7 @@ export default function AboutScreen() {
           <View style={[s.section, { backgroundColor: theme.surface }]}>
             <Text style={[s.sectionTitle, { color: theme.text }]}>About Rabbit Tracker</Text>
             <Text style={[s.body, { color: theme.textSecondary }]}>
-              Rabbit Tracker is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits — all secured with cutting-edge face recognition technology.{'\n\n'}
+              Rabbit Tracker is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits.{'\n\n'}
               Built with privacy-first principles, Rabbit Tracker never connects to your bank accounts. You stay in full control of your data.
             </Text>
           </View>

@@ -17,9 +17,8 @@ const FAQS: { category: string; icon: string; items: FAQ[] }[] = [
     category: 'Getting Started',
     icon: 'rocket-launch',
     items: [
-      { q: 'How do I create an account?', a: 'Open the app, tap "Sign up" on the login screen, enter your name, email, and phone number, then set up your sign-in method — either Face Recognition or Google.' },
-      { q: 'How does face recognition work?', a: 'AbyExpense uses your device camera to capture your facial features. These are stored securely on our servers and used only to verify your identity when signing in. No password is ever needed.' },
-      { q: 'Can I use multiple sign-in methods?', a: 'Yes. You can register your face and also link your Google account. Either method will sign you in to the same account.' },
+      { q: 'How do I create an account?', a: 'Open the app, tap "Sign up" on the login screen, enter your name, email, and phone number, then set a password or sign in with Google.' },
+      { q: 'Can I use multiple sign-in methods?', a: 'Yes. You can set a password and also link your Google account. Either method will sign you in to the same account.' },
     ],
   },
   {

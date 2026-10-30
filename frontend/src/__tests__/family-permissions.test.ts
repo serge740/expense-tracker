@@ -14,6 +14,7 @@ const EXPECTED: Record<FamilyAction, FamilyRole[]> = {
   'member.leave': ['ADMIN', 'MEMBER', 'VIEWER'],
   'tx.add': ['OWNER', 'ADMIN', 'MEMBER'], 'tx.edit.own': ['OWNER', 'ADMIN', 'MEMBER'], 'tx.edit.other': ['OWNER', 'ADMIN'],
   'wallet.manage': ['OWNER', 'ADMIN'], 'wallet.delete': ['OWNER'], 'budget.set': ['OWNER', 'ADMIN'],
+  'comment.add': ROLES, 'comment.delete.other': ['OWNER', 'ADMIN'], 'goal.manage': ['OWNER', 'ADMIN'], 'goal.contribute': ['OWNER', 'ADMIN', 'MEMBER'], 'allowance.manage': ['OWNER', 'ADMIN'], 'approval.manage': ['OWNER'], 'approval.decide': ['OWNER', 'ADMIN'], 'transfer.contribute': ['OWNER', 'ADMIN', 'MEMBER'], 'transfer.reimburse': ['OWNER', 'ADMIN'], 'schedule.manage': ['OWNER', 'ADMIN'], 'debt.manage': ['OWNER', 'ADMIN'],
 };
 
 describe('the app\'s permission table matches the server\'s', () => {

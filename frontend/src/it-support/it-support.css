@@ -1,0 +1,82 @@
+/*
+ * Scoped to the /it-support portal only — imported from ITSupportApp.tsx, nowhere else.
+ *
+ * Deliberately utilities-only: no `tailwindcss/preflight` import, so Tailwind's global element
+ * resets (which redefine body/button/input/etc. defaults) never load. That means this file can
+ * never change how the consumer phone app looks, no matter when it's loaded in the same SPA
+ * session. Colors are lifted from the app's own theme (frontend/src/theme/theme.ts) rather than
+ * Optical Gem's emerald, per "same structure, our colors".
+ */
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+
+@theme {
+  --font-display: 'Poppins', sans-serif;
+  --font-sans: 'Poppins', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+  --color-bg: #EEF7FA;
+  --color-panel: #FFFFFF;
+  --color-panel-2: #F3F8FA;
+  --color-panel-3: #E9F0F2;
+
+  --color-fg: #0E2A33;
+  --color-fg-2: #3A5560;
+  --color-fg-3: #5A7682;
+  --color-fg-4: #9AB0B9;
+
+  --color-border: rgba(0, 98, 127, 0.12);
+  --color-border-strong: rgba(0, 98, 127, 0.22);
+
+  --color-accent: #00627F;
+  --color-accent-fg: #00627F;
+  --color-accent-hover: #004F68;
+  --color-accent-soft: rgba(0, 98, 127, 0.08);
+
+  --color-success: #0B7A4B;
+  --color-success-soft: #E0F3E8;
+  --color-danger: #B3261E;
+  --color-danger-soft: #FBE6E4;
+  --color-warning: #8A5300;
+  --color-warning-soft: #FCEFD3;
+  --color-info: #2563EB;
+  --color-info-soft: #DBEAFE;
+  --color-mute-soft: rgba(90, 118, 130, 0.1);
+}
+
+:root[data-theme='dark'] {
+  --color-bg: #0A1A20;
+  --color-panel: #11262E;
+  --color-panel-2: #0E2129;
+  --color-panel-3: #193640;
+
+  --color-fg: #EAF5F8;
+  --color-fg-2: rgba(234, 245, 248, 0.78);
+  --color-fg-3: rgba(234, 245, 248, 0.6);
+  --color-fg-4: rgba(234, 245, 248, 0.35);
+
+  --color-border: rgba(234, 245, 248, 0.1);
+  --color-border-strong: rgba(234, 245, 248, 0.18);
+
+  --color-accent: #5BB8D6;
+  --color-accent-fg: #5BB8D6;
+  --color-accent-hover: #7FCBE3;
+  --color-accent-soft: rgba(91, 184, 214, 0.15);
+
+  --color-success: #5BE08F;
+  --color-success-soft: #123A2A;
+  --color-danger: #FF9D9A;
+  --color-danger-soft: #41202A;
+  --color-warning: #F5B84B;
+  --color-warning-soft: #3A2E12;
+  --color-info: #60A5FA;
+  --color-info-soft: rgba(96, 165, 250, 0.15);
+  --color-mute-soft: rgba(234, 245, 248, 0.08);
+}
+
+#it-support-root {
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  min-height: 100vh;
+}

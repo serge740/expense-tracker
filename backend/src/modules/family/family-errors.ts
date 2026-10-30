@@ -6,7 +6,7 @@ export type FamilyErrorCode =
   | 'FORBIDDEN_ACTION' | 'MEMBER_NOT_FOUND' | 'OWNER_MUST_TRANSFER' | 'OWNER_CANNOT_BE_CHANGED' | 'CANNOT_CHANGE_OWN_ROLE'
   | 'INVALID_ROLE' | 'INVALID_INPUT' | 'CONFIRM_NAME_MISMATCH'
   | 'INVITE_NOT_FOUND' | 'INVITE_EXPIRED' | 'INVITE_INVALID' | 'INVITE_FOR_SOMEONE_ELSE' | 'TOO_MANY_PENDING_INVITES' | 'TOO_MANY_ATTEMPTS'
-  | 'NOT_A_MEMBER' | 'BAD_FAMILY_HEADER' | 'WRONG_SCOPE' | 'WALLET_NOT_FOUND' | 'WALLET_HAS_HISTORY' | 'PERSONAL_ONLY';
+  | 'NOT_A_MEMBER' | 'BAD_FAMILY_HEADER' | 'WRONG_SCOPE' | 'WALLET_NOT_FOUND' | 'WALLET_HAS_HISTORY' | 'PERSONAL_ONLY' | 'TOO_MANY_FAMILIES';
 
 export function familyError(status: number, code: FamilyErrorCode, message: string): HttpException {
   return new HttpException({ statusCode: status, message, code }, status);
@@ -38,9 +38,13 @@ export const errors = {
   walletNotFound: () => familyError(404, 'WALLET_NOT_FOUND', 'Wallet not found'),
   walletHasHistory: () => familyError(409, 'WALLET_HAS_HISTORY', 'This wallet has transactions: archive it instead'),
   personalOnly: () => familyError(400, 'PERSONAL_ONLY', 'This is only available in your personal space'),
+  tooManyFamilies: () => familyError(409, 'TOO_MANY_FAMILIES', 'You are already in the most families allowed'),
   tooManyAttempts: () => familyError(429, 'TOO_MANY_ATTEMPTS', 'Too many wrong codes, try again later'),
 };
 
-export const LIMITS = { maxMembers: 12, maxPendingInvites: 20, inviteDays: 7 } as const;
+export const LIMITS = { maxMembers: 12, maxPendingInvites: 20, inviteDays: 7, maxFamilies: 3 } as const;
+
+/** The unique key of one active membership: the person and the family, so a person can hold one in each family. */
+export const activeKeyOf = (clientId: string, familyId: string) => `${clientId}:${familyId}`;
 
 export const isUniqueViolation = (e: any) => e?.code === 'P2002';

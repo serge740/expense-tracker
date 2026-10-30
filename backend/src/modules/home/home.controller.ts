@@ -33,8 +33,7 @@ export class HomeController {
   /** What is coming: scheduled items and loan / credit pay dates in one list. Personal only; a family has none. */
   @Get('agenda')
   async upcoming(@ReqScope() scope: Scope) {
-    if (isFamily(scope)) return { items: [], last: null, scheduleCount: 0 };
-    try { return await this.agenda.build(scope.clientId); }
+    try { return await this.agenda.build(scope); }
     catch (e: any) { throw e?.response?.code ? e : new HttpException(e?.message || 'Failed to load the agenda', e?.status || 400); }
   }
 }

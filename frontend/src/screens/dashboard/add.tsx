@@ -28,6 +28,7 @@ import { ReceiptField } from '@/components/add/receipt-field';
 import { getDebts, Debt } from '@/services/debt.service';
 import ENV from '@/env';
 import { useScope } from '@/context/scope-context';
+import { getMyAllowance, type MyAllowance } from '@/services/family-extras.service';
 import { AddingToBanner, ViewerCannotAdd } from '@/components/family/scope-banner';
 import { FamilyNote } from '@/components/family/family-screen';
 
@@ -57,6 +58,7 @@ export default function AddTransactionScreen() {
   }>();
 
   const [kind, setKind]           = useState<Kind>('EXPENSE');
+  const [allowance, setAllowance]   = useState<MyAllowance | null>(null);
   const [amount, setAmount]       = useState('');
   const [category, setCategory]   = useState<CategorySlug>('food');
   const [subCategory, setSubCategory] = useState<string | null>(null);
@@ -117,8 +119,14 @@ export default function AddTransactionScreen() {
   const catDef = categoryOf(category);
   const catName = t(categoryLabelKey(category, kind) as any);
   const accent = kind === 'INCOME' ? '#16A34A' : theme.primary;
-  // A family has no scheduled transactions yet: everything saved there is a real transaction, dated now or earlier.
-  const scheduled = !inFamily && isScheduledForm(date, rule);
+  // In a family only owners and admins schedule; for everyone else what is saved there is a real transaction, dated now or earlier.
+  const canSchedule = !inFamily || scope.can('schedule.manage');
+  const scheduled = canSchedule && isScheduledForm(date, rule);
+
+  React.useEffect(() => {
+    if (!inFamily || !scope.family) { setAllowance(null); return; }
+    getMyAllowance(scope.family.id).then(setAllowance).catch(() => setAllowance(null));
+  }, [inFamily, scope.family?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (potId && (kind !== 'EXPENSE' || scheduled)) setPotId(null);
@@ -216,7 +224,7 @@ export default function AddTransactionScreen() {
   const save = async () => {
     const value = parseFloat(amount.replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
-    if (inFamily && date.getTime() > Date.now() + 5 * 60_000) return Alert.alert(t('add.date'), t('family.add.noFuture'));
+    if (inFamily && !scheduled && date.getTime() > Date.now() + 5 * 60_000) return Alert.alert(t('add.date'), t('family.add.noFuture'));
 
     if (scheduled) {
       if (scheduleStartError(date, rule)) return Alert.alert(t('sched.repeat'), t('sched.errPast'));
@@ -244,7 +252,7 @@ export default function AddTransactionScreen() {
         fundedByDebtId: potId ?? undefined,
         receiptUrl: receiptUrl ?? undefined,
         receiptReportUrl: receiptReportUrl ?? undefined,
-      });
+      }).then((r: any) => { if (r?.pending) Alert.alert(t('appr.title'), t('appr.sent')); });
       leave();
     } catch (e: any) {
       Alert.alert(t('common.error'), e?.response?.data?.message || t('add.errSave'));
@@ -330,6 +338,12 @@ export default function AddTransactionScreen() {
             <Text style={[s.amountCode, { color: theme.textMuted }]}>{currency}</Text>
           </View>
 
+          {inFamily && allowance && kind === 'EXPENSE' ? (
+            <Text testID="allowance-line" style={{ color: Number(amount.replace(',', '.')) > allowance.left ? theme.negative : theme.textSecondary, fontSize: 12.5, marginTop: 6 }}>
+              {Number(amount.replace(',', '.')) > allowance.left ? t('allow.over', { left: String(Math.max(0, Math.round(allowance.left))) }) : t('allow.left', { left: String(Math.round(allowance.left)) })}
+            </Text>
+          ) : null}
+
           {/* Category: one field; the sheet does the choosing (category first, then what it was) */}
           <Label text={t('add.category')} />
           <TouchableOpacity onPress={() => setCatOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel={t('add.category')}
@@ -369,8 +383,8 @@ export default function AddTransactionScreen() {
             <MaterialIcons name="expand-more" size={18} color={theme.textMuted} />
           </TouchableOpacity>
 
-          {/* Repeat (personal transactions only: a family has no scheduled transactions yet) */}
-          {!inFamily && (
+          {/* Repeat (personal, or in a family for owners and admins) */}
+          {canSchedule && (
             <>
               <Label text={t('sched.repeat')} />
               <RepeatRow start={date} rule={rule} onPress={() => setPickRepeat(true)} />

@@ -13,6 +13,7 @@ import { Scope, assertCanEditTransaction, assertScopeCan, isFamily, personalScop
 import { displayName } from '../family/family.service';
 import { diffFields, recordActivity } from '../activity/activity';
 import { errors } from '../family/family-errors';
+import { cleanNote, cleanTags, packTags } from './annotations';
 
 /** Who wrote each row of a family list, and which one is the person asking (so the app can show "you" and know what they may edit). */
 interface Authors { names: Map<string, string>; me: string }
@@ -211,6 +212,8 @@ export class TransactionService {
         receiptUrl: dto.receiptUrl,
         receiptReportUrl: dto.receiptReportUrl,
         fundedByDebtId: dto.fundedByDebtId,
+        tags: packTags(cleanTags(dto.tags)),
+        note: cleanNote(dto.note),
         ...extra,
       },
     });
@@ -227,12 +230,80 @@ export class TransactionService {
     this.notifyNewTransaction(clientId, tx.type, Number(tx.amount), tx.title, tx.date).catch(() => {});
   }
 
-  async create(scope: Scope, dto: CreateTransactionDto) {
+  /** Set by the approvals service so a member's large family expense can wait for an owner or admin. */
+  holdHook?: (scope: Scope, dto: CreateTransactionDto) => Promise<{ pending: true; approvalId: string; title: string; amount: number } | null>;
+
+  async create(scope: Scope, dto: CreateTransactionDto): Promise<any> {
+    if (isFamily(scope) && this.holdHook) {
+      const held = await this.holdHook(scope, dto);
+      if (held) return held;
+    }
     const tx = await retryOnConflict(() => this.prisma.$transaction(prx => this.createInTx(prx, scope, dto)));
     // Personal pushes and budget alerts only. Telling the rest of a family comes with the family notifications (F5).
     if (!isFamily(scope)) this.notifyCreated(scope.clientId, tx);
+    else { this.notifyFamilyCreated(scope, tx).catch(() => {}); this.checkAllowance(scope, tx).catch(() => {}); }
     const authors = await this.authorsOf(scope, [tx]);
     return this.mapTx(tx, authors);
+  }
+
+  /** A member's own monthly allowance: they are told at 80% and when it is passed, and the owner and admins hear when it is passed. Never throws. */
+  async checkAllowance(scope: Scope, tx: { type: TransactionType; amount: unknown; date: Date }) {
+    if (!isFamily(scope) || tx.type !== 'EXPENSE') return;
+    const a = await this.prisma.familyAllowance.findFirst({ where: { familyId: scope.familyId, clientId: scope.clientId } });
+    if (!a) return;
+    const limit = Number(a.monthlyLimit);
+    const month = { gte: new Date(tx.date.getFullYear(), tx.date.getMonth(), 1), lt: new Date(tx.date.getFullYear(), tx.date.getMonth() + 1, 1) };
+    const agg = await this.prisma.transaction.aggregate({ where: { familyId: scope.familyId, clientId: scope.clientId, type: 'EXPENSE', date: month, ...NO_DEBT_FLOWS }, _sum: { amount: true } });
+    const after = Number(agg._sum.amount ?? 0);
+    const before = after - Number(tx.amount);
+    if (limit <= 0) return;
+    if (before <= limit && after > limit) {
+      this.notifications.notify(scope.clientId, 'Allowance passed', `You have spent more than your monthly allowance (${Math.round((after / limit) * 100)}%).`, 'transaction', { familyId: scope.familyId });
+      const managers = await this.prisma.familyMember.findMany({ where: { familyId: scope.familyId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } }, select: { clientId: true } });
+      const me = await this.prisma.client.findUnique({ where: { id: scope.clientId }, select: { firstName: true, lastName: true } });
+      for (const m of managers) if (m.clientId !== scope.clientId) this.notifications.notify(m.clientId, 'Allowance passed', `${me ? displayName(me) : 'A member'} has passed their monthly allowance.`, 'transaction', { familyId: scope.familyId });
+    } else if (before / limit < 0.8 && after / limit >= 0.8 && after <= limit) {
+      this.notifications.notify(scope.clientId, 'Allowance almost used', `You have used ${Math.round((after / limit) * 100)}% of your monthly allowance.`, 'transaction', { familyId: scope.familyId });
+    }
+  }
+
+  /**
+   * Inside a family: the other active members are told who added what (unless they switched family notifications off), every
+   * member's open screens are nudged to refresh, and the family budget alert goes to everyone when it crosses 80% / 100%.
+   * Never throws: a failed message must not undo the transaction.
+   */
+  async notifyFamilyCreated(scope: Scope, tx: { type: TransactionType; amount: unknown; title: string; date: Date; id?: string }) {
+    if (!isFamily(scope)) return;
+    const members = await this.prisma.familyMember.findMany({ where: { familyId: scope.familyId, status: 'ACTIVE' }, select: { clientId: true } });
+    const others = members.map(m => m.clientId).filter(id => id !== scope.clientId);
+    for (const id of others) this.notifications.nudge(id, 'family-changed', { familyId: scope.familyId });
+    if (!others.length) return;
+    const prefs = await this.prisma.notificationPreference.findMany({ where: { clientId: { in: others } }, select: { clientId: true, notifyFamily: true } });
+    const off = new Set(prefs.filter(p => !p.notifyFamily).map(p => p.clientId));
+    const me = await this.prisma.client.findUnique({ where: { id: scope.clientId }, select: { firstName: true, lastName: true } });
+    const who = me ? displayName(me) : 'A member';
+    const amount = Number(tx.amount);
+    const money = amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    for (const id of others) {
+      if (off.has(id)) continue;
+      this.notifications.notify(id, tx.type === 'INCOME' ? 'Family: money in' : 'Family: new expense', `${who} · ${tx.type === 'INCOME' ? '+' : '−'}${money} · ${tx.title}`, 'transaction', { familyId: scope.familyId, transactionId: tx.id });
+    }
+    if (tx.type !== 'EXPENSE') return;
+    const month = tx.date.getMonth() + 1;
+    const year = tx.date.getFullYear();
+    const budget = await this.prisma.budget.findUnique({ where: { scopeKey_month_year: { scopeKey: scopeKeyOf(scope), month, year } } });
+    const limit = budget ? Number(budget.limit) : 0;
+    if (limit <= 0) return;
+    const agg = await this.prisma.transaction.aggregate({
+      where: { ...scopeWhere(scope), type: 'EXPENSE', date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) }, ...NO_DEBT_FLOWS },
+      _sum: { amount: true },
+    });
+    const after = Number(agg._sum.amount ?? 0);
+    const before = after - amount;
+    const pct = (v: number) => (v / limit) * 100;
+    const crossed = pct(before) < 100 && pct(after) >= 100 ? ['Family budget exceeded', `The family has spent ${Math.round(pct(after))}% of this month's budget.`]
+      : pct(before) < 80 && pct(after) >= 80 ? ['Family budget almost used', `The family has used ${Math.round(pct(after))}% of this month's budget.`] : null;
+    if (crossed) for (const id of members.map(m => m.clientId)) if (!off.has(id)) this.notifications.notify(id, crossed[0], crossed[1], 'transaction', { familyId: scope.familyId });
   }
 
   /** Push for the new transaction, plus a budget alert when it crosses 80% / 100%. */

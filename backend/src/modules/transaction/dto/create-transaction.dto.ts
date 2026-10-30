@@ -11,6 +11,9 @@ export class CreateTransactionDto {
   walletId?: string;
   receiptUrl?: string;
   receiptReportUrl?: string;
+  /** Tags (a list or a comma separated string) and a private note. */
+  tags?: string[] | string;
+  note?: string;
   /** Pay this expense out of a borrowed debt's unspent money instead of a wallet. */
   fundedByDebtId?: string;
 }

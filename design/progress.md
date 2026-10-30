@@ -553,3 +553,19 @@ See `design/history-web-plan.md` (Phase H2) and row W18 / B8 in `design/web-only
 - 2026-10-30 — History H5 part 1 (web + backend): Activity timeline for transactions and wallets. Needs migration 20261106090000_activity_events on deploy. Not yet logged: budgets, debts, schedules, reminders, exports, account, family; no backfill (honest "kept from" date); no retention job; no "history of this item" in detail screens or insights strip. See history-web-plan.md (B12, W22).
 
 - 2026-10-30 — History H5 finished (web + backend): loans, budget, schedules and family also logged, backfill in the migration, one-year retention, week summary, tabs, history of this item on transaction and wallet pages.
+
+- 2026-10-30 — History H6 part 1 (web + backend): balance check against the real account with an optional visible adjustment. Needs migration 20261107090000_wallet_reconcile on deploy. Still open in H6: saved-views manager, calendar and chart modes, duplicates compare, export, advanced filter builder, tags and notes.
+
+- 2026-10-30 — History H6 part 2: CSV export. Still open in H6 (need design first): saved-views manager, calendar and chart modes, duplicates compare, PDF/Excel export, advanced filter builder, tags and notes.
+
+- 2026-10-30 — Family F4, F5, F7 (web + backend): spending by member, push/inbox fan-out and live refresh for family changes, family budget alerts to all members, per-person switch, 30-day purge of archived families. Already in place from F1-F3: rate limits, privacy text, concurrency tests. Not built: account deletion (there is no delete-account feature yet, so no hand-over rule to enforce) and the F8+ items in family-portal.md section 15 (family debts, schedules, reminders, contribution transfers, allowances, approvals, several families, goals, comments), which are new product features. Needs migration 20261108090000_notify_family on deploy.
+
+- 2026-10-30 — Family F8a comments and F8b goals (web + backend). Needs migration 20261109090000_family_goals_comments. Next in design/family-f8-plan.md: F8d allowances, F8c approvals, F8i several families, F8h contribution transfers, F8e schedules, F8f debts, F8g reminders.
+
+- 2026-10-30 — Family F8d allowances and F8c approvals (web + backend). Needs migrations 20261110090000_family_allowances and 20261111090000_family_approvals. Approvals keep a held expense in its own table so nothing that sums transactions can ever count it.
+
+- 2026-10-30 — Family F8i several families (web + backend). Needs migration 20261112090000_several_families BEFORE the new backend runs (it rewrites activeKey). The old "ALREADY_IN_FAMILY" rule is gone; the code stays in the list for older apps. Left in design/family-f8-plan.md: F8h contribution transfers, F8e schedules, F8f debts, F8g reminders.
+
+- 2026-10-30 — Family F8h contribution transfers, F8e schedules, F8f debts, F8g reminders (web + backend). Needs migrations 20261113090000_contribution_transfers, 20261114090000_family_schedules, 20261115090000_family_debts and 20261116090000_family_reminders (the last one replaces two unique indexes: take a backup first). This finishes the F8+ list in design/family-f8-plan.md. Not yet checked on a real phone or against a real MySQL.
+
+- 2026-10-30 — History H6 leftovers (web + backend): saved-views manager, calendar and chart modes, duplicates compare, Excel and PDF export, advanced filter builder, tags and notes. Needs migration 20261117090000_history_tags_notes. Backend 696 tests, frontend 618 tests and the navigation check pass; not tried on a real phone or MySQL. fr / rw / sw text not reviewed by a native speaker.

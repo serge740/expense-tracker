@@ -22,8 +22,13 @@ import Transfer from '@/screens/dashboard/transfer';
 import Reports from '@/screens/dashboard/reports';
 import DebtLedger from '@/screens/dashboard/debt-ledger';
 import Scheduled from '@/screens/dashboard/scheduled';
+import HistoryDuplicates from '@/screens/dashboard/history-duplicates';
 import Trash from '@/screens/dashboard/trash';
 import Activity from '@/screens/dashboard/activity';
+import FamilyGoals from '@/screens/dashboard/family-goals';
+import FamilyAllowances from '@/screens/dashboard/family-allowances';
+import FamilyTransfers from '@/screens/dashboard/family-transfers';
+import FamilyApprovals from '@/screens/dashboard/family-approvals';
 import Budget from '@/screens/dashboard/budget';
 import TransactionDetail from '@/screens/dashboard/transaction-detail';
 import Family from '@/screens/dashboard/family';
@@ -71,11 +76,16 @@ const dashboardScreens: RouteObject[] = [
   { path: 'debt-ledger', element: <DebtLedger /> },
   { path: 'scheduled', element: <Scheduled /> },
   { path: 'trash', element: <Trash /> },
+  { path: 'history-duplicates', element: <HistoryDuplicates /> },
   { path: 'activity', element: <Activity /> },
   { path: 'budget', element: <Budget /> },
   { path: 'transaction-detail', element: <TransactionDetail /> },
   { path: 'family', element: <Family /> },
   { path: 'family-create', element: <FamilyCreate /> },
+  { path: 'family-goals', element: <FamilyGoals /> },
+  { path: 'family-allowances', element: <FamilyAllowances /> },
+  { path: 'family-approvals', element: <FamilyApprovals /> },
+  { path: 'family-transfers', element: <FamilyTransfers /> },
   { path: 'family-join', element: <FamilyJoin /> },
   // Settings
   { path: 'about', element: <About /> },

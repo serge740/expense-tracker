@@ -1,7 +1,7 @@
 // Ported from expo_app/context/scope-context.tsx
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@/lib/shims/async-storage';
-import { getMyFamily, type FamilyInfo, type FamilyLimits, type MyFamily } from '@/services/family.service';
+import { getMyFamilies, type FamilyInfo, type FamilyLimits, type MyFamily } from '@/services/family.service';
 import { can as roleCan, type FamilyAction, type FamilyRole } from '@/utils/family-permissions';
 import { clearScopeOnSessionLoss, onSessionLost, setActiveFamilyId, setNotAMemberHandler } from '@/utils/family-scope-link';
 import { decideLaunchScope, scopeKeyOf, stillInFamily, type ScopeKind } from '@/utils/family-scope-state';
@@ -15,8 +15,10 @@ export interface ScopeValue {
   scope: ScopeKind;
   /** True while standing in the family. */
   isFamily: boolean;
-  /** The person's family, whether or not they are standing in it right now. */
+  /** The family the person last used (or the first one), whether or not they are standing in it right now. */
   family: FamilyInfo | null;
+  /** Every family the person is in. */
+  families: MyFamily[];
   role: FamilyRole | null;
   memberCount: number;
   limits: FamilyLimits | null;
@@ -28,22 +30,26 @@ export interface ScopeValue {
   clearNotice: () => void;
   /** Personal is never restricted; in a family the role decides. */
   can: (action: FamilyAction) => boolean;
-  switchTo: (scope: ScopeKind) => Promise<void>;
+  /** Move to Personal, or to a family (the given one, or the one used last). */
+  switchTo: (scope: ScopeKind, familyId?: string) => Promise<void>;
   /** Ask the server again (after creating, joining, leaving, a role change). Returns the family or null. */
   refresh: () => Promise<MyFamily | null>;
 }
 
 /** What screens see when there is no provider (tests, or a screen shown outside the dashboard): plain Personal. */
 export const PERSONAL_ONLY: ScopeValue = {
-  ready: true, scope: 'personal', isFamily: false, family: null, role: null, memberCount: 0, limits: null, scopeKey: 'personal', epoch: 0,
+  ready: true, scope: 'personal', isFamily: false, family: null, families: [], role: null, memberCount: 0, limits: null, scopeKey: 'personal', epoch: 0,
   notice: null, clearNotice: () => {}, can: () => true, switchTo: async () => {}, refresh: async () => null,
 };
 
 const ScopeContext = createContext<ScopeValue>(PERSONAL_ONLY);
 export const useScope = () => useContext(ScopeContext);
 
-interface State { ready: boolean; scope: ScopeKind; mine: MyFamily | null; epoch: number; notice: ScopeValue['notice'] }
-const INITIAL: State = { ready: false, scope: 'personal', mine: null, epoch: 0, notice: null };
+interface State { ready: boolean; scope: ScopeKind; mine: MyFamily | null; all: MyFamily[]; epoch: number; notice: ScopeValue['notice'] }
+const INITIAL: State = { ready: false, scope: 'personal', mine: null, all: [], epoch: 0, notice: null };
+
+/** The family to treat as "mine": the one asked for, else the one used last, else the first. */
+const pickFamily = (all: MyFamily[], wanted: string | null | undefined): MyFamily | null => all.find(f => f.family.id === wanted) ?? all[0] ?? null;
 
 async function readSaved(): Promise<string | null> {
   try { return (await AsyncStorage.getItem(STORAGE_KEY)) || null; } catch { return null; }
@@ -68,10 +74,10 @@ export function ScopeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /** Back to Personal, once, with a notice (the person was removed, or their family was deleted). */
-  const fallBack = useCallback((familyName: string | null, mine: MyFamily | null) => {
+  const fallBack = useCallback((familyName: string | null, all: MyFamily[]) => {
     void writeSaved(null);
     setActiveFamilyId(null);
-    if (alive.current) setState(s => ({ ...s, scope: 'personal', mine, ready: true, epoch: s.epoch + 1, notice: { kind: 'removed', familyName } }));
+    if (alive.current) setState(s => ({ ...s, scope: 'personal', all, mine: pickFamily(all, null), ready: true, epoch: s.epoch + 1, notice: { kind: 'removed', familyName } }));
   }, []);
 
   // Launch: ask the server, then decide. Nothing is published as ready before that.
@@ -79,17 +85,18 @@ export function ScopeProvider({ children }: { children: React.ReactNode }) {
     alive.current = true;
     (async () => {
       const saved = await readSaved();
-      let mine: MyFamily | null = null;
-      try { mine = await getMyFamily(); } catch { /* offline: start in Personal; the saved choice is kept for next time */ if (saved && alive.current) { setState(s => ({ ...s, ready: true })); return; } }
+      let all: MyFamily[] = [];
+      try { all = await getMyFamilies(); } catch { /* offline: start in Personal; the saved choice is kept for next time */ if (saved && alive.current) { setState(s => ({ ...s, ready: true })); return; } }
       if (!alive.current) return;
+      const mine = pickFamily(all, saved);
       const { scope, removed } = decideLaunchScope(saved, mine);
       if (scope === 'family' && mine) {
         setActiveFamilyId(mine.family.id);
-        setState(s => ({ ...s, ready: true, scope: 'family', mine, epoch: s.epoch + 1 }));
+        setState(s => ({ ...s, ready: true, scope: 'family', mine, all, epoch: s.epoch + 1 }));
       } else {
         setActiveFamilyId(null);
         if (removed) void writeSaved(null);
-        setState(s => ({ ...s, ready: true, scope: 'personal', mine, notice: removed ? { kind: 'removed', familyName: null } : s.notice, epoch: s.epoch + 1 }));
+        setState(s => ({ ...s, ready: true, scope: 'personal', mine, all, notice: removed ? { kind: 'removed', familyName: null } : s.notice, epoch: s.epoch + 1 }));
       }
     })();
     return () => { alive.current = false; setActiveFamilyId(null); };
@@ -99,8 +106,8 @@ export function ScopeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setNotAMemberHandler(() => {
       const name = current.current.mine?.family.name ?? null;
-      fallBack(name, null);
-      void getMyFamily().then(m => { if (alive.current) setState(s => ({ ...s, mine: m })); }).catch(() => {});
+      fallBack(name, []);
+      void getMyFamilies().then(all => { if (alive.current) setState(s => ({ ...s, all, mine: pickFamily(all, null) })); }).catch(() => {});
     });
     return () => setNotAMemberHandler(null);
   }, [fallBack]);
@@ -112,14 +119,15 @@ export function ScopeProvider({ children }: { children: React.ReactNode }) {
     if (alive.current) setState(INITIAL);
   }), []);
 
-  const switchTo = useCallback(async (target: ScopeKind) => {
-    const { scope, mine } = current.current;
-    if (target === scope) return;
+  const switchTo = useCallback(async (target: ScopeKind, familyId?: string) => {
+    const { scope, all } = current.current;
+    const mine = target === 'family' ? pickFamily(all, familyId ?? current.current.mine?.family.id) : current.current.mine;
+    if (target === scope && (target === 'personal' || mine?.family.id === current.current.mine?.family.id)) return;
     if (target === 'family') {
       if (!mine) return;
-      current.current = { ...current.current, scope: 'family' };
+      current.current = { ...current.current, scope: 'family', mine };
       await writeSaved(mine.family.id);
-      apply({ scope: 'family' }, mine.family.id, true);
+      apply({ scope: 'family', mine }, mine.family.id, true);
     } else {
       current.current = { ...current.current, scope: 'personal' };
       await writeSaved(null);
@@ -128,16 +136,17 @@ export function ScopeProvider({ children }: { children: React.ReactNode }) {
   }, [apply]);
 
   const refresh = useCallback(async () => {
-    const mine = await getMyFamily();
-    if (!alive.current) return mine;
+    const all = await getMyFamilies();
     const { scope, mine: before } = current.current;
-    if (scope === 'family' && !stillInFamily(before?.family.id ?? null, mine)) {
-      current.current = { ...current.current, scope: 'personal', mine };
-      fallBack(before?.family.name ?? null, mine);
+    const mine = pickFamily(all, before?.family.id);
+    if (!alive.current) return mine;
+    if (scope === 'family' && !stillInFamily(before?.family.id ?? null, all.find(f => f.family.id === before?.family.id) ?? null)) {
+      current.current = { ...current.current, scope: 'personal', all, mine };
+      fallBack(before?.family.name ?? null, all);
     } else {
       // Also update the copy the next call reads, so "create, refresh, switch" works without waiting for a re-render.
-      current.current = { ...current.current, mine };
-      setState(s => ({ ...s, mine }));
+      current.current = { ...current.current, all, mine };
+      setState(s => ({ ...s, all, mine }));
     }
     return mine;
   }, [fallBack]);
@@ -150,6 +159,7 @@ export function ScopeProvider({ children }: { children: React.ReactNode }) {
       scope: isFamily ? 'family' : 'personal',
       isFamily,
       family: state.mine?.family ?? null,
+      families: state.all,
       role,
       memberCount: state.mine?.memberCount ?? 0,
       limits: state.mine?.limits ?? null,

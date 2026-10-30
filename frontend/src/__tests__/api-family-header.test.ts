@@ -29,12 +29,12 @@ describe('the web request carries the family only where it should', () => {
     for (const url of ['/wallets', '/transactions', '/budget/current', '/reports/summary', '/home/summary', '/debts']) await api.get(url);
     expect(seen.every(s => !s.header)).toBe(true);
   });
-  test('inside a family: the five scoped routes carry it, nothing else does', async () => {
+  test('inside a family: the scoped routes carry it, nothing else does', async () => {
     setActiveFamilyId('fam-12345678');
-    for (const url of ['/wallets', '/wallets/overview', '/transactions/recent', '/budget/current', '/reports/by-category', '/home/summary']) await api.get(url);
+    for (const url of ['/wallets', '/wallets/overview', '/transactions/recent', '/budget/current', '/reports/by-category', '/home/summary', '/scheduled', '/scheduled/waiting', '/debts', '/debts/ledger']) await api.get(url);
     expect(seen.every(s => s.header === 'fam-12345678')).toBe(true);
     seen.length = 0;
-    for (const url of ['/debts', '/scheduled', '/reminders/pending', '/notifications', '/family/mine', '/client-auth/me', '/receipts/scan', '/subcategories']) await api.get(url);
+    for (const url of ['/reminders/pending', '/notifications', '/family/mine', '/client-auth/me', '/receipts/scan', '/subcategories']) await api.get(url);
     expect(seen.every(s => !s.header)).toBe(true);
   });
   test('switching back to Personal stops sending it at once', async () => {

@@ -172,32 +172,6 @@ export class ClientAuthController {
     }
   }
 
-  @Post('face-enroll')
-  @UseGuards(ClientJwtAuthGuard)
-  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage() }))
-  async enrollFace(@Req() req: RequestWithClient, @UploadedFile() file: Express.Multer.File) {
-    try {
-      if (!file) throw new HttpException('Image file is required', 400);
-      return await this.clientAuthService.enrollFace(req.client.id, file.buffer);
-    } catch (error: any) {
-      throw new HttpException(error.message || 'Face enrollment failed', error.status || 400);
-    }
-  }
-
-  @Post('face-identify')
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @UseInterceptors(FileInterceptor('image', { storage: memoryStorage() }))
-  async faceIdentify(@UploadedFile() file: Express.Multer.File, @Res() res: Response) {
-    try {
-      if (!file) throw new HttpException('Image file is required', 400);
-      const result = await this.clientAuthService.faceIdentify(file.buffer);
-      res.cookie('AccessClientToken', result.accessToken, COOKIE_OPTIONS);
-      return res.json(result);
-    } catch (error: any) {
-      throw new HttpException(error.message || 'Face identification failed', error.status || 401);
-    }
-  }
-
   @Patch('enable-biometric')
   @UseGuards(ClientJwtAuthGuard)
   async enableBiometric(@Req() req: RequestWithClient) {

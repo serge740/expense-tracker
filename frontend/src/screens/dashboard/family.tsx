@@ -120,6 +120,34 @@ export default function FamilyHubScreen() {
       ) : null}
       {error ? <FamilyNote tone="error" testID="family-hub-error" text={error} /> : null}
 
+      <TouchableOpacity testID="family-goals-open" onPress={() => router.push('/(dashboard)/family-goals' as any)} activeOpacity={0.85} accessibilityRole="button"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
+        <MaterialIcons name="flag" size={20} color={theme.primary} />
+        <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontWeight: '600' }}>{t('goal.open')}</Text>
+        <MaterialIcons name="chevron-right" size={22} color={theme.primary} />
+      </TouchableOpacity>
+
+      <TouchableOpacity testID="family-allowances-open" onPress={() => router.push('/(dashboard)/family-allowances' as any)} activeOpacity={0.85} accessibilityRole="button"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
+        <MaterialIcons name="savings" size={20} color={theme.primary} />
+        <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontWeight: '600' }}>{t('allow.open')}</Text>
+        <MaterialIcons name="chevron-right" size={22} color={theme.primary} />
+      </TouchableOpacity>
+
+      <TouchableOpacity testID="family-approvals-open" onPress={() => router.push('/(dashboard)/family-approvals' as any)} activeOpacity={0.85} accessibilityRole="button"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
+        <MaterialIcons name="fact-check" size={20} color={theme.primary} />
+        <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontWeight: '600' }}>{t('appr.open')}</Text>
+        <MaterialIcons name="chevron-right" size={22} color={theme.primary} />
+      </TouchableOpacity>
+
+      <TouchableOpacity testID="family-transfers-open" onPress={() => router.push('/(dashboard)/family-transfers' as any)} activeOpacity={0.85} accessibilityRole="button"
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, paddingVertical: 14, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
+        <MaterialIcons name="swap-horiz" size={20} color={theme.primary} />
+        <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontWeight: '600' }}>{t('xfer.open')}</Text>
+        <MaterialIcons name="chevron-right" size={22} color={theme.primary} />
+      </TouchableOpacity>
+
       <FamilySection text={t('family.hub.members')} />
       {loading ? <ActivityIndicator color={theme.primary} style={{ marginVertical: 16 }} /> : members.map(m => (
         <TouchableOpacity key={m.clientId} testID={`member-${m.clientId}`} activeOpacity={0.8} onPress={() => setPicked(m)}

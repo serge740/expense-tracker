@@ -24,7 +24,7 @@ describe('which requests carry the header', () => {
     expect(isScopedPath('https://aby-expense.onrender.com/home/summary?month=10')).toBe(true);
   });
   test('never the personal-only, account or family routes, or a look-alike', () => {
-    for (const p of ['/debts', '/scheduled', '/reminders/pending', '/notifications', '/receipts/scan', '/subcategories', '/client-auth/login', '/family/mine', '/family/join', '/devices', '/walletsfoo', '/transactionsx', '/', '', undefined]) {
+    for (const p of ['/reminders/pending', '/notifications', '/receipts/scan', '/subcategories', '/client-auth/login', '/family/mine', '/family/join', '/devices', '/walletsfoo', '/transactionsx', '/', '', undefined]) {
       expect(isScopedPath(p as string | undefined)).toBe(false);
     }
   });
@@ -32,7 +32,7 @@ describe('which requests carry the header', () => {
     expect(familyHeaderFor('/wallets')).toBeNull();                       // Personal: no header
     setActiveFamilyId('fam-12345678');
     expect(familyHeaderFor('/wallets')).toBe('fam-12345678');
-    expect(familyHeaderFor('/debts')).toBeNull();
+    expect(familyHeaderFor('/reminders/pending')).toBeNull();
     expect(familyHeaderFor('/family/mine')).toBeNull();
     setActiveFamilyId(null);
     expect(familyHeaderFor('/wallets')).toBeNull();

@@ -521,10 +521,10 @@ Family debts · scheduled/recurring family transactions · family reminders · P
 | F1 | Foundation: schema, migration, `family` module, roles/permissions, invites, tests | ✅ (backend only, see `design/progress.md`) |
 | F2 | Scope resolution: `resolveScope`, scope-aware wallets & transactions, isolation tests | ✅ (backend only, see `design/progress.md`) |
 | F3 | App: scope context, switcher, create/join/invite/members screens (mobile) | ⬜ |
-| F4 | Family budget, reports by member, home in family scope | ⬜ |
-| F5 | Realtime rooms, push fan-out, preferences, activity log | ⬜ |
+| F4 | Family budget, reports by member, home in family scope | ✅ web + backend |
+| F5 | Realtime rooms, push fan-out, preferences, activity log | ✅ web + backend (Expo not done) |
 | F6 | Web portal parity + `/join/:token` + universal links | ⬜ |
-| F7 | Hardening: i18n (en/fr/rw/sw), rate limits, privacy text, load/concurrency tests, account-deletion rules | ⬜ |
+| F7 | Hardening: i18n (en/fr/rw/sw), rate limits, privacy text, load/concurrency tests, account-deletion rules | ✅ except account deletion (no such feature yet) |
 | F8+ | Deferred items from §15 | ⬜ |
 
 ### Checklists

@@ -7,6 +7,7 @@ import { Text } from '@/components/text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useI18n } from '@/context/language-context';
 import { useRinging } from '@/context/sound-context';
+import { useScope } from '@/context/scope-context';
 import { formatMoney, useCurrency } from '@/context/currency-context';
 import { DateTimeSheet } from '@/components/datetime-sheet';
 import { WalletChips } from '@/components/wallet/wallet-chips';
@@ -37,6 +38,7 @@ export function ReminderModalHost() {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
   const { currency: mainCurrency } = useCurrency();
+  const scope = useScope();
   const [items, setItems] = useState<PendingReminder[]>([]);
   const [closed, setClosed] = useState<ClosedMap>({});
   const [index, setIndex] = useState(0);
@@ -77,9 +79,18 @@ export function ReminderModalHost() {
     catch (e) { Alert.alert(t('common.error'), errorText(e, t('add.errSave'))); }
   };
 
-  const open = (r: PendingReminder) => {
+  /** A reminder about a family's money opens inside that family, one about the person's own money in Personal. */
+  const enterSpace = async (r: PendingReminder) => {
+    try {
+      if (r.familyId && scope.family?.id !== r.familyId) await scope.switchTo('family', r.familyId);
+      else if (!r.familyId && scope.isFamily) await scope.switchTo('personal');
+    } catch { /* stay where we are: the screen shows what it can */ }
+  };
+
+  const open = async (r: PendingReminder) => {
     markReminderOpened(r.id).catch(() => {});
     setClosed(c => closeAll([r], c));
+    await enterSpace(r);
     if (r.source === 'SCHEDULED') router.push({ pathname: '/(dashboard)/scheduled' as any, params: { id: r.scheduleId } });
     else router.push({ pathname: '/(dashboard)/debts' as any, params: { openId: r.debtId } });
   };
@@ -89,6 +100,8 @@ export function ReminderModalHost() {
     { text: t('sched.skip'), onPress: () => { void answer(() => skipOccurrence(r.occurrenceId)); } },
   ]);
 
+  // Paying or confirming happens inside the family (or Personal) the reminder belongs to: from anywhere else it opens it first.
+  const elsewhere = !!current && (current.familyId ? scope.family?.id !== current.familyId : scope.isFamily);
   const sched = current?.source === 'SCHEDULED';
   const income = current?.source === 'SCHEDULED' && current.txType === 'INCOME';
   // Money going out (a debt payment, a bill) vs money coming in (a credit repaid, expected income).
@@ -132,8 +145,8 @@ export function ReminderModalHost() {
             </Text>
 
             <TouchableOpacity style={[s.primary, { backgroundColor: theme.buttonBg }]} activeOpacity={0.85}
-                              onPress={() => (current.source === 'SCHEDULED' ? setConfirming(current) : setPaying(current))}>
-              <Text style={s.primaryText}>{t(sched ? (income ? 'sched.receive' : 'sched.pay') : debt ? 'rem.markPaid' : 'rem.markReceived')}</Text>
+                              onPress={() => (elsewhere ? open(current) : current.source === 'SCHEDULED' ? setConfirming(current) : setPaying(current))}>
+              <Text style={s.primaryText}>{t(elsewhere ? (sched ? 'sched.open' : debt ? 'rem.openDebt' : 'rem.openCredit') : sched ? (income ? 'sched.receive' : 'sched.pay') : debt ? 'rem.markPaid' : 'rem.markReceived')}</Text>
             </TouchableOpacity>
             <View style={s.pair}>
               <TouchableOpacity style={[s.secondary, { backgroundColor: theme.primaryBg }]} onPress={() => setSnoozing(current)} activeOpacity={0.85}>
@@ -146,7 +159,7 @@ export function ReminderModalHost() {
             <TouchableOpacity style={s.ghost} onPress={() => answer(() => dismissReminder(current.id))} accessibilityRole="button">
               <Text style={[s.ghostText, { color: theme.textSecondary }]}>{t('rem.dismiss')}</Text>
             </TouchableOpacity>
-            {current.source === 'SCHEDULED' && (
+            {current.source === 'SCHEDULED' && !elsewhere && (
               <TouchableOpacity style={[s.ghost, { paddingTop: 0 }]} onPress={() => skipDate(current)} accessibilityRole="button">
                 <Text style={[s.ghostText, { color: theme.textSecondary }]}>{t('sched.skip')}</Text>
               </TouchableOpacity>

@@ -15,8 +15,8 @@ export class ScopeService {
   async resolve(clientId: string, headerValue: unknown): Promise<Scope> {
     const familyId = parseFamilyHeader(headerValue);
     if (!familyId) return personalScope(clientId);
-    const m = await this.access.membershipOf(clientId);
-    if (!m || m.familyId !== familyId) throw errors.notAMember();
+    const m = await this.access.membershipIn(clientId, familyId);
+    if (!m) throw errors.notAMember();
     return { kind: 'family', clientId, familyId, role: m.role, currency: m.family.currency, timezone: m.family.timezone };
   }
 }

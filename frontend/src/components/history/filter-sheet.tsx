@@ -7,7 +7,7 @@ import { useI18n } from '@/context/language-context';
 import { PeriodSheet, usePeriodLabel } from '@/components/home/period-sheet';
 import { SheetFrame } from '@/components/history/sheet-frame';
 import { CategoryTree } from '@/components/history/category-tree';
-import { getFacets, getFeedSummary } from '@/services/history.service';
+import { getFacets, getTags, getFeedSummary } from '@/services/history.service';
 import { NameDialog } from '@/components/history/history-extras';
 import type { SavedView } from '@/services/saved-views.service';
 import type { Scheduled } from '@/services/scheduled.service';
@@ -52,6 +52,8 @@ export function FilterSheet({ visible, filter, onClose, onApply, wallets, isFami
   const [count, setCount] = useState<number | null>(null);
   const [facets, setFacets] = useState<Facets | null>(null);
   const [facetsLoading, setFacetsLoading] = useState(false);
+  const [tagChoices, setTagChoices] = useState<string[]>([]);
+  useEffect(() => { if (visible) getTags().then(r => setTagChoices([...new Set([...r.items.map(x => x.tag), ...filter.tags])])).catch(() => setTagChoices(filter.tags)); }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
   const [periodOpen, setPeriodOpen] = useState(false);
   const [minText, setMinText] = useState('');
   const [maxText, setMaxText] = useState('');
@@ -235,6 +237,22 @@ export function FilterSheet({ visible, filter, onClose, onApply, wallets, isFami
                   <TouchableOpacity key={d} testID={`fdue-${d}`} onPress={() => set({ due: on ? draft.due.filter(x => x !== d) : [...draft.due, d] })} accessibilityRole="button" accessibilityState={{ selected: on }} style={[s.chip, { backgroundColor: on ? theme.primaryBg : theme.surface, borderColor: on ? theme.primary : theme.border }]}>
                     {on ? <MaterialIcons name="check" size={16} color={theme.primary} /> : null}
                     <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? theme.primary : theme.text }}>{t(`filter.due.${d}` as any)}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
+
+        {tagChoices.length ? (
+          <>
+            <Text style={[s.heading, { color: theme.text, marginTop: 14 }]}>{t('hx.tags.tags')}</Text>
+            <View style={s.chips}>
+              {tagChoices.map(tg => {
+                const on = draft.tags.includes(tg);
+                return (
+                  <TouchableOpacity key={tg} testID={`ftag-${tg}`} onPress={() => set({ tags: on ? draft.tags.filter(x => x !== tg) : [...draft.tags, tg] })} accessibilityRole="button" accessibilityState={{ selected: on }} style={[s.chip, { backgroundColor: on ? theme.primaryBg : theme.surface2, borderColor: on ? theme.primary : theme.border }]}>
+                    <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? theme.primary : theme.text }}>#{tg}</Text>
                   </TouchableOpacity>
                 );
               })}

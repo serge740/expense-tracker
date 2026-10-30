@@ -7,7 +7,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ClientAuthService } from './client-auth.service';
 
 describe('ClientAuthService.googleCodeAuth (Google sign-in on the web)', () => {
-  const service = new ClientAuthService({} as any, {} as any, {} as any, {} as any, {} as any);
+  const service = new ClientAuthService({} as any, {} as any, {} as any, {} as any);
   const saved = { ...process.env };
   beforeEach(() => {
     getToken.mockReset();

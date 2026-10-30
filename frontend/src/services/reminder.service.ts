@@ -4,6 +4,8 @@ import type { DebtKind } from '@/services/debt.service';
 
 interface PendingBase {
   id: string;
+  /** Set when the reminder is about a family's debt or schedule; null for the person's own. */
+  familyId?: string | null;
   dueAt: string;
   overdue: boolean;
   fireCount: number;

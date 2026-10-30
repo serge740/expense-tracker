@@ -41,7 +41,7 @@ api.interceptors.response.use(
     const is401 = error.response?.status === 401;
     const isRefreshUrl = original.url?.includes('/refresh');
     // Calls made while signed OUT: a 401 here is the real answer (wrong password, bad code), not an expired session.
-    const PUBLIC_AUTH = ['/face-identify', '/google-auth', '/apple-auth', '/facebook-auth', '/verify-email', '/passkey/login', '/client-auth/login', '/client-auth/register', '/resend-otp', '/forgot-password', '/verify-reset-otp', '/reset-password'];
+    const PUBLIC_AUTH = ['/google-auth', '/apple-auth', '/facebook-auth', '/verify-email', '/passkey/login', '/client-auth/login', '/client-auth/register', '/resend-otp', '/forgot-password', '/verify-reset-otp', '/reset-password'];
     const isLoginUrl   = PUBLIC_AUTH.some(p => original.url?.includes(p));
 
     if (is401 && !original._retry && !isRefreshUrl && !isLoginUrl) {

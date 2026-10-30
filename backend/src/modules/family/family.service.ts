@@ -1,9 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { recordActivity } from '../activity/activity';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FamilyAccessService, Membership } from './family-access.service';
 import { FamilyRoleName, canRemove } from './family-permissions';
-import { LIMITS, errors, isUniqueViolation } from './family-errors';
+import { LIMITS, activeKeyOf, errors, isUniqueViolation } from './family-errors';
 
 export interface CreateFamilyInput { name: string; currency?: string; timezone?: string }
 export interface UpdateFamilyInput { name?: string; currency?: string; timezone?: string }
@@ -32,8 +32,13 @@ const cleanZone = (raw: unknown): string => {
 export const displayName = (c: { firstName?: string | null; lastName?: string | null } | undefined | null): string =>
   [c?.firstName, c?.lastName].filter(Boolean).join(' ').trim() || 'Former member';
 
+export const ARCHIVE_DAYS = 30;
+
 @Injectable()
-export class FamilyService {
+export class FamilyService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger('FamilyService');
+  private purgeTimer?: ReturnType<typeof setInterval>;
+
   constructor(private readonly prisma: PrismaService, private readonly access: FamilyAccessService) {}
 
   /** Writes one line of the family's history. Always called inside the same transaction as the change it records. */
@@ -58,17 +63,16 @@ export class FamilyService {
     const timezone = input?.timezone === undefined ? 'UTC' : cleanZone(input.timezone);
     // Creating a family needs no verification (it was only friction); joining still does.
     await this.assertVerified(clientId, this.prisma, { requireVerified: false });
-    if (await this.access.membershipOf(clientId)) throw errors.alreadyInFamily();
+    if ((await this.access.membershipsOf(clientId)).length >= LIMITS.maxFamilies) throw errors.tooManyFamilies();
     try {
       return await this.prisma.$transaction(async (tx: any) => {
         const family = await tx.family.create({ data: { name, currency, timezone, createdBy: clientId } });
-        await tx.familyMember.create({ data: { familyId: family.id, clientId, role: 'OWNER', status: 'ACTIVE', activeKey: clientId } });
+        await tx.familyMember.create({ data: { familyId: family.id, clientId, role: 'OWNER', status: 'ACTIVE', activeKey: activeKeyOf(clientId, family.id) } });
         await this.log(tx, family.id, clientId, 'family.created', family.id, { name });
         return { family: this.publicFamily(family), role: 'OWNER' as const };
       });
     } catch (e) {
-      // Two creations at once: the unique activeKey lets only one through.
-      if (isUniqueViolation(e)) throw errors.alreadyInFamily();
+      if (isUniqueViolation(e)) throw errors.alreadyMember();
       throw e;
     }
   }
@@ -77,10 +81,15 @@ export class FamilyService {
 
   /** The person's family and role, or null. Also what the apps show on the switcher. */
   async mine(clientId: string) {
-    const m = await this.access.membershipOf(clientId);
-    if (!m) return null;
-    const memberCount = await this.prisma.familyMember.count({ where: { familyId: m.familyId, status: 'ACTIVE' } });
-    return { family: m.family, role: m.role, memberCount, limits: { ...LIMITS } };
+    const all = await this.access.membershipsOf(clientId);
+    if (!all.length) return null;
+    const rows: Array<{ family: typeof all[number]['family']; role: typeof all[number]['role']; memberCount: number; limits: typeof LIMITS }> = [];
+    for (const m of all) {
+      const memberCount = await this.prisma.familyMember.count({ where: { familyId: m.familyId, status: 'ACTIVE' } });
+      rows.push({ family: m.family, role: m.role, memberCount, limits: { ...LIMITS } });
+    }
+    // The first one keeps the old shape (an app that knows one family reads it); `families` lists them all.
+    return { ...rows[0], families: rows };
   }
 
   async update(clientId: string, familyId: string, input: UpdateFamilyInput) {
@@ -99,6 +108,26 @@ export class FamilyService {
     });
     // Changing the reporting currency never rewrites a stored amount; the app warns about it.
     return { family: this.publicFamily(family), currencyChanged, amountsUnchanged: currencyChanged };
+  }
+
+  onModuleInit() {
+    // Once an hour (and once at start-up) the families archived more than 30 days ago are removed for good.
+    const run = () => this.purgeArchived().catch(e => this.logger.warn(`purge failed: ${e?.message ?? e}`));
+    void run();
+    this.purgeTimer = setInterval(run, 3_600_000);
+    this.purgeTimer.unref?.();
+  }
+  onModuleDestroy() { if (this.purgeTimer) clearInterval(this.purgeTimer); }
+
+  /**
+   * Removes families archived more than ${ARCHIVE_DAYS} days ago with everything that belongs to them (wallets, transactions, budgets,
+   * trash, activity, members and invites go with them). Returns how many families were removed.
+   */
+  async purgeArchived(now = new Date()): Promise<number> {
+    const cutoff = new Date(now.getTime() - ARCHIVE_DAYS * 86_400_000);
+    const old = await this.prisma.family.findMany({ where: { status: 'ARCHIVED', archivedAt: { lt: cutoff } }, select: { id: true } });
+    for (const f of old) await this.prisma.family.delete({ where: { id: f.id } });
+    return old.length;
   }
 
   /** Archives the family: everyone drops back to Personal, pending invites stop working, the data is kept for 30 days. */

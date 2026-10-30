@@ -1,4 +1,3 @@
-import { withPersonalOnly } from '@/components/family/personal-only-screen';
 // Ported from expo_app/app/(dashboard)/debts.tsx
 import React, { useCallback, useMemo, useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, RefreshControl, Modal, TextInput, Alert, ActivityIndicator, Linking, KeyboardAvoidingView, Platform } from '@/rn';
@@ -19,6 +18,7 @@ import { WalletChips } from '@/components/wallet/wallet-chips';
 import { CurrencyPicker } from '@/components/wallet/currency-picker';
 import { DateTimeSheet } from '@/components/datetime-sheet';
 import { PayDates } from '@/components/debt/pay-dates';
+import { useScope } from '@/context/scope-context';
 import { LoanPlanCard, PlanFields } from '@/components/debt/loan-plan';
 import { RepeatRule } from '@/utils/recurrence';
 import { planAmountError } from '@/utils/debt-plan';
@@ -42,6 +42,8 @@ function DebtsScreen() {
   const { t, formatDate } = useI18n();
   const { prefs } = usePreferences();
   const hidden = prefs.hideBalances;
+  // In a family, owners and admins keep the books; everyone else can read them.
+  const manage = useScope().can('debt.manage');
 
   // Opened from a ledger row or a linked transaction: /debts?openId=…
   const { openId: linkedId } = useLocalSearchParams<{ openId?: string }>();
@@ -94,10 +96,12 @@ function DebtsScreen() {
           <Text style={[s.title, { color: theme.text }]}>{t('debts.title')}</Text>
           <Text style={[s.subtitle, { color: theme.textMuted }]}>{t('debts.subtitle')}</Text>
         </View>
+        {manage ? (
         <TouchableOpacity style={[s.round, { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]}
                           onPress={() => setCreating(true)} accessibilityRole="button" accessibilityLabel={t('debts.newTitle')}>
           <MaterialIcons name="add" size={20} color="#FFFFFF" />
         </TouchableOpacity>
+        ) : null}
       </View>
 
       <ScrollView
@@ -255,6 +259,7 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
   const { t, formatDate } = useI18n();
   const color = debt.kind === 'BORROWED' ? OWE : OWED;
   const settled = debt.status !== 'OPEN';
+  const manage = useScope().can('debt.manage');
   const usable = wallets.filter(w => w.currency === debt.currency);
 
   // The estimated payment for the next pay date is what most people will pay, so start there.
@@ -369,9 +374,11 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
                 <Text style={[s.callText, { color: theme.primary }]}>{t('debts.call')}</Text>
               </TouchableOpacity>
             )}
+            {manage ? (
             <TouchableOpacity onPress={moreMenu} hitSlop={8} style={{ marginLeft: 8 }} accessibilityRole="button" accessibilityLabel={t('debt2.more')}>
               <MaterialIcons name="more-horiz" size={22} color={theme.textMuted} />
             </TouchableOpacity>
+            ) : null}
             <TouchableOpacity onPress={onClose} hitSlop={8} style={{ marginLeft: 8 }}>
               <MaterialIcons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
@@ -410,10 +417,10 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
           </TouchableOpacity>
 
           {/* Reminders for this debt */}
-          {!settled && !debt.archived && <ReminderRow debt={debt} onChanged={onChanged} />}
+          {!settled && !debt.archived && manage && <ReminderRow debt={debt} onChanged={onChanged} />}
 
           {/* Record payment */}
-          {!settled && (
+          {!settled && manage && (
             <>
               <Text style={[s.section, { color: theme.text }]}>{t('debts.recordPayment')}</Text>
               <View style={[s.payRow, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
@@ -442,8 +449,10 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
           )}
 
           {/* The estimated payment (loans only) and the pay dates it makes (history kept) */}
-          <LoanPlanCard debt={debt} hidden={hidden} onChanged={onChanged} />
-          <PayDates debt={debt} hidden={hidden} onChanged={onChanged} />
+          <View pointerEvents={manage ? 'auto' : 'none'}>
+            <LoanPlanCard debt={debt} hidden={hidden} onChanged={onChanged} />
+            <PayDates debt={debt} hidden={hidden} onChanged={onChanged} />
+          </View>
 
           {/* Payments */}
           <Text style={[s.section, { color: theme.text }]}>{t('debts.payments')}</Text>
@@ -466,17 +475,23 @@ function DebtSheetBody({ debt, wallets, hidden, onClose, onChanged }: {
                   <MaterialIcons name="receipt-long" size={18} color={theme.primary} />
                 </TouchableOpacity>
               ) : null}
+              {manage ? (
               <TouchableOpacity onPress={() => confirmRemovePayment(p.id)} hitSlop={8}>
                 <MaterialIcons name="delete-outline" size={18} color={theme.textMuted} />
               </TouchableOpacity>
+              ) : null}
             </View>
           ))}
 
+          {manage ? (
+            <View>
           <TouchableOpacity style={[s.deleteBtn, { borderColor: theme.border }]} onPress={debt.archived ? async () => { try { await restoreDebt(debt.id); onChanged(); } catch (e) { fail(e); } } : confirmArchive} activeOpacity={0.8}>
             <MaterialIcons name={debt.archived ? 'unarchive' : 'inventory-2'} size={16} color={theme.textSecondary} />
             <Text style={[s.deleteText, { color: theme.textSecondary }]}>{t(debt.archived ? 'debt2.restore' : 'debt2.archive')}</Text>
           </TouchableOpacity>
           <Text style={[s.metaItem, { color: theme.textMuted, textAlign: 'center', marginTop: 6 }]}>{t('debt2.archiveSub')}</Text>
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </KeyboardAvoidingView>
@@ -741,4 +756,4 @@ const s = StyleSheet.create({
   deleteText: { fontSize: 12, fontWeight: '700' },
 });
 
-export default withPersonalOnly(DebtsScreen);
+export default DebtsScreen;

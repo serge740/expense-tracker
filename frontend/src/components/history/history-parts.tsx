@@ -358,9 +358,9 @@ const s = StyleSheet.create({
 
 
 /** History for one wallet: its own card, what it started the period with, what came in and went out, and what it ended with. */
-export function StatementCard({ statement, loading, error, hidden, onAdd, onTransfer, onRetry, onAll }: {
+export function StatementCard({ statement, loading, error, hidden, onAdd, onTransfer, onRetry, onAll, onCheck }: {
   statement: import('@/services/history.service').Statement | null; loading: boolean; error: boolean; hidden: boolean;
-  onAdd: () => void; onTransfer: () => void; onRetry: () => void; onAll: () => void;
+  onAdd: () => void; onTransfer: () => void; onRetry: () => void; onAll: () => void; onCheck?: () => void;
 }) {
   const theme = useAppTheme();
   const { t } = useI18n();
@@ -395,6 +395,13 @@ export function StatementCard({ statement, loading, error, hidden, onAdd, onTran
         {cell(t('stmt.out'), money(statement.out), '−')}
         {cell(t('stmt.closing'), money(statement.closing))}
       </View>
+      {onCheck ? (
+        <TouchableOpacity testID="statement-check" onPress={onCheck} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 32 }}>
+          <MaterialIcons name={w.reconciledAt ? 'verified' : 'help-outline'} size={16} color="#FFFFFF" />
+          <Text testID="stmt-reconciled" style={{ flex: 1, color: 'rgba(255,255,255,0.85)', fontSize: 12 }} numberOfLines={1}>{w.reconciledAt ? t('rec.last', { date: new Date(w.reconciledAt).toLocaleDateString() }) : t('rec.never')}</Text>
+          <Text style={{ color: '#FFFFFF', fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' }}>{t('rec.button')}</Text>
+        </TouchableOpacity>
+      ) : null}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <MaterialIcons name={statement.balanced ? 'check-circle' : 'error'} size={16} color={statement.balanced ? '#86EFAC' : '#FCA5A5'} />
         <Text testID="stmt-balanced" style={{ flex: 1, color: statement.balanced ? '#86EFAC' : '#FCA5A5', fontSize: 12, fontWeight: '600' }}>{t(statement.balanced ? 'stmt.balanced' : 'stmt.notBalanced')}</Text>

@@ -116,6 +116,7 @@ export function ActiveBar({ filter, chips, wallets, members, scheduleNames, onRe
       case 'schedule': return scheduleNames[String(c.ref)] ?? '…';
       case 'mode': return t(`filter.mode.${c.ref}` as any);
       case 'flag': return t(`filter.flag.${c.ref}` as any);
+      case 'tag': return `#${c.ref}`;
       case 'phase': return t(c.ref === 'upcoming' ? 'filter.chipPhaseUpcoming' : 'filter.chipPhasePast');
       case 'due': return t(`filter.due.${c.ref}` as any);
     }

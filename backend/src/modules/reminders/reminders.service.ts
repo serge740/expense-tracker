@@ -46,6 +46,19 @@ export class RemindersService {
     );
   }
 
+  /** Who is reminded about something: its owner, or for a family's every owner and admin (each gets a reminder of their own). */
+  async recipientsOf(familyId: string | null | undefined, writerId: string): Promise<string[]> {
+    if (!familyId) return [writerId];
+    const rows = await this.prisma.familyMember.findMany({ where: { familyId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } }, select: { clientId: true } });
+    return rows.map(r => r.clientId);
+  }
+
+  /** Whether this person may still be reminded about a family's pay date or schedule (they have not left or been demoted). */
+  private async stillManages(clientId: string, familyId: string): Promise<boolean> {
+    const m = await this.prisma.familyMember.findFirst({ where: { familyId, clientId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } }, select: { id: true } });
+    return !!m;
+  }
+
   /** Call after anything changes a debt, its pay dates or its payments. Never throws into the caller. */
   async syncDebtSafe(debtId: string) {
     try { await this.syncDebt(debtId); } catch (e: any) { this.logger.warn(`reminder sync failed for ${debtId}: ${e?.message ?? e}`); }
@@ -69,33 +82,38 @@ export class RemindersService {
     const next = live ? nextUnpaid(rows, derived) : null;
     const paid = new Set(derived.filter(d => d.view === 'PAID').map(d => d.id));
 
+    // Who is reminded: the owner of a personal debt, every owner and admin of a family's.
+    const recipients = await this.recipientsOf(debt.familyId, debt.clientId);
+
     // Paid off by payments = the reminders are completed. Forgiven, archived or switched off = cancelled.
     const settled = debt.status === 'SETTLED';
     for (const r of debt.reminders) {
       if (r.status !== 'ACTIVE' && r.status !== 'SNOOZED') continue;
       if (settled || (live && r.installmentId && paid.has(r.installmentId))) {
         await this.prisma.reminder.update({ where: { id: r.id }, data: { status: 'DONE', nextFireAt: null, claimedUntil: null } });
-      } else if (!next || r.installmentId !== next.id) {
+      } else if (!next || r.installmentId !== next.id || !recipients.includes(r.clientId)) {
         await this.prisma.reminder.update({ where: { id: r.id }, data: { status: 'CANCELLED', nextFireAt: null, claimedUntil: null } });
       }
     }
     if (!next) return;
 
-    const tz = (await this.prefs(debt.clientId)).timezone;
-    const plan = startPlan(buildLadder(next.dueAt, tz), now);
-    const existing = debt.reminders.find(r => r.installmentId === next.id);
-    const schedule = { step: plan?.step ?? 0, nextFireAt: plan?.at ?? null };
+    for (const who of recipients) {
+      const tz = (await this.prefs(who)).timezone;
+      const plan = startPlan(buildLadder(next.dueAt, tz), now);
+      const existing = debt.reminders.find(r => r.installmentId === next.id && r.clientId === who);
+      const schedule = { step: plan?.step ?? 0, nextFireAt: plan?.at ?? null };
 
-    if (!existing) {
-      await this.prisma.reminder.create({
-        data: { clientId: debt.clientId, debtId: debt.id, installmentId: next.id, dueAt: next.dueAt, timezone: tz, ...schedule },
-      });
-    } else if (existing.status === 'DONE' || existing.status === 'CANCELLED') {
-      // The date is unpaid again (a payment was undone) or the debt is back: start its timeline again.
-      await this.prisma.reminder.update({
-        where: { id: existing.id },
-        data: { status: 'ACTIVE', timezone: tz, snoozedUntil: null, claimedUntil: null, ...schedule },
-      });
+      if (!existing) {
+        await this.prisma.reminder.create({
+          data: { clientId: who, debtId: debt.id, installmentId: next.id, dueAt: next.dueAt, timezone: tz, ...schedule },
+        });
+      } else if (existing.status === 'DONE' || existing.status === 'CANCELLED') {
+        // The date is unpaid again (a payment was undone) or the debt is back: start its timeline again.
+        await this.prisma.reminder.update({
+          where: { id: existing.id },
+          data: { status: 'ACTIVE', timezone: tz, snoozedUntil: null, claimedUntil: null, ...schedule },
+        });
+      }
     }
     // ACTIVE / SNOOZED keep their place; DISMISSED stays dismissed because the person chose that.
   }
@@ -114,29 +132,36 @@ export class RemindersService {
     if (!sch) return;
     const live = sch.status === 'ACTIVE' && sch.mode === 'REMIND_CONFIRM';
 
+    const recipients = await this.recipientsOf(sch.familyId, sch.clientId);
+
     const occs = await this.prisma.scheduledOccurrence.findMany({
-      where: { scheduleId, OR: [{ status: 'PENDING' }, { reminder: { status: { in: ['ACTIVE', 'SNOOZED'] } } }] },
-      include: { reminder: true },
+      where: { scheduleId, OR: [{ status: 'PENDING' }, { reminders: { some: { status: { in: ['ACTIVE', 'SNOOZED'] } } } }] },
+      include: { reminders: true },
     });
     for (const o of occs) {
-      const r = o.reminder;
-      if (o.status !== 'PENDING' || !live) {
-        if (r && (r.status === 'ACTIVE' || r.status === 'SNOOZED')) {
+      const pending = o.status === 'PENDING' && live;
+      // Reminders that should no longer exist: the date was handled, the schedule stopped, or the person is no longer a manager.
+      for (const r of o.reminders) {
+        if (r.status !== 'ACTIVE' && r.status !== 'SNOOZED') continue;
+        if (!pending || !recipients.includes(r.clientId)) {
           await this.prisma.reminder.update({
             where: { id: r.id },
             data: { status: o.status === 'POSTED' ? 'DONE' : 'CANCELLED', nextFireAt: null, claimedUntil: null },
           });
         }
-        continue;
       }
+      if (!pending) continue;
       const plan = startPlan(buildLadder(o.dueAt, sch.timezone), now);
       const schedule = { step: plan?.step ?? 0, nextFireAt: plan?.at ?? null };
-      if (!r) {
-        await this.prisma.reminder.create({
-          data: { clientId: sch.clientId, kind: 'SCHEDULED_TX', occurrenceId: o.id, dueAt: o.dueAt, timezone: sch.timezone, ...schedule },
-        });
-      } else if (r.status === 'DONE' || r.status === 'CANCELLED') {
-        await this.prisma.reminder.update({ where: { id: r.id }, data: { status: 'ACTIVE', timezone: sch.timezone, snoozedUntil: null, claimedUntil: null, ...schedule } });
+      for (const who of recipients) {
+        const r = o.reminders.find(x => x.clientId === who);
+        if (!r) {
+          await this.prisma.reminder.create({
+            data: { clientId: who, kind: 'SCHEDULED_TX', occurrenceId: o.id, dueAt: o.dueAt, timezone: sch.timezone, ...schedule },
+          });
+        } else if (r.status === 'DONE' || r.status === 'CANCELLED') {
+          await this.prisma.reminder.update({ where: { id: r.id }, data: { status: 'ACTIVE', timezone: sch.timezone, snoozedUntil: null, claimedUntil: null, ...schedule } });
+        }
       }
     }
   }
@@ -190,6 +215,15 @@ export class RemindersService {
         client: { select: { id: true, email: true, firstName: true } },
       },
     });
+    // A person who has since left the family (or is no longer an owner or admin) hears nothing more about its dates.
+    for (let i = reminders.length - 1; i >= 0; i--) {
+      const r = reminders[i];
+      const familyId: string | null = (r.debt as any)?.familyId ?? (r.occurrence as any)?.schedule?.familyId ?? null;
+      if (familyId && !(await this.stillManages(r.clientId, familyId))) {
+        await this.prisma.reminder.update({ where: { id: r.id }, data: { status: 'CANCELLED', nextFireAt: null, claimedUntil: null } });
+        reminders.splice(i, 1);
+      }
+    }
     stats.skipped = claimed.length - reminders.length;
 
     const byClient = new Map<string, typeof reminders>();
@@ -233,7 +267,8 @@ export class RemindersService {
         return {
           r, ladder, step, remaining, text, label: debt.person as string, currency: debt.currency as string,
           who: debt.kind === 'BORROWED' ? `You pay ${debt.person}` : `Owed by ${debt.person}`,
-          link: { debtId: debt.id as string }, inbox: { debtId: debt.id, kind: 'debt_payment' } as Record<string, unknown>,
+          link: { debtId: debt.id as string, ...(debt.familyId ? { familyId: debt.familyId as string } : {}) },
+          inbox: { debtId: debt.id, kind: 'debt_payment', ...(debt.familyId ? { familyId: debt.familyId } : {}) } as Record<string, unknown>,
         };
       }
       const sch = r.occurrence.schedule;
@@ -243,8 +278,8 @@ export class RemindersService {
       return {
         r, ladder, step, remaining: amount, text, label: sch.title as string, currency,
         who: sch.type === 'INCOME' ? `Expected income · ${sch.title}` : `Scheduled payment · ${sch.title}`,
-        link: { occurrenceId: r.occurrence.id as string, scheduleId: sch.id as string },
-        inbox: { occurrenceId: r.occurrence.id, scheduleId: sch.id, kind: 'scheduled_transaction' } as Record<string, unknown>,
+        link: { occurrenceId: r.occurrence.id as string, scheduleId: sch.id as string, ...(sch.familyId ? { familyId: sch.familyId as string } : {}) },
+        inbox: { occurrenceId: r.occurrence.id, scheduleId: sch.id, kind: 'scheduled_transaction', ...(sch.familyId ? { familyId: sch.familyId } : {}) } as Record<string, unknown>,
       };
     });
 
@@ -359,10 +394,12 @@ export class RemindersService {
       orderBy: { dueAt: 'asc' },
     });
     const common = (r: (typeof rows)[number]) => ({
-      id: r.id, dueAt: r.dueAt, overdue: r.dueAt.getTime() < now.getTime(), fireCount: r.fireCount, lastFiredAt: r.lastFiredAt,
+      id: r.id, familyId: (r.debt?.familyId ?? r.occurrence?.schedule?.familyId ?? null) as string | null, dueAt: r.dueAt, overdue: r.dueAt.getTime() < now.getTime(), fireCount: r.fireCount, lastFiredAt: r.lastFiredAt,
     });
     const out: Array<Record<string, unknown>> = [];
     for (const r of rows) {
+      const fam = r.debt?.familyId ?? r.occurrence?.schedule?.familyId ?? null;
+      if (fam && !(await this.stillManages(clientId, fam))) continue;
       if (r.debt) {
         const d = r.debt;
         const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));

@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { loanFilter } from '../../common/utils/loan-filter';
 import { DebtsService } from '../debts/debts.service';
 import { ScheduledService } from '../scheduled/scheduled.service';
-import { Scope, isFamily, scopeWhere } from '../family/scope/scope';
+import { Scope, scopeWhere } from '../family/scope/scope';
 import { Period, dateFilter } from '../../common/utils/period';
 import { AgendaService } from './agenda.service';
 import { homeSchedule } from './agenda';
@@ -44,20 +44,16 @@ export class HomeService {
       sum({ type: 'INCOME', debtRole: 'BORROW_IN' }),
     ]);
 
-    // Loans, debts and schedules are personal. Inside a family they are simply not there.
-    const personalOnly = !isFamily(scope);
-    const clientId = scope.clientId;
+    // Loans, debts and schedules of the space the request stands in (the person's own, or the family's).
     const [overview, waiting, nextSchedule, wallets, agenda] = await Promise.all([
-      personalOnly ? this.debts.overview(clientId, now) : Promise.resolve({ attention: [] as any[], owe: {} as Record<string, any>, owed: {} as Record<string, any> }),
-      personalOnly ? this.scheduled.waiting(clientId, now) : Promise.resolve([] as any[]),
-      personalOnly
-        ? this.prisma.scheduledTransaction.findFirst({
-            where: { clientId, status: 'ACTIVE', nextDueAt: { not: null } }, orderBy: { nextDueAt: 'asc' },
-            select: { id: true, title: true, nextDueAt: true },
-          })
-        : Promise.resolve(null),
+      this.debts.overview(scope, now),
+      this.scheduled.waiting(scope, now),
+      this.prisma.scheduledTransaction.findFirst({
+        where: { ...scopeWhere(scope), status: 'ACTIVE', nextDueAt: { not: null } }, orderBy: { nextDueAt: 'asc' },
+        select: { id: true, title: true, nextDueAt: true },
+      }),
       this.prisma.wallet.groupBy({ by: ['currency'], where: { ...scopeWhere(scope), archived: false }, _sum: { balance: true } }),
-      personalOnly ? this.agenda.build(clientId, now) : Promise.resolve(null),
+      this.agenda.build(scope, now),
     ]);
 
     // Needs attention: overdue pay dates and near ones, plus scheduled dates waiting for an answer.

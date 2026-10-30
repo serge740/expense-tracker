@@ -33,9 +33,9 @@ export default function FamilyCreateScreen() {
     setBusy(true);
     setError(null);
     try {
-      await createFamily({ name: familyName, currency: cur, timezone: deviceTimeZone() });
+      const created = await createFamily({ name: familyName, currency: cur, timezone: deviceTimeZone() });
       await scope.refresh();
-      await scope.switchTo('family');
+      await scope.switchTo('family', created.family.id);
       const first = walletName.trim();
       // The family exists whatever happens next; a wallet that fails to save can be added later from Wallets.
       if (first) { try { await createWallet({ name: first, bank: 'Cash', walletType: 'CASH', currency: cur, balance: 0 }); } catch { /* added later */ } }

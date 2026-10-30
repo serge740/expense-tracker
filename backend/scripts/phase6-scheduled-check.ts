@@ -40,7 +40,7 @@ async function main() {
   notifications.notify = ((clientId: string, title: string, body: string) => { notified.push({ clientId, title, body }); }) as any;
   const { reminders, push, email } = makeReminders(prisma);
   const transactions = new TransactionService(prisma, notifications);
-  const scheduled = new ScheduledService(prisma, transactions, notifications, reminders);
+  const scheduled = new ScheduledService(prisma, transactions, notifications, reminders, null as never);
   scheduled.onModuleInit();
 
   // The tick is global: start from empty tables (scratch database only, guarded above).

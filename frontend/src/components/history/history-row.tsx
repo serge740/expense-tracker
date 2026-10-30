@@ -155,6 +155,7 @@ export function HistoryRow({ row, hidden, fallbackCurrency, showWallet, query = 
             <Text style={{ flex: 1, color: theme.primary, fontSize: 12, fontWeight: '600' }}>{t('flag.uncategorised')}</Text>
           </View>
         ) : null}
+        {row.tags && row.tags.length ? <Text testID="row-tags" style={[s.meta, { color: theme.primary }]} numberOfLines={1}>{row.tags.map(x => `#${x}`).join(' ')}</Text> : null}
         {query && row.description ? <Highlight text={`“${row.description}”`} query={query} style={[s.note, { color: theme.textSecondary }]} matchStyle={mark} /> : null}
       </View>
 

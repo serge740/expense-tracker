@@ -9,6 +9,7 @@ import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, ActivityIndi
 import { SafeAreaView } from '@/rn';
 import { MaterialIcons } from '@/rn';
 import { router, useFocusEffect } from '@/router/router';
+import { useFamilyNudge } from '@/utils/family-nudge';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
@@ -111,12 +112,13 @@ export default function HomeScreen() {
 
   // Reload whenever the screen comes into focus (e.g. after adding a transaction)
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFamilyNudge(useCallback(() => { load(true); }, [load]));
 
   const openAttention = (it: AttentionItem) => {
     if (it.source === 'SCHEDULED') router.push({ pathname: '/(dashboard)/scheduled', params: { id: it.scheduleId } } as any);
     else router.push({ pathname: '/(dashboard)/debts', params: { openId: it.debtId } } as any);
   };
-  const showDebtSection = !isFamily && !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0);
+  const showDebtSection = !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0);
 
   const pct      = budget?.percentage ?? 0;
   const pctLabel = `${Math.min(pct, 100)}% used`;
@@ -304,7 +306,7 @@ export default function HomeScreen() {
         )}
 
         {/* ── Schedules: what is coming, with the days left (scheduled items and loan or credit pay dates) ── */}
-        {!isFamily && summary ? (
+        {summary ? (
           <FadeInView delay={180} slideFrom="bottom" distance={16}>
             <View style={s.sectionRow}>
               <Text style={[s.sectionTitle, { color: theme.text }]}>{tr('home.schedules')}</Text>
@@ -313,8 +315,7 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
             <ScheduleCard schedule={summary.schedule} hidden={prefs.hideBalances} />
-            <View style={{ height: 12 }} />
-            <PlanCard />
+            {!isFamily ? (<><View style={{ height: 12 }} /><PlanCard /></>) : null}
           </FadeInView>
         ) : null}
 

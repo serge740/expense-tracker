@@ -80,10 +80,10 @@ export default function FamilyJoinScreen() {
     setBusy(true);
     setErrorKey(null);
     try {
-      await joinFamily(input);
+      const joined = await joinFamily(input);
       await clearPendingInvite();
       await scope.refresh();
-      await scope.switchTo('family');
+      await scope.switchTo('family', (joined as any)?.family?.id);
       Alert.alert(t('family.join.welcomeTitle'), t('family.join.welcome', { family: preview.family.name }));
       router.replace('/(dashboard)');
     } catch (e) {
@@ -109,7 +109,7 @@ export default function FamilyJoinScreen() {
                      placeholderTextColor={theme.textMuted} autoCapitalize="characters" autoCorrect={false} accessibilityLabel={t('family.join.label')}
                      style={[s.input, { backgroundColor: theme.inputBg, borderColor: theme.border, color: theme.text }]} />
           {errorKey ? <FamilyNote tone="error" testID="family-join-error" text={t(errorKey as any)} /> : null}
-          {errorCode === 'ALREADY_IN_FAMILY' ? (
+          {errorCode === 'TOO_MANY_FAMILIES' ? (
             <TouchableOpacity testID="family-join-open" onPress={() => router.replace('/(dashboard)/family' as any)} style={s.link}>
               <Text style={[s.linkText, { color: theme.primary }]}>{t('family.join.openFamily')}</Text>
             </TouchableOpacity>

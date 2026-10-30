@@ -4,7 +4,7 @@ import { FamilyAccessService } from './family-access.service';
 import { FamilyService, displayName } from './family.service';
 import { FamilyRoleName, INVITABLE_ROLES, canInviteAs } from './family-permissions';
 import { hashToken, newInviteCode, newInviteToken, normaliseCode, normaliseToken } from './family-codes';
-import { LIMITS, errors, isUniqueViolation } from './family-errors';
+import { LIMITS, activeKeyOf, errors, isUniqueViolation } from './family-errors';
 
 /**
  * Remembers who has been typing wrong codes. Ten wrong ones within a day lock that person out for 15 minutes.
@@ -136,17 +136,17 @@ export class FamilyInvitesService {
         // A person who left or was removed earlier keeps their row, so it is reactivated instead of duplicated.
         const existing = await tx.familyMember.findUnique({ where: { familyId_clientId: { familyId: family.id, clientId } } });
         if (existing) {
-          await tx.familyMember.update({ where: { id: existing.id }, data: { role: invite.role, status: 'ACTIVE', activeKey: clientId, leftAt: null, joinedAt: now } });
+          await tx.familyMember.update({ where: { id: existing.id }, data: { role: invite.role, status: 'ACTIVE', activeKey: activeKeyOf(clientId, family.id), leftAt: null, joinedAt: now } });
         } else {
-          await tx.familyMember.create({ data: { familyId: family.id, clientId, role: invite.role, status: 'ACTIVE', activeKey: clientId } });
+          await tx.familyMember.create({ data: { familyId: family.id, clientId, role: invite.role, status: 'ACTIVE', activeKey: activeKeyOf(clientId, family.id) } });
         }
         await this.families.log(tx, family.id, clientId, 'member.joined', clientId, { role: invite.role, invitedBy: invite.invitedBy });
         this.limiter.clear(clientId);
         return { family: { id: family.id, name: family.name, currency: family.currency }, role: invite.role as FamilyRoleName };
       });
     } catch (e) {
-      // Another family claimed this person at the same moment: the unique activeKey says so.
-      if (isUniqueViolation(e)) throw errors.alreadyInFamily();
+      // The same person joining the same family twice at the same moment: the unique activeKey says so.
+      if (isUniqueViolation(e)) throw errors.alreadyMember();
       throw e;
     }
   }
@@ -182,8 +182,8 @@ export class FamilyInvitesService {
       if (!phoneOk && !emailOk) throw errors.inviteForOther();
     }
 
-    const current = await this.access.membershipOf(clientId, db);
-    if (current) throw current.familyId === family.id ? errors.alreadyMember() : errors.alreadyInFamily();
+    if (await this.access.membershipIn(clientId, family.id, db)) throw errors.alreadyMember();
+    if ((await this.access.membershipsOf(clientId, db)).length >= LIMITS.maxFamilies) throw errors.tooManyFamilies();
 
     const active = await db.familyMember.count({ where: { familyId: family.id, status: 'ACTIVE' } });
     if (active >= LIMITS.maxMembers) throw errors.full();

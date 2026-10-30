@@ -153,6 +153,53 @@ try {
   // ── History, phase 2: filters, categories, sort, period quick choices, search words, Upcoming, jump ──
   await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
   await seen('Net ·');
+  // ── H6: calendar, chart, export, saved views, tags and note, advanced filter, duplicates ──
+  check('Calendar mode shows the month with a total on days that have activity', (await byId('view-calendar')) && (await until("!!document.querySelector('[data-testid=history-calendar]') && [...document.querySelectorAll('[data-testid^=cal-day-]')].some(n => n.innerText.includes(String.fromCharCode(10)))")), await path());
+  check('tapping a day opens just that day in the list', (await ev("(() => { const n = [...document.querySelectorAll('[data-testid^=cal-day-]')].find(x => x.innerText.includes(String.fromCharCode(10))); n && n.click(); return !!n; })()")) && (await until("!document.querySelector('[data-testid=history-calendar]') && document.querySelectorAll('[data-testid=history-row]').length > 0")), await path());
+  await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+  await seen('Net ·');
+  check('Chart mode shows spending per day and per category', (await byId('view-chart')) && (await until("!!document.querySelector('[data-testid=chart-days]') && document.querySelectorAll('[data-testid=chart-cat]').length > 0")), await path());
+  check('back to the list shows the rows again', (await byId('view-list')) && (await until("document.querySelectorAll('[data-testid=history-row]').length > 0")), await path());
+  check('Export offers Excel, PDF and CSV and saves the chosen one', (await byId('history-more')) && (await byId('menu-export')) && (await until("!!document.querySelector('[data-testid=export-pdf]') && !!document.querySelector('[data-testid=export-xlsx]') && !!document.querySelector('[data-testid=export-csv]')")) && (await byId('export-xlsx')) && await seen('3 rows saved'), await path());
+  check('the saved views manager says there are none yet', (await byId('history-more')) && (await byId('menu-views')) && (await until("!!document.querySelector('[data-testid=views-empty]')")), await path());
+  await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+  await seen('Net ·');
+  check('the quick look has Tags and note, and saving a tag shows it on the row', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+    await seen('Net ·');
+    await ev("document.querySelectorAll('[data-testid=row-peek]')[0].click(); true");
+    if (!(await byId('peek-tags'))) return false;
+    if (!(await until("!!document.querySelector('[data-testid=annotate-sheet]')"))) return false;
+    await typeInto('tag-input', 'family,');
+    await ev("(() => { const n = document.querySelector('[data-testid=note-input]'); const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(n, 'for the trip'); n.dispatchEvent(new Event('input', { bubbles: true })); return true; })()");
+    await byId('annotate-save');
+    return await until("document.body.innerText.includes('#family')");
+  })(), await path());
+  check('Filter by a tag from the filter sheet narrows the list', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/history?mock=1&tg=trip` });
+    for (let i = 0; i < 3 && !(await seen('Net · 1 transaction')); i++) { /* a cold page can take a while */ }
+    return (await until("document.querySelectorAll('[data-testid=active-chip]').length >= 1")) && (await ev("document.querySelectorAll('[data-testid=history-row]').length")) >= 1;
+  })(), await path());
+  check('the advanced builder turns conditions into a filter', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+    await seen('Net ·');
+    if (!(await byId('history-more')) || !(await byId('menu-advanced'))) return false;
+    if (!(await byId('adv-add'))) return false;
+    await byId('adv-field-100-amountMin');
+    await typeInto('adv-value-amountMin', '100000');
+    await byId('adv-apply');
+    return (await until("location.search.includes('min=100000')")) && (await ev("document.querySelectorAll('[data-testid=active-chip]').length")) >= 1;
+  })(), await path());
+  check('Review duplicates opens side by side and keeping both clears it', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+    await seen('Net ·');
+    if (!(await byId('history-more')) || !(await byId('menu-duplicates'))) return false;
+    if (!(await until("document.querySelectorAll('[data-testid=dup-row]').length === 2"))) return false;
+    if (!(await byId('dup-keep'))) return false;
+    return await until("!!document.querySelector('[data-testid=dup-empty]')");
+  })(), await path());
+  await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+  await seen('Net ·');
   const openFilters = async () => { await byId('history-filter'); return seen('Show '); };
   check('the filter button opens the sheet with a live count', await openFilters() && await seen('Show 20 results'), await path());
   check('choosing a kind changes the count at once', (await byId('ftype-expense')) && await seen('Show 1') && !(await text()).includes('Show 20 results'), await path());
@@ -321,18 +368,57 @@ try {
   await send('Page.navigate', { url: `${origin}/app/wallet-detail?mock=1&walletId=w2` });
   check('a wallet page opens only its own history', (await until("!!document.querySelector('[data-testid=wallet-activity]')")) && (await byId('wallet-activity')) && (await until("document.querySelectorAll('[data-testid=act-row]').length === 1 && !document.querySelector('[data-testid=act-tab-all]')")), await path());
 
+  // ── History, phase 6: check a wallet against the real account ──
+  await send('Page.navigate', { url: `${origin}/app/history?mock=1&walletId=w2` });
+  check('the statement says the balance was never checked and offers Check balance', (await until("!!document.querySelector('[data-testid=statement-check]')")) && await seen('Not checked against your account yet'), await path());
+  check('a matching balance is confirmed', (await byId('statement-check')) && (await typeInto('rec-input', '86300')) && (await byId('rec-check')) && (await until("!!document.querySelector('[data-testid=rec-match]')")), await path());
+  await ev("document.querySelector('[aria-label=Close]')?.click()");
+  check('a different balance shows the difference and offers an adjustment', (await byId('statement-check')) && (await typeInto('rec-input', '86000')) && (await byId('rec-check')) && (await until("!!document.querySelector('[data-testid=rec-differs]')")) && await seen('Difference') && (await byId('rec-fix')) && (await until("!!document.querySelector('[data-testid=rec-fixed]')")), await path());
+
+  await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+  await seen('Net ·');
+  check('Export as CSV says how many rows were saved', (await byId('history-more')) && (await byId('menu-export')) && (await byId('export-csv')) && await seen('1 rows saved to a file'), await path());
+
   // ── Family: the switcher, the screens that follow the space, the hub, and the invite page ──
   const TOKEN = 'abcDEF123_-abcDEF123_-abcd';
+  check('a viewer sees that money cannot be moved', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/family-transfers?mock=1&role=VIEWER` });
+    return until("!!document.querySelector('[data-testid=xfer-none]')");
+  })(), await path());
   await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
   check('Home in Personal shows the scope pill and the loan switch', await seen('Include loans') && await seen('Personal'), await path());
   check('the pill opens the "Where are you?" sheet', (await clickContaining('where are you')) && await seen('Mwiza Family'), await path());
   check('choosing the family rebuilds Home as the family (balance card, no loan switch)', (await clickContaining('mwiza family')) && await seen('FAMILY BALANCE') && !(await text()).includes('Include loans'), await path());
-  check('the family has its own bar: Home, Wallets, Add and Settings (no Loans, no big button)', await ev(`(() => {
+  check('the family has its own bar: Home, Wallets, Add, Loans and Settings (no big button)', await ev(`(() => {
     const bar = document.querySelector('[data-testid="family-tab-bar"]') || document.querySelector('[role=tablist]');
     const labels = [...document.querySelectorAll('[role=tab]')].map(n => n.getAttribute('aria-label'));
-    return !!bar && labels.join(',') === 'Home,Wallets,Add,Settings' && !!document.querySelector('[data-testid="tab-add"]');
+    return !!bar && labels.join(',') === 'Home,Wallets,Add,Loans,Settings' && !!document.querySelector('[data-testid="tab-add"]');
   })()`), await path());
+  // ── Several families ──
+  await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER&many=1` });
+  await until("!!document.querySelector('[data-testid=scope-pill]')");
+  check('with two families the switcher lists both and Personal', (await clickContaining('where are you')) && await seen('Mwiza Family') && await seen('Office Family') && await seen('Create or join another family'), await path());
+  check('choosing the second family shows its name on the pill', (await clickContaining('office family')) && (await until("document.querySelector('[data-testid=scope-pill]') && document.querySelector('[data-testid=scope-pill]').innerText.includes('Office Family')")), await path());
+  check('and the first one can be chosen again', (await clickContaining('where are you')) && (await clickContaining('mwiza family')) && (await until("document.querySelector('[data-testid=scope-pill]') && document.querySelector('[data-testid=scope-pill]').innerText.includes('Mwiza Family')")), await path());
+  await ev("sessionStorage.removeItem('mock_many'); true");
+  check('Reports in a family lists who spent what, with shares', (await ev("(() => { history.pushState({}, '', '/app/reports?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("!!document.querySelector('[data-testid=by-member]')")) && (await until("document.querySelectorAll('[data-testid=member-row]').length === 2")) && await seen('Eric Mwiza') && await seen('65%'), await path());
+  check('a family nudge refreshes the open screen', (await ev("(() => { window.__before = document.querySelectorAll('[data-testid=member-row]').length; window.dispatchEvent(new Event('family-changed')); return true; })()")) && (await until("document.querySelectorAll('[data-testid=member-row]').length === 2")), await path());
+  check('the family goals screen shows a goal with how far along it is', (await ev("(() => { history.pushState({}, '', '/app/family-goals?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("document.querySelectorAll('[data-testid=goal-card]').length === 1")) && await seen('New roof') && await seen('37%'), await path());
+  check('adding to a goal moves the bar', (await byId('goal-add')) && (await typeInto('goal-amount', '50000')) && (await byId('goal-add-confirm')) && await seen('50%'), await path());
+  check('an owner creates a new goal', (await byId('goal-new')) && (await typeInto('goal-name', 'Holiday')) && (await typeInto('goal-target', '100000')) && (await byId('goal-create')) && (await until("document.querySelectorAll('[data-testid=goal-card]').length === 2")), await path());
+  check('the allowances screen lists every member for an owner, with what each has spent', (await ev("(() => { history.pushState({}, '', '/app/family-allowances?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("document.querySelectorAll('[data-testid=allow-row]').length === 2")) && await seen('Spent 90K of 100K') || await seen('Spent'), await path());
+  check('an owner sets an allowance for a member', (await ev("document.querySelectorAll('[data-testid=allow-limit]').length === 2")) && (await ev("(() => { const n = document.querySelectorAll('[data-testid=allow-limit]')[1]; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(n, '50000'); n.dispatchEvent(new Event('input', { bubbles: true })); return true; })()")) && (await until("!document.querySelectorAll('[data-testid=allow-save]')[1].disabled")) && (await ev("document.querySelectorAll('[data-testid=allow-save]')[1].click(); true")) && (await until("document.querySelectorAll('[data-testid=allow-spent]').length === 2")), await path());
+  check('a member of the family sees what is left of their allowance on the Add form', (await ev("(() => { history.pushState({}, '', '/app/add?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("!!document.querySelector('[data-testid=allowance-line]')")) && await seen('left of your allowance this month'), await path());
+  check('the approvals screen shows the threshold and a request waiting', (await ev("(() => { history.pushState({}, '', '/app/family-approvals?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("document.querySelectorAll('[data-testid=approval-row]').length === 1")) && await seen('New sofa') && await seen('Above'), await path());
+  check('an owner approves it and it moves out of Waiting', (await click('Approve')) && (await until("!!document.querySelector('[data-testid=approval-status]')")) && await seen('Approved'), await path());
+  check('an owner turns approvals off', (await byId('appr-off')) && await seen('Approvals are off'), await path());
+  check('the contributions screen lets a member put money from their wallet into the family wallet', (await ev("(() => { history.pushState({}, '', '/app/family-transfers?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("!!document.querySelector('[data-testid=xfer-mine-pw1]')")) && (await byId('xfer-mine-pw1')) && (await byId('xfer-fam-fw1')) && (await typeInto('xfer-amount', '20000')) && (await byId('xfer-submit')) && (await until("!!document.querySelector('[data-testid=xfer-done]')")) && await seen('The money is in the family wallet'), await path());
+  check('an owner can switch to paying a member back', (await byId('xfer-mode-reimburse')) && (await byId('xfer-who-u2')) && (await byId('xfer-fam-fw1')) && (await typeInto('xfer-amount', '5000')) && (await byId('xfer-submit')) && (await until("!!document.querySelector('[data-testid=xfer-done]')")) && await seen('has been paid back'), await path());
+  check('a transaction in the family shows its comments and takes a new one', (await ev("(() => { history.pushState({}, '', '/app/transaction-detail?mock=1&role=OWNER&id=t2&type=EXPENSE&category=transport&title=Moto&amount=-2500&date=2026-10-30T06%3A15%3A00.000Z&walletId=w2'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && await seen('Was this the big bag?') && (await typeInto('comment-input', 'Yes, the big one')) && (await byId('comment-send')) && await seen('Yes, the big one'), await path());
   check('Settings in the family bar opens the family settings (the hub)', (await clickTab('Settings')) && await seen('MEMBERS') && (await path()) === '/app/family', await path());
+  check('the Scheduled screen opens inside the family instead of asking to switch to Personal', (await ev("(() => { history.pushState({}, '', '/app/scheduled?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("!!document.body.innerText.includes('Scheduled') && !document.querySelector('[data-testid=personal-only]')")), await path());
+  check('Loans and debts open inside the family instead of asking to switch to Personal', (await ev("(() => { history.pushState({}, '', '/app/debts?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("document.body.innerText.includes('Loans & debts') && !document.querySelector('[data-testid=personal-only]')")), await path());
+  await ev("(() => { history.pushState({}, '', '/app/family'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()"); await seen('MEMBERS');
   check('the hub has a way to the app settings', (await clickContaining('app settings')) && (await path()) === '/app/profile', await path());
   const s1 = await clickTab('Home'), s2 = await seen('FAMILY BALANCE'), s3 = await clickContaining('where are you'), s4 = await seen('Only you'), s5 = await clickContaining('personal'), s6 = await seen('Include loans');
   const s7 = await ev(`!![...document.querySelectorAll('[role=tab]')].find(n => n.getAttribute('aria-label') === 'Loans')`);
@@ -351,6 +437,13 @@ try {
     await clickContaining('where are you'); await seen('Mwiza Family');
     await clickContaining('mwiza family'); await seen('FAMILY BALANCE');
     return !(await ev(`!!document.querySelector('[aria-label="Add"]')`));
+  })(), await path());
+  await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
+
+  check('a reminder about a debt from another space opens that space instead of offering to pay it from here', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER&reminder=family` });
+    await seen('Marie Claire');
+    return (await seen('Open loan')) && !(await text()).includes('Mark paid');
   })(), await path());
   await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
 

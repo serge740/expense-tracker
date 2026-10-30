@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DebtRole, Prisma } from '../../../generated/prisma';
-import { personalScope } from '../family/scope/scope';
+import { Scope, assertScopeCan, isFamily, personalScope, scopeData, scopeWhere } from '../family/scope/scope';
 import { recordActivity, type ActivityKind } from '../activity/activity';
 import { CreateDebtDto, DebtPaymentDto, InstallmentDto, UpdateDebtDto } from './dto/debt.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -15,6 +15,9 @@ import {
 import { deriveInstallments, finalDeadline, InstallmentInput, isOverdue, nextUnpaid } from './debt-installments';
 
 type Tx = Prisma.TransactionClient;
+
+/** Callers may still pass a plain client id: that is the person's own (personal) space. */
+const scopeOf = (who: string | Scope): Scope => (typeof who === 'string' ? personalScope(who) : who);
 
 /**
  * Money you borrowed (BORROWED) or lent (LENT), with repayments.
@@ -89,17 +92,24 @@ export class DebtsService {
     };
   }
 
-  /** Every change to a debt ends here: reminders are re-aligned with its pay dates, then the debt is returned. */
-  /** One line in the Activity timeline for this debt or loan. */
-  private log(clientId: string, kind: ActivityKind, d: { id: string; person: string; currency: string }, amount?: number, changes?: Array<{ field: string; from: string | number | null; to: string | number | null }>) {
-    return recordActivity(this.prisma as never, personalScope(clientId), { kind, entity: 'debt', entityId: d.id, title: d.person, amount: amount ?? null, currency: d.currency, changes });
+  /** Who hears about a debt: its owner, or for a family the one who wrote it down plus every owner and admin. */
+  private async managersOf(scope: Scope, writerId: string): Promise<string[]> {
+    if (!isFamily(scope)) return [scope.clientId];
+    const rows = await this.prisma.familyMember.findMany({ where: { familyId: scope.familyId, status: 'ACTIVE', role: { in: ['OWNER', 'ADMIN'] } }, select: { clientId: true } });
+    return [...new Set([writerId, ...rows.map(r => r.clientId)])];
   }
 
-  private async finish(clientId: string, id: string) {
+  /** Every change to a debt ends here: reminders are re-aligned with its pay dates, then the debt is returned. */
+  /** One line in the Activity timeline for this debt or loan. */
+  private log(scope: Scope, kind: ActivityKind, d: { id: string; person: string; currency: string }, amount?: number, changes?: Array<{ field: string; from: string | number | null; to: string | number | null }>) {
+    return recordActivity(this.prisma as never, scope, { kind, entity: 'debt', entityId: d.id, title: d.person, amount: amount ?? null, currency: d.currency, changes });
+  }
+
+  private async finish(scope: Scope, id: string) {
     // The estimated payment plan first (it makes or trims pay dates), then the reminders follow those dates.
     await this.plans.reconcile(id).catch(() => undefined);
     await this.reminders.syncDebtSafe(id);
-    return this.findOne(clientId, id);
+    return this.findOne(scope, id);
   }
 
   private kindOf(kind?: string): DebtKindName {
@@ -107,26 +117,26 @@ export class DebtsService {
     return kind;
   }
 
-  private async owned(clientId: string, id: string) {
-    const d = await this.prisma.debt.findFirst({ where: { id, clientId }, include: { payments: { orderBy: { date: 'desc' } }, installments: { orderBy: { dueAt: 'asc' } }, reminders: { where: { status: { in: ['ACTIVE', 'SNOOZED'] } } } } });
+  private async owned(scope: Scope, id: string) {
+    const d = await this.prisma.debt.findFirst({ where: { id, ...scopeWhere(scope) }, include: { payments: { orderBy: { date: 'desc' } }, installments: { orderBy: { dueAt: 'asc' } }, reminders: { where: { status: { in: ['ACTIVE', 'SNOOZED'] } } } } });
     if (!d) throw new NotFoundException('Loan or debt not found');
     return d;
   }
 
-  private async wallet(clientId: string, walletId: string, currency: string) {
-    const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId, familyId: null } });
+  private async wallet(scope: Scope, walletId: string, currency: string) {
+    const w = await this.prisma.wallet.findFirst({ where: { id: walletId, ...scopeWhere(scope) } });
     if (!w) throw new NotFoundException('Wallet not found');
     if (w.currency !== currency) throw new BadRequestException(`Choose a ${currency} wallet for this record`);
     return w;
   }
 
   /** Move money for a debt event and return the transaction id. */
-  private async move(prx: Tx, clientId: string, opts: {
+  private async move(prx: Tx, scope: Scope, opts: {
     debtId: string; walletId: string | null; amount: number; direction: 'in' | 'out'; role: DebtRole; title: string; date: Date; note?: string | null; receiptUrl?: string | null; receiptReportUrl?: string | null;
   }) {
     const tx = await prx.transaction.create({
       data: {
-        clientId,
+        ...scopeData(scope),
         type: opts.direction === 'in' ? 'INCOME' : 'EXPENSE',
         category: 'loan',
         title: opts.title,
@@ -182,14 +192,15 @@ export class DebtsService {
   }
 
   /** The person's time zone for the plan: the one their phone sent, else the one saved with their reminders. */
-  private async planZone(clientId: string, requested?: string): Promise<string> {
+  private async planZone(scope: Scope, requested?: string): Promise<string> {
     if (requested && isValidTimeZone(requested)) return requested;
-    const pref = await this.prisma.notificationPreference.findUnique({ where: { clientId } });
+    if (isFamily(scope)) return scope.timezone || 'UTC';
+    const pref = await this.prisma.notificationPreference.findUnique({ where: { clientId: scope.clientId } });
     return pref?.timezone ?? 'UTC';
   }
 
   /** The estimated payment as it will be saved, or an error saying what to fix. */
-  private async readPlan(clientId: string, input: { amount?: unknown; rule?: unknown; startAt?: string | Date | null; timezone?: string }, loanAmount: number) {
+  private async readPlan(scope: Scope, input: { amount?: unknown; rule?: unknown; startAt?: string | Date | null; timezone?: string }, loanAmount: number) {
     const problem = planProblem({ amount: input.amount, rule: input.rule, loanAmount });
     if (problem) throw new BadRequestException(problem);
     const startAt = input.startAt ? new Date(input.startAt) : null;
@@ -198,7 +209,7 @@ export class DebtsService {
       amount: round2(Number(input.amount)),
       rule: normalizePlanRule(input.rule as any),
       startAt,
-      timezone: await this.planZone(clientId, input.timezone),
+      timezone: await this.planZone(scope, input.timezone),
     };
   }
 
@@ -232,7 +243,8 @@ export class DebtsService {
     };
   }
 
-  async list(clientId: string, kind?: string, status?: string, archived?: string) {
+  async list(who: string | Scope, kind?: string, status?: string, archived?: string) {
+    const scope = scopeOf(who);
     const statusFilter: Prisma.DebtWhereInput =
       status === 'OPEN' ? { status: 'OPEN' }
       // The "Settled" tab shows everything that is no longer open.
@@ -244,7 +256,7 @@ export class DebtsService {
 
     const debts = await this.prisma.debt.findMany({
       where: {
-        clientId,
+        ...scopeWhere(scope),
         ...(kind === 'BORROWED' || kind === 'LENT' ? { kind } : {}),
         ...statusFilter,
         ...archivedFilter,
@@ -255,13 +267,15 @@ export class DebtsService {
     return debts.map(d => this.serialize(d));
   }
 
-  async findOne(clientId: string, id: string) {
-    return this.serialize(await this.owned(clientId, id));
+  async findOne(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    return this.serialize(await this.owned(scope, id));
   }
 
   /** Open balances per currency, split into what I owe and what I'm owed. */
-  async summary(clientId: string) {
-    const open = await this.prisma.debt.findMany({ where: { clientId, status: 'OPEN', archivedAt: null }, include: { installments: true } });
+  async summary(who: string | Scope) {
+    const scope = scopeOf(who);
+    const open = await this.prisma.debt.findMany({ where: { ...scopeWhere(scope), status: 'OPEN', archivedAt: null }, include: { installments: true } });
     const owe: Record<string, number> = {};
     const owed: Record<string, number> = {};
     let overdue = 0;
@@ -280,9 +294,10 @@ export class DebtsService {
    * and the soonest pay date), and the ones that need attention (overdue, or a pay date within 3 days).
    * Currencies are never mixed.
    */
-  async overview(clientId: string, now = new Date()) {
+  async overview(who: string | Scope, now = new Date()) {
+    const scope = scopeOf(who);
     type Bucket = { amount: number; count: number; overdue: number; nextDueAt: Date | null };
-    const rows = await this.prisma.debt.findMany({ where: { clientId, status: 'OPEN', archivedAt: null }, include: { installments: true } });
+    const rows = await this.prisma.debt.findMany({ where: { ...scopeWhere(scope), status: 'OPEN', archivedAt: null }, include: { installments: true } });
     const owe: Record<string, Bucket> = {};
     const owed: Record<string, Bucket> = {};
     const attention: Array<{ source: 'DEBT'; debtId: string; kind: string; person: string; currency: string; remaining: number; dueAt: Date; overdue: boolean }> = [];
@@ -305,9 +320,10 @@ export class DebtsService {
   }
 
   /** Ledger for the Debt wallet (BORROWED) or Credit wallet (LENT): totals per currency. */
-  async ledger(clientId: string, kind?: string) {
+  async ledger(who: string | Scope, kind?: string) {
+    const scope = scopeOf(who);
     const k = this.kindOf(kind);
-    const debts = await this.prisma.debt.findMany({ where: { clientId, kind: k, archivedAt: null } });
+    const debts = await this.prisma.debt.findMany({ where: { ...scopeWhere(scope), kind: k, archivedAt: null } });
     const currencies = buildLedger(debts.map(d => ({
       amount: Number(d.amount),
       paid: Number(d.paid),
@@ -329,10 +345,11 @@ export class DebtsService {
   }
 
   /** Every cash movement that belongs to a ledger, newest first. */
-  async ledgerTransactions(clientId: string, kind?: string, page = 1, limit = 30) {
+  async ledgerTransactions(who: string | Scope, kind?: string, page = 1, limit = 30) {
+    const scope = scopeOf(who);
     const k = this.kindOf(kind);
     const take = Math.min(Math.max(limit, 1), 100);
-    const where: Prisma.TransactionWhereInput = { clientId, debtRole: { in: rolesOf(k) } };
+    const where: Prisma.TransactionWhereInput = { ...scopeWhere(scope), debtRole: { in: rolesOf(k) } };
     const [rows, total] = await Promise.all([
       this.prisma.transaction.findMany({ where, orderBy: { date: 'desc' }, skip: (Math.max(page, 1) - 1) * take, take }),
       this.prisma.transaction.count({ where }),
@@ -351,13 +368,16 @@ export class DebtsService {
   }
 
   /** Transactions caused by one debt (principal + payments). */
-  async transactionsOf(clientId: string, id: string) {
-    const d = await this.owned(clientId, id);
-    const rows = await this.prisma.transaction.findMany({ where: { clientId, debtId: id }, orderBy: { date: 'desc' } });
+  async transactionsOf(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    const d = await this.owned(scope, id);
+    const rows = await this.prisma.transaction.findMany({ where: { ...scopeWhere(scope), debtId: id }, orderBy: { date: 'desc' } });
     return rows.map(r => this.mapTx(r, { person: d.person, currency: d.currency, kind: d.kind }));
   }
 
-  async create(clientId: string, dto: CreateDebtDto) {
+  async create(who: string | Scope, dto: CreateDebtDto) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
     const amount = Number(dto.amount);
     const kind = this.kindOf(dto.kind);
     if (!dto.person?.trim()) throw new BadRequestException('Enter who the money is with');
@@ -367,7 +387,7 @@ export class DebtsService {
     const walletId = kind === 'LENT' ? dto.walletId || undefined : undefined;
     let currency = (dto.currency ?? '').toUpperCase();
     if (walletId) {
-      const w = await this.prisma.wallet.findFirst({ where: { id: walletId, clientId, familyId: null } });
+      const w = await this.prisma.wallet.findFirst({ where: { id: walletId, ...scopeWhere(scope) } });
       if (!w) throw new NotFoundException('Wallet not found');
       currency = w.currency;
     }
@@ -376,12 +396,12 @@ export class DebtsService {
     const person = dto.person.trim();
     // An estimated payment is only for a loan (money I borrowed). A debt owed to me keeps its single pay dates.
     const wantsPlan = kind === 'BORROWED' && (dto.planAmount != null || dto.planRepeat != null);
-    const plan = wantsPlan ? await this.readPlan(clientId, { amount: dto.planAmount, rule: dto.planRepeat, startAt: dto.dueDate, timezone: dto.planTimezone }, amount) : null;
+    const plan = wantsPlan ? await this.readPlan(scope, { amount: dto.planAmount, rule: dto.planRepeat, startAt: dto.dueDate, timezone: dto.planTimezone }, amount) : null;
 
     const debt = await this.prisma.$transaction(async prx => {
       const d = await prx.debt.create({
         data: {
-          clientId, kind, person, phone: dto.phone?.trim() || null, amount, currency, date,
+          ...scopeData(scope), kind, person, phone: dto.phone?.trim() || null, amount, currency, date,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null, note: dto.note?.trim() || null, walletId: walletId ?? null,
           // A debt (I owe) reminds by default; a credit only when asked.
           remindersOn: dto.remind ?? kind === 'BORROWED',
@@ -393,7 +413,7 @@ export class DebtsService {
         await prx.debtInstallment.create({ data: { debtId: d.id, dueAt: new Date(dto.dueDate), plannedAmount: plan ? round2(Math.min(plan.amount, amount)) : null } });
       }
       // Always recorded: borrowing is money in (never counted as income in totals), lending is money out.
-      const principalTransactionId = await this.move(prx, clientId, {
+      const principalTransactionId = await this.move(prx, scope, {
         debtId: d.id, walletId: walletId ?? null, amount, date, note: d.note,
         direction: directionFor(kind, 'principal'),
         role: roleFor(kind, 'principal'),
@@ -402,12 +422,14 @@ export class DebtsService {
       await prx.debt.update({ where: { id: d.id }, data: { principalTransactionId } });
       return d;
     });
-    await this.log(clientId, 'debt.created', debt, amount, [{ field: 'kind', from: null, to: kind }]);
-    return this.finish(clientId, debt.id);
+    await this.log(scope, 'debt.created', debt, amount, [{ field: 'kind', from: null, to: kind }]);
+    return this.finish(scope, debt.id);
   }
 
-  async update(clientId: string, id: string, dto: UpdateDebtDto) {
-    const d = await this.owned(clientId, id);
+  async update(who: string | Scope, id: string, dto: UpdateDebtDto) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     const oldAmount = Number(d.amount);
     const paid = Number(d.paid);
     const writtenOff = Number(d.writtenOffAmount);
@@ -430,7 +452,7 @@ export class DebtsService {
         const loanAmount = amount ?? Number(d.amount);
         const firstOpen = (d.installments ?? []).filter(i => i.status === 'PENDING').sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())[0];
         const startAt = dto.planStartAt ?? d.planStartAt ?? firstOpen?.dueAt ?? d.dueDate ?? null;
-        const next = await this.readPlan(clientId, {
+        const next = await this.readPlan(scope, {
           amount: dto.planAmount ?? (d.planAmount == null ? undefined : Number(d.planAmount)),
           rule: dto.planRepeat ?? d.planRepeat,
           startAt, timezone: dto.planTimezone ?? d.planTimezone ?? undefined,
@@ -481,11 +503,13 @@ export class DebtsService {
         },
       });
     });
-    return this.finish(clientId, id);
+    return this.finish(scope, id);
   }
 
-  async addPayment(clientId: string, id: string, dto: DebtPaymentDto) {
-    const d = await this.owned(clientId, id);
+  async addPayment(who: string | Scope, id: string, dto: DebtPaymentDto) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
     const amount = round2(Number(dto.amount));
     if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException(`This ${nounOf(d.kind)} is already closed`);
@@ -493,7 +517,7 @@ export class DebtsService {
     if (amount > remaining) throw new BadRequestException(`Only ${remaining} ${d.currency} is left to pay`);
     // Paying a debt never touches my wallets; a credit repaid to me goes into the wallet I chose (or none).
     const walletId = d.kind === 'LENT' ? dto.walletId || undefined : undefined;
-    if (walletId) await this.wallet(clientId, walletId, d.currency);
+    if (walletId) await this.wallet(scope, walletId, d.currency);
     const date = dto.date ? new Date(dto.date) : new Date();
     // Optional proof of payment: a short text address only, nothing else is accepted.
     const clean = (v: unknown) => (typeof v === 'string' && v.trim() && v.length <= 191 ? v.trim() : null);
@@ -502,7 +526,7 @@ export class DebtsService {
 
     const result = await this.prisma.$transaction(async prx => {
       // Always recorded: repaying what I borrowed is money out, being repaid is money in.
-      const transactionId = await this.move(prx, clientId, {
+      const transactionId = await this.move(prx, scope, {
         debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note, receiptUrl, receiptReportUrl,
         direction: directionFor(d.kind, 'payment'),
         role: roleFor(d.kind, 'payment'),
@@ -515,15 +539,19 @@ export class DebtsService {
     });
 
     if (result.status === 'SETTLED' && result.previous === 'OPEN') {
-      this.notifications.notify(clientId, `${capitalNoun(d.kind)} settled`,
-        d.kind === 'BORROWED' ? `You've fully repaid ${d.person}.` : `${d.person} has fully repaid you.`, 'transaction');
+      for (const to of await this.managersOf(scope, d.clientId)) {
+        this.notifications.notify(to, `${capitalNoun(d.kind)} settled`,
+          d.kind === 'BORROWED' ? (isFamily(scope) ? `The family has fully repaid ${d.person}.` : `You've fully repaid ${d.person}.`) : (isFamily(scope) ? `${d.person} has fully repaid the family.` : `${d.person} has fully repaid you.`), 'transaction');
+      }
     }
-    await this.log(clientId, 'debt.payment', d, amount);
-    return this.finish(clientId, id);
+    await this.log(scope, 'debt.payment', d, amount);
+    return this.finish(scope, id);
   }
 
-  async removePayment(clientId: string, id: string, paymentId: string) {
-    const d = await this.owned(clientId, id);
+  async removePayment(who: string | Scope, id: string, paymentId: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     const p = d.payments.find(x => x.id === paymentId);
     if (!p) throw new NotFoundException('Payment not found');
     await this.prisma.$transaction(async prx => {
@@ -531,13 +559,15 @@ export class DebtsService {
       await prx.debtPayment.delete({ where: { id: p.id } });
       await this.recompute(prx, d.id);
     });
-    await this.log(clientId, 'debt.payment_removed', d, Number(p.amount));
-    return this.finish(clientId, id);
+    await this.log(scope, 'debt.payment_removed', d, Number(p.amount));
+    return this.finish(scope, id);
   }
 
   /** Give up (credit) or have forgiven (debt) whatever is still unpaid. No cash moves. */
-  async writeOff(clientId: string, id: string) {
-    const d = await this.owned(clientId, id);
+  async writeOff(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     const remaining = remainingOf(Number(d.amount), Number(d.paid), Number(d.writtenOffAmount));
     if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException('There is nothing left to write off');
     const writtenOff = round2(Number(d.writtenOffAmount) + remaining);
@@ -553,37 +583,45 @@ export class DebtsService {
       const unmet = derived.filter(x => x.view !== 'PAID').map(x => x.id);
       if (unmet.length) await prx.debtInstallment.updateMany({ where: { id: { in: unmet } }, data: { status: 'SKIPPED' } });
     });
-    await this.log(clientId, 'debt.written_off', d, remaining);
-    return this.finish(clientId, id);
+    await this.log(scope, 'debt.written_off', d, remaining);
+    return this.finish(scope, id);
   }
 
   /** Undo a write-off / forgiveness. */
-  async reopen(clientId: string, id: string) {
-    const d = await this.owned(clientId, id);
+  async reopen(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     if (d.status !== 'WRITTEN_OFF' && d.status !== 'FORGIVEN') throw new BadRequestException('Only a written-off or forgiven record can be reopened');
     const status = statusFor({ kind: d.kind, amount: Number(d.amount), paid: Number(d.paid), writtenOff: 0, current: 'OPEN' });
     await this.prisma.debt.update({ where: { id }, data: { writtenOffAmount: 0, status } });
-    await this.log(clientId, 'debt.reopened', d);
-    return this.finish(clientId, id);
+    await this.log(scope, 'debt.reopened', d);
+    return this.finish(scope, id);
   }
 
   /** Hide a debt without touching any money. Reversible. */
-  async archive(clientId: string, id: string) {
-    const d = await this.owned(clientId, id);
-    if (!d.archivedAt) { await this.prisma.debt.update({ where: { id }, data: { archivedAt: new Date() } }); await this.log(clientId, 'debt.archived', d); }
-    return this.finish(clientId, id);
+  async archive(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
+    if (!d.archivedAt) { await this.prisma.debt.update({ where: { id }, data: { archivedAt: new Date() } }); await this.log(scope, 'debt.archived', d); }
+    return this.finish(scope, id);
   }
 
-  async restore(clientId: string, id: string) {
-    const d = await this.owned(clientId, id);
+  async restore(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     await this.prisma.debt.update({ where: { id }, data: { archivedAt: null } });
-    await this.log(clientId, 'debt.restored', d);
-    return this.finish(clientId, id);
+    await this.log(scope, 'debt.restored', d);
+    return this.finish(scope, id);
   }
 
   /** Add one more pay date. Earlier ones are untouched. */
-  async addInstallment(clientId: string, id: string, dto: InstallmentDto) {
-    const d = await this.owned(clientId, id);
+  async addInstallment(who: string | Scope, id: string, dto: InstallmentDto) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const d = await this.owned(scope, id);
     this.assertEditable(d);
     const dueAt = this.validDate(dto.dueAt);
     const planned = dto.plannedAmount == null ? null : round2(Number(dto.plannedAmount));
@@ -594,11 +632,11 @@ export class DebtsService {
       await prx.debtInstallment.create({ data: { debtId: id, dueAt, plannedAmount: planned, note: dto.note?.trim() || null } });
       await this.syncDeadline(prx, id);
     });
-    return this.finish(clientId, id);
+    return this.finish(scope, id);
   }
 
-  private async openInstallment(clientId: string, id: string, installmentId: string) {
-    const d = await this.owned(clientId, id);
+  private async openInstallment(scope: Scope, id: string, installmentId: string) {
+    const d = await this.owned(scope, id);
     this.assertEditable(d);
     const row = d.installments.find(i => i.id === installmentId);
     if (!row) throw new NotFoundException('Pay date not found');
@@ -609,8 +647,10 @@ export class DebtsService {
   }
 
   /** Move a pay date: the old one stays in the history as MOVED and a new one is added. */
-  async moveInstallment(clientId: string, id: string, installmentId: string, dto: InstallmentDto) {
-    const { row } = await this.openInstallment(clientId, id, installmentId);
+  async moveInstallment(who: string | Scope, id: string, installmentId: string, dto: InstallmentDto) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const { row } = await this.openInstallment(scope, id, installmentId);
     const dueAt = this.validDate(dto.dueAt);
     await this.prisma.$transaction(async prx => {
       await prx.debtInstallment.update({ where: { id: row.id }, data: { status: 'MOVED' } });
@@ -619,27 +659,31 @@ export class DebtsService {
       });
       await this.syncDeadline(prx, id);
     });
-    return this.finish(clientId, id);
+    return this.finish(scope, id);
   }
 
-  async skipInstallment(clientId: string, id: string, installmentId: string) {
-    const { row } = await this.openInstallment(clientId, id, installmentId);
+  async skipInstallment(who: string | Scope, id: string, installmentId: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const { row } = await this.openInstallment(scope, id, installmentId);
     await this.prisma.$transaction(async prx => {
       await prx.debtInstallment.update({ where: { id: row.id }, data: { status: 'SKIPPED' } });
       await this.syncDeadline(prx, id);
     });
-    return this.finish(clientId, id);
+    return this.finish(scope, id);
   }
 
   /** Delete a debt and undo every wallet movement it caused. */
-  async remove(clientId: string, id: string) {
-    const gone = await this.owned(clientId, id);
+  async remove(who: string | Scope, id: string) {
+    const scope = scopeOf(who);
+    assertScopeCan(scope, 'debt.manage');
+    const gone = await this.owned(scope, id);
     await this.prisma.$transaction(async prx => {
-      const txns = await prx.transaction.findMany({ where: { clientId, debtId: id }, select: { id: true } });
+      const txns = await prx.transaction.findMany({ where: { ...scopeWhere(scope), debtId: id }, select: { id: true } });
       for (const t of txns) await this.unmove(prx, t.id);
       await prx.debt.delete({ where: { id } });
     });
-    await this.log(clientId, 'debt.deleted', gone, Number(gone.amount));
+    await this.log(scope, 'debt.deleted', gone, Number(gone.amount));
     return { success: true };
   }
 }

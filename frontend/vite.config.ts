@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadEnv, type Plugin } from 'vite';
@@ -13,6 +14,7 @@ import { defineConfig } from 'vitest/config';
 const API_PATHS = [
   'client-auth', 'budget', 'debts', 'devices', 'family', 'health', 'home', 'notifications', 'receipts',
   'reminders', 'reports', 'push-notifications', 'scheduled', 'subcategories', 'transactions', 'wallets', 'uploads', '.well-known', 'socket.io',
+  'it-support-auth', 'it-support',
 ];
 
 /**
@@ -39,7 +41,11 @@ export default defineConfig(({ mode }) => {
   );
 
   return {
-    plugins: [react(), versionFile],
+    // tailwindcss() only transforms files that opt in via an `@import "tailwindcss..."` directive — it
+    // never touches styles.css or any existing component, so the consumer app's own styling is unaffected.
+    // See src/it-support/it-support.css, which is the only file that opts in (utilities only, no
+    // preflight, so it can't override any global element default either).
+    plugins: [react(), tailwindcss(), versionFile],
     define: { __APP_VERSION__: JSON.stringify(build.version), __BUILD_ID__: JSON.stringify(build.buildId) },
     resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
     server: { port: 5173, proxy },

@@ -1,3 +1,4 @@
+import { cleanTags } from './annotations';
 /**
  * The History feed and its summary, as pure functions (no database), so the rules are easy to test.
  * The service does the queries; this file decides what a filter means, where the next page starts,
@@ -48,6 +49,8 @@ export interface FeedFilter {
   schedules: string[];
   schedMode: SchedMode;
   flags: Flag[];
+  /** Rows carrying any of these tags (empty: any). */
+  tags: string[];
   groupBy: GroupBy;
   sort: Sort;
   limit: number;
@@ -61,7 +64,7 @@ export interface FeedFilter {
 export interface FeedQuery {
   month?: unknown; year?: unknown; from?: unknown; to?: unknown; all?: unknown;
   view?: unknown; kinds?: unknown; includeLoans?: unknown; walletIds?: unknown; memberId?: unknown; search?: unknown;
-  categories?: unknown; excludeCategories?: unknown; minAmount?: unknown; maxAmount?: unknown; receipt?: unknown; source?: unknown; schedules?: unknown; schedMode?: unknown; flags?: unknown; groupBy?: unknown; sort?: unknown;
+  categories?: unknown; excludeCategories?: unknown; minAmount?: unknown; maxAmount?: unknown; receipt?: unknown; source?: unknown; schedules?: unknown; schedMode?: unknown; flags?: unknown; tags?: unknown; groupBy?: unknown; sort?: unknown;
   limit?: unknown; cursor?: unknown; fallbackCurrency?: unknown; convertTo?: unknown;
 }
 
@@ -112,6 +115,7 @@ export function parseFeedFilter(q: FeedQuery, now = new Date()): FeedFilter {
     schedules: [...new Set((str(q.schedules) ?? '').split(',').map(x => x.trim()).filter(x => /^[\w-]{1,64}$/.test(x)))].slice(0, 50),
     schedMode: oneOf(q.schedMode, ['any', 'auto', 'confirm'] as const, 'any'),
     flags: [...new Set((str(q.flags) ?? '').split(',').map(x => x.trim()).filter((x): x is Flag => x === 'duplicates' || x === 'uncategorised'))],
+    tags: cleanTags(str(q.tags) ?? '').slice(0, 10),
     groupBy: oneOf(q.groupBy, ['none', 'category', 'wallet', 'member', 'title'] as const, 'none'),
     sort: oneOf(q.sort, ['newest', 'oldest', 'largest', 'smallest'] as const, 'newest'),
     limit: Number.isFinite(limit) && limit >= 1 ? Math.min(limit, FEED_PAGE_MAX) : FEED_PAGE_DEFAULT,

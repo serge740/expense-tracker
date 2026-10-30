@@ -172,11 +172,12 @@ describe('family transactions', () => {
     expect(((await w.transactions.findAll(await fam('aline'), { limit: 50 } as any)) as any).data[0].author.name).toBe('Former member');
   });
 
-  test('no personal push goes out for a family transaction', async () => {
+  test('the author of a family transaction gets no push of their own; the others are told', async () => {
     const { w, fam, house } = await setup();
     await w.transactions.create(await fam('grace'), spend(house.id, 10));
     await new Promise(r => setTimeout(r, 20));
-    expect(w.notified).toHaveLength(0);
+    expect(w.notified.map(n => n[0])).not.toContain('grace');
+    expect(w.notified.length).toBeGreaterThan(0);
   });
 
   test('five members spending at once leave the right balance', async () => {

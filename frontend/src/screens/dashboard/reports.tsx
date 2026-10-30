@@ -8,11 +8,15 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
 import { FadeInView } from '@/components/fade-in-view';
 import {
+  getSpendingByMember, type MemberSpending,
   getMonthlyReport, getCategoryBreakdown, getReportSummary, getAiAdvice,
   MonthlyData, CategoryBreakdown, CATEGORY_COLOR, DateRangeParams, AiAdvice,
 } from '@/services/reports.service';
 import { useCurrency } from '@/context/currency-context';
 import { DatePickerModal } from '@/components/date-picker-modal';
+import { useScope } from '@/context/scope-context';
+import { useI18n } from '@/context/language-context';
+import { useFamilyNudge } from '@/utils/family-nudge';
 
 const DATE_FILTERS = ['Today', 'Week', 'Month', 'Year', 'Custom'] as const;
 type DateFilter = typeof DATE_FILTERS[number];
@@ -59,6 +63,9 @@ export default function ReportsScreen() {
   const [monthly,    setMonthly]    = useState<MonthlyData[]>([]);
   const [categories, setCategories] = useState<CategoryBreakdown[]>([]);
   const [summary,    setSummary]    = useState({ totalIncome: 0, totalExpense: 0, net: 0 });
+  const [members,    setMembers]    = useState<MemberSpending[]>([]);
+  const scope = useScope();
+  const { t } = useI18n();
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -70,11 +77,13 @@ export default function ReportsScreen() {
     if (!silent) setLoading(true);
     const range = getDateRange(df, cStart, cEnd);
     try {
-      const [mon, cats, sum] = await Promise.all([
+      const [mon, cats, sum, mem] = await Promise.all([
         getMonthlyReport(6),
         getCategoryBreakdown(range),
         getReportSummary(range),
+        scope.isFamily ? getSpendingByMember(range).catch(() => []) : Promise.resolve([] as MemberSpending[]),
       ]);
+      setMembers(mem);
       setMonthly(mon);
       setCategories(cats);
       setSummary(sum);
@@ -84,7 +93,9 @@ export default function ReportsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [scope.isFamily]);
+
+  useFamilyNudge(useCallback(() => { load(dateFilter, customStart, customEnd, true); }, [load, dateFilter, customStart, customEnd]));
 
   useEffect(() => { load(dateFilter, customStart, customEnd); }, [dateFilter, customStart, customEnd]);
 
@@ -294,6 +305,32 @@ export default function ReportsScreen() {
             )}
           </View>
         </FadeInView>
+
+        {/* Who spent what (a family only) */}
+        {scope.isFamily ? (
+          <FadeInView delay={250} slideFrom="bottom" distance={14}>
+            <View testID="by-member" style={[s.card, { backgroundColor: theme.surface }]}>
+              <Text style={[s.cardTitle, { color: theme.text }]}>{t('fam.byMember')}</Text>
+              {loading ? <ActivityIndicator color={theme.primary} /> : members.length === 0 ? (
+                <Text style={[s.emptyText, { color: theme.textMuted }]}>{t('fam.byMemberEmpty')}</Text>
+              ) : members.map((m, i) => (
+                <View key={m.clientId} testID="member-row" style={[s.catRow, i < members.length - 1 && { marginBottom: 14 }]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[s.catName, { color: theme.text, width: undefined }]} numberOfLines={1}>{m.name}{m.isYou ? ' ★' : ''}</Text>
+                    {m.earned > 0 ? <Text style={{ color: theme.textMuted, fontSize: 11.5 }}>{t('fam.byMemberEarned', { amount: `${sym}${Math.round(m.earned)}` })}</Text> : null}
+                  </View>
+                  <View style={s.catBarWrap}>
+                    <View style={[s.catTrack, { backgroundColor: theme.isDark ? '#2E3560' : '#E8EAF6' }]}>
+                      <View style={[s.catFill, { width: `${m.share}%`, backgroundColor: theme.primary }]} />
+                    </View>
+                  </View>
+                  <Text style={[s.catPct, { color: theme.textMuted }]}>{m.share}%</Text>
+                  <Text style={[s.catAmt, { color: theme.text }]}>{sym}{Math.round(m.spent)}</Text>
+                </View>
+              ))}
+            </View>
+          </FadeInView>
+        ) : null}
 
         {/* AI Advisor button */}
         <FadeInView delay={280} slideFrom="bottom" distance={14}>

@@ -35,7 +35,7 @@ const drainQueue = (err: unknown, token: string | null) => {
 
 /** Calls made while signed OUT: a 401 here is the real answer (wrong password, bad code), not an expired session. */
 export const PUBLIC_AUTH = [
-  '/face-identify', '/google-auth', '/apple-auth', '/facebook-auth', '/verify-email', '/passkey/login',
+  '/google-auth', '/apple-auth', '/facebook-auth', '/verify-email', '/passkey/login',
   '/client-auth/login', '/client-auth/register', '/resend-otp', '/forgot-password', '/verify-reset-otp', '/reset-password',
 ];
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import ITSupportApp from '@/it-support/ITSupportApp';
 import { ThemePreferenceProvider, useAppTheme } from '@/theme/theme-context';
 import { AlertHost } from '@/rn';
 import { watchFrame } from '@/rn/platform';
@@ -35,18 +36,20 @@ function Shell() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <>
       <NavigationBridge />
       <div id="phone" ref={frame} style={{ background: theme.background }}>
         <AppRoutes />
         <AlertHost />
         {!splashDone && <AppSplash onComplete={onSplashDone} />}
       </div>
-    </BrowserRouter>
+    </>
   );
 }
 
-export default function App() {
+/** The consumer app's own providers + phone frame, unchanged — just pulled out so it can sit
+ * as one branch alongside /it-support below, instead of owning the whole BrowserRouter itself. */
+function ConsumerApp() {
   return (
     <ThemePreferenceProvider>
       <CurrencyProvider>
@@ -61,5 +64,22 @@ export default function App() {
         </PreferencesProvider>
       </CurrencyProvider>
     </ThemePreferenceProvider>
+  );
+}
+
+/**
+ * /it-support is matched here, BEFORE the consumer app's own routing/providers/phone-frame ever
+ * mount — so the IT Support portal never inherits the phone-sized layout or any Client-auth
+ * context, and the consumer app is otherwise 100% unchanged (same providers, same Shell, same
+ * #phone frame, same routes.tsx).
+ */
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/it-support/*" element={<ITSupportApp />} />
+        <Route path="*" element={<ConsumerApp />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

@@ -35,8 +35,6 @@ model Client {
   profileImage           String?
   isActive               Boolean                 @default(true)
   isBiometric            Boolean                 @default(false)
-  isFaceRecognition      Boolean                 @default(false)
-  faceDescriptor         Json?
   emailOtp               String?
   emailOtpExpiry         DateTime?
   emailVerifiedAt        DateTime?
@@ -186,6 +184,8 @@ model NotificationPreference {
   remindersEmail Boolean @default(true)
   dailyPushCap   Int     @default(8)
   language       String  @default("en") // en | fr | rw | sw: the language reminder text is written in
+  /// Tell me when another member of my family adds a transaction, and when the family budget is nearly used.
+  notifyFamily   Boolean @default(true)
 }
 
 // ── Expense Tracker Models ─────────────────────────────────────────────────
@@ -293,6 +293,13 @@ model Transaction {
   fundedByDebtId        String?
   // Set when a scheduled transaction posted this one. Unique, so one occurrence can never post twice.
   scheduledOccurrenceId String?         @unique
+  // Contribution / reimbursement: the two rows (one personal, one family) of one money move share this id.
+  transferGroupId       String?
+  // A private note and tags (kept as "|a|b|" so one `contains` finds a tag); dupeKept: the person said "these two are not duplicates".
+  note                  String?         @db.Text
+  tags                  String?         @db.VarChar(400)
+  dupeKept              Boolean         @default(false)
+  comments              FamilyComment[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
@@ -302,6 +309,7 @@ model Transaction {
   @@index([fundedByDebtId])
   @@index([clientId, debtRole, date])
   @@index([familyId, date])
+  @@index([transferGroupId])
 }
 
 model Budget {
@@ -392,6 +400,9 @@ model Debt {
   id                     String            @id @default(uuid())
   clientId               String
   client                 Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Set when it belongs to a family; null means personal. clientId is then the person who wrote it down.
+  familyId String?
+  family   Family? @relation(fields: [familyId], references: [id], onDelete: Cascade)
   kind                   DebtKind
   person                 String
   phone                  String?
@@ -422,6 +433,7 @@ model Debt {
   updatedAt              DateTime          @updatedAt
 
   @@index([clientId, status])
+  @@index([familyId, status])
 }
 
 // One planned pay date. Rows are never edited to change the date: moving one marks it MOVED
@@ -443,7 +455,7 @@ model DebtInstallment {
   note          String?
   // Made by the debt's estimated payment plan (so the plan may change or remove it while it is still ahead).
   fromPlan      Boolean           @default(false)
-  reminder      Reminder?
+  reminders     Reminder[]
   createdAt     DateTime          @default(now())
 
   @@index([debtId, status, dueAt])
@@ -498,9 +510,9 @@ model Reminder {
   kind           ReminderKind         @default(DEBT_PAYMENT)
   debtId         String?
   debt           Debt?                @relation(fields: [debtId], references: [id], onDelete: Cascade)
-  installmentId  String?              @unique
+  installmentId  String?
   installment    DebtInstallment?     @relation(fields: [installmentId], references: [id], onDelete: Cascade)
-  occurrenceId   String?              @unique
+  occurrenceId   String?
   occurrence     ScheduledOccurrence? @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
   dueAt          DateTime
   timezone       String               @default("UTC")
@@ -516,6 +528,9 @@ model Reminder {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
+  // A family pay date or schedule date reminds every owner and admin, each with their own reminder.
+  @@unique([installmentId, clientId])
+  @@unique([occurrenceId, clientId])
   @@index([status, nextFireAt])
   @@index([clientId, status])
   @@index([debtId])
@@ -562,8 +577,12 @@ enum OccurrenceStatus {
 // `startAt` and the rule is worked out in `timezone`, so "9:00" stays 9:00 across daylight saving.
 model ScheduledTransaction {
   id          String                @id @default(uuid())
+  // The person who made it (for a family schedule: the one it posts as).
   clientId    String
   client      Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  // Set when it belongs to a family; null means personal.
+  familyId    String?
+  family      Family?               @relation(fields: [familyId], references: [id], onDelete: Cascade)
   type        TransactionType
   category    CategorySlug
   title       String
@@ -586,6 +605,7 @@ model ScheduledTransaction {
   updatedAt   DateTime              @updatedAt
 
   @@index([clientId, status])
+  @@index([familyId, status])
   @@index([status, nextDueAt])
 }
 
@@ -599,7 +619,7 @@ model ScheduledOccurrence {
   transactionId String?
   failReason    String?
   handledAt     DateTime?
-  reminder      Reminder?
+  reminders     Reminder[]
   createdAt     DateTime             @default(now())
 
   @@unique([scheduleId, dueAt])
@@ -644,6 +664,8 @@ model Family {
   timezone   String         @default("UTC") @db.VarChar(64)
   status     FamilyStatus   @default(ACTIVE)
   archivedAt DateTime?
+  /// A member's expense above this amount waits for an owner or admin (null = never).
+  approvalThreshold Decimal? @db.Decimal(12, 2)
   createdBy  String
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
@@ -656,6 +678,12 @@ model Family {
   savedViews   SavedView[]
   trashed           TrashedTransaction[]
   activityEvents    ActivityEvent[]
+  goals             FamilyGoal[]
+  allowances        FamilyAllowance[]
+  approvals         FamilyApproval[]
+  comments          FamilyComment[]
+  scheduled ScheduledTransaction[]
+  debts Debt[]
 }
 
 model FamilyMember {
@@ -730,4 +758,122 @@ model ActivityEvent {
 
   @@index([scopeKey, createdAt])
   @@index([entity, entityId])
+}
+
+/// A short note under a family transaction. Goes when the transaction goes.
+model FamilyComment {
+  id            String      @id @default(uuid())
+  familyId      String
+  family        Family      @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  authorId      String
+  body          String      @db.VarChar(500)
+  createdAt     DateTime    @default(now())
+
+  @@index([transactionId, createdAt])
+  @@index([familyId])
+}
+
+/// A savings target the whole family works toward.
+model FamilyGoal {
+  id            String   @id @default(uuid())
+  familyId      String
+  family        Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  name          String   @db.VarChar(60)
+  target        Decimal  @db.Decimal(12, 2)
+  targetDate    DateTime?
+  /// A family wallet whose balance counts toward the goal (optional).
+  walletId      String?
+  status        String   @default("ACTIVE") @db.VarChar(12)
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  contributions FamilyGoalContribution[]
+
+  @@index([familyId, status])
+}
+
+model FamilyGoalContribution {
+  id        String     @id @default(uuid())
+  goalId    String
+  goal      FamilyGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  clientId  String
+  amount    Decimal    @db.Decimal(12, 2)
+  note      String?    @db.VarChar(120)
+  createdAt DateTime   @default(now())
+
+  @@index([goalId, createdAt])
+}
+
+/// How much one member may spend from the family each month (a warning, not a block).
+model FamilyAllowance {
+  id           String   @id @default(uuid())
+  familyId     String
+  family       Family   @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  clientId     String
+  monthlyLimit Decimal  @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([familyId, clientId])
+}
+
+/// An expense a member asked to add that waits for an owner or admin. It is not a transaction yet: it touches no balance, budget or report until approved.
+model FamilyApproval {
+  id            String    @id @default(uuid())
+  familyId      String
+  family        Family    @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  requestedById String
+  /// The transaction exactly as the member asked to add it.
+  snapshot      Json
+  title         String    @db.VarChar(191)
+  amount        Decimal   @db.Decimal(12, 2)
+  status        String    @default("PENDING") @db.VarChar(12)
+  decidedById   String?
+  decidedAt     DateTime?
+  reason        String?   @db.VarChar(200)
+  transactionId String?
+  createdAt     DateTime  @default(now())
+
+  @@index([familyId, status, createdAt])
+  @@index([requestedById])
+}
+
+// ────────────────────────────────────────────────────────────
+// IT Support — a separate staff login, unrelated to Client. Powers the
+// /it-support portal: data export/import (self-backup and restore of this
+// app's own database) and whatever other operator tooling lands there later.
+// Deliberately simple (single password login, no social/passkey/OTP) since
+// this is an internal tool for one or a few operators, not a consumer flow.
+// ────────────────────────────────────────────────────────────
+
+model ITAdmin {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+/// One row per committed self-backup restore, recording which row ids it actually CREATED
+/// (never ones it updated) so a rollback can delete exactly those rows in reverse dependency
+/// order. See the data-export module's import service.
+model ImportSnapshot {
+  id               String    @id @default(uuid())
+  createdAt        DateTime  @default(now())
+  performedById    String
+  performedByName  String
+  fileName         String    @default("backup.json")
+  strategy         String    @default("SKIP")
+  groups           Json?
+  summary          Json
+  createdIds       Json
+  status           String    @default("active")
+  rolledBackAt     DateTime?
+  rolledBackById   String?
+  rolledBackByName String?
 }

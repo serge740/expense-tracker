@@ -3,8 +3,8 @@ import api from '@/api';
 import type { FamilyRole } from '@/utils/family-permissions';
 
 export interface FamilyInfo { id: string; name: string; currency: string; timezone: string }
-export interface FamilyLimits { maxMembers: number; maxPendingInvites: number; inviteDays: number }
-export interface MyFamily { family: FamilyInfo; role: FamilyRole; memberCount: number; limits: FamilyLimits }
+export interface FamilyLimits { maxMembers: number; maxPendingInvites: number; inviteDays: number; maxFamilies?: number }
+export interface MyFamily { family: FamilyInfo; role: FamilyRole; memberCount: number; limits: FamilyLimits; families?: MyFamily[] }
 export interface FamilyMemberRow {
   clientId: string; role: FamilyRole; nickname: string | null; name: string; profileImage: string | null; joinedAt: string; isYou: boolean;
 }
@@ -23,6 +23,14 @@ export interface InviteInput { token?: string; code?: string }
 /** The person's family and role, or null when they have none. (The server answers an empty body for "none".) */
 export const getMyFamily = (): Promise<MyFamily | null> =>
   api.get('/family/mine').then(r => (r.data && typeof r.data === 'object' && r.data.family ? (r.data as MyFamily) : null));
+
+/** Every family the person is in (the server also answers with the first one in the old shape). */
+export const getMyFamilies = (): Promise<MyFamily[]> =>
+  api.get('/family/mine').then(r => {
+    const d = r.data;
+    if (!d || typeof d !== 'object' || !d.family) return [];
+    return Array.isArray(d.families) && d.families.length ? (d.families as MyFamily[]) : [d as MyFamily];
+  });
 
 export const createFamily = (data: { name: string; currency?: string; timezone?: string }): Promise<{ family: FamilyInfo; role: FamilyRole }> =>
   api.post('/family', data).then(r => r.data);

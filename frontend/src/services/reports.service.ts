@@ -61,3 +61,8 @@ export interface AiAdvice {
 
 export const getAiAdvice = (params: DateRangeParams & { currency?: string }): Promise<AiAdvice> =>
   api.get('/reports/ai-advice', { params }).then(r => r.data);
+
+export interface MemberSpending { clientId: string; name: string; isYou: boolean; spent: number; earned: number; count: number; share: number }
+/** Who spent and who earned what in the period (a family lists every member; Personal is just you). */
+export const getSpendingByMember = (params: DateRangeParams): Promise<MemberSpending[]> =>
+  api.get('/reports/by-member', { params }).then(r => r.data);

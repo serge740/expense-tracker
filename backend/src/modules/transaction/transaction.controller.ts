@@ -28,6 +28,37 @@ export class TransactionController {
     catch (e: any) { throw bad(e, 'Failed to load History'); }
   }
 
+  /** History as a CSV (what the filter shows, up to 5,000 rows). */
+  @Get('export')
+  async export(@ReqScope() scope: Scope, @Query() query: FeedQuery) {
+    try { return await this.feedService.exportCsv(scope, parseFeedFilter(query)); }
+    catch (e: any) { throw bad(e, 'Failed to export'); }
+  }
+
+  /** The same rows as a spreadsheet (format=xlsx) or a PDF (format=pdf), as base64. */
+  @Get('export/file')
+  async exportFile(@ReqScope() scope: Scope, @Query() query: FeedQuery & { format?: string }) {
+    try { return await this.feedService.exportFile(scope, parseFeedFilter(query), query.format === 'pdf' ? 'pdf' : 'xlsx'); }
+    catch (e: any) { throw bad(e, 'Failed to export'); }
+  }
+
+  /** Tags in use here, most used first. */
+  @Get('tags')
+  async tags(@ReqScope() scope: Scope) {
+    try { return await this.feedService.tagsInUse(scope); } catch (e: any) { throw bad(e, 'Failed to load tags'); }
+  }
+
+  /** Rows that look like the same payment entered twice, grouped to compare. */
+  @Get('duplicates')
+  async duplicates(@ReqScope() scope: Scope) {
+    try { return await this.feedService.duplicateGroups(scope); } catch (e: any) { throw bad(e, 'Failed to load duplicates'); }
+  }
+
+  @Post('duplicates/keep')
+  async keepDuplicates(@ReqScope() scope: Scope, @Body() body: { ids?: unknown }) {
+    try { return await this.feedService.keepDuplicates(scope, body?.ids); } catch (e: any) { throw bad(e, 'Failed to save'); }
+  }
+
   /** History in one wallet: opening, money in, money out, closing and whether they add up. */
   @Get('statement')
   async statement(@ReqScope() scope: Scope, @Query() query: FeedQuery) {
@@ -164,6 +195,17 @@ export class TransactionController {
     } catch (e: any) {
       throw bad(e, 'Failed to create transaction');
     }
+  }
+
+  @Get(':id/annotate')
+  async annotation(@ReqScope() scope: Scope, @Param('id') id: string) {
+    try { return await this.feedService.annotation(scope, id); } catch (e: any) { throw bad(e, 'Not found'); }
+  }
+
+  /** Tags and the private note of one row (no money moves, so it works on any row you may edit). */
+  @Patch(':id/annotate')
+  async annotate(@ReqScope() scope: Scope, @Param('id') id: string, @Body() body: { tags?: unknown; note?: unknown }) {
+    try { return await this.feedService.annotate(scope, id, body ?? {}); } catch (e: any) { throw bad(e, 'Failed to save'); }
   }
 
   @Patch(':id')

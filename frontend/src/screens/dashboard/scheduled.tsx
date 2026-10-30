@@ -1,4 +1,3 @@
-import { withPersonalOnly } from '@/components/family/personal-only-screen';
 // Ported from expo_app/app/(dashboard)/scheduled.tsx, then extended on the web: status cards, filters, and loan / credit pay dates.
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from '@/rn';
@@ -10,6 +9,7 @@ import { useAppTheme } from '@/hooks/use-app-theme';
 import { useI18n } from '@/context/language-context';
 import { formatMoney } from '@/context/currency-context';
 import { usePreferences } from '@/context/preferences-context';
+import { useScope } from '@/context/scope-context';
 import { ToneChip, OWE, OWED } from '@/components/debt/tone-chip';
 import { ConfirmSheet, ConfirmItem } from '@/components/schedule/confirm-sheet';
 import { ScheduleDetail } from '@/components/schedule/schedule-detail';
@@ -28,6 +28,8 @@ function ScheduledScreen() {
   const theme = useAppTheme();
   const { t, locale, language, formatDate } = useI18n();
   const { prefs } = usePreferences();
+  // In a family, owners and admins run the schedules; everyone else can see them.
+  const manage = useScope().can('schedule.manage');
   const when = useWhen();
   const env: TextEnv = useMemo(() => ({ t, locale, language }), [t, locale, language]);
   const { id: linkedId } = useLocalSearchParams<{ id?: string }>();
@@ -92,9 +94,11 @@ function ScheduledScreen() {
           <Text style={[s.title, { color: theme.text }]}>{t('sched.title')}</Text>
           <Text style={[s.sub, { color: theme.textMuted }]}>{t('sched.subtitle')}</Text>
         </View>
+        {manage ? (
         <TouchableOpacity onPress={() => router.push('/(dashboard)/add' as any)} style={[s.round, { backgroundColor: theme.buttonBg, borderColor: theme.buttonBg }]} accessibilityRole="button" accessibilityLabel={t('sched.newTitle')}>
           <MaterialIcons name="add" size={20} color="#FFFFFF" />
         </TouchableOpacity>
+        ) : null}
       </View>
 
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}
@@ -142,6 +146,7 @@ function ScheduledScreen() {
                         </View>
                         <Text style={[s.amount, { color: income ? '#16A34A' : theme.text }]}>{income ? '+' : ''}{money(w.amount, w.currency)}</Text>
                       </View>
+                      {manage ? (
                       <View style={s.row}>
                         <TouchableOpacity style={[s.btn, { backgroundColor: theme.buttonBg, flex: 1.3 }]} accessibilityRole="button"
                                           onPress={() => setConfirming({ occurrenceId: w.id, title: w.title, type: w.type, amount: w.amount, currency: w.currency, walletId: w.walletId })}>
@@ -151,6 +156,7 @@ function ScheduledScreen() {
                           <Text style={[s.btnText, { color: theme.primary }]} numberOfLines={1}>{t('sched.skip')}</Text>
                         </TouchableOpacity>
                       </View>
+                      ) : null}
                     </View>
                   );
                 })}
@@ -228,7 +234,7 @@ function ScheduledScreen() {
         )}
       </ScrollView>
 
-      <ScheduleDetail id={openId} onClose={() => setOpenId(null)} onChanged={load} />
+      <ScheduleDetail id={openId} onClose={() => setOpenId(null)} onChanged={load} readOnly={!manage} />
       <Modal visible={!!confirming} transparent animationType="fade" onRequestClose={() => setConfirming(null)}>
         {confirming && <ConfirmSheet item={confirming} onClose={() => setConfirming(null)} onDone={() => { setConfirming(null); load(); }} />}
       </Modal>
@@ -269,4 +275,4 @@ const s = StyleSheet.create({
   emptyText: { fontSize: 12, textAlign: 'center', maxWidth: 270, lineHeight: 17 },
 });
 
-export default withPersonalOnly(ScheduledScreen);
+export default ScheduledScreen;

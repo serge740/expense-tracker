@@ -14,24 +14,33 @@ import { FAMILY_PURPLE } from '@/constants/family-theme';
 export function ScopeSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const theme = useAppTheme();
   const { t } = useI18n();
-  const { isFamily, family, role, memberCount, switchTo } = useScope();
+  const { isFamily, family, families, switchTo, limits } = useScope();
 
   const go = (path: string) => () => { onClose(); router.push(path as any); };
-  const pick = (target: 'personal' | 'family') => async () => { onClose(); await switchTo(target); };
-  const members = t(memberCount === 1 ? 'family.sheet.membersOne' : 'family.sheet.members', { n: memberCount });
+  const pick = (target: 'personal' | 'family', familyId?: string) => async () => { onClose(); await switchTo(target, familyId); };
+  const roomForMore = families.length < (limits?.maxFamilies ?? 3);
 
   return (
     <OptionSheet visible={visible} title={t('family.sheet.title')} onClose={onClose}>
       <Text style={[s.sub, { color: theme.textSecondary }]}>{t('family.sheet.sub')}</Text>
       <OptionRow testID="scope-personal" title={t('family.sheet.personal')} sub={t('family.sheet.personalSub')} selected={!isFamily}
                  tile={<Tile icon="person-outline" color="#FFFFFF" bg="#00627F" />} onPress={pick('personal')} />
-      {family ? (
+      {families.length ? (
         <>
-          <OptionRow testID="scope-family" title={family.name} selected={isFamily}
-                     sub={t('family.sheet.you', { members, role: role ? t(`role.${role}` as any).toLowerCase() : '' })}
-                     tile={<Tile icon="groups" color="#FFFFFF" bg={FAMILY_PURPLE} />} onPress={pick('family')} />
+          {families.map(f => {
+            const members = t(f.memberCount === 1 ? 'family.sheet.membersOne' : 'family.sheet.members', { n: f.memberCount });
+            return (
+              <OptionRow key={f.family.id} testID={families.length === 1 ? 'scope-family' : `scope-family-${f.family.id}`} title={f.family.name} selected={isFamily && family?.id === f.family.id}
+                         sub={t('family.sheet.you', { members, role: t(`role.${f.role}` as any).toLowerCase() })}
+                         tile={<Tile icon="groups" color="#FFFFFF" bg={FAMILY_PURPLE} />} onPress={pick('family', f.family.id)} />
+            );
+          })}
           <OptionRow testID="scope-manage" title={t('family.sheet.manage')}
                      tile={<Tile icon="settings" color={theme.primary} bg={theme.primaryBg} />} onPress={go('/(dashboard)/family')} />
+          {roomForMore ? (
+            <OptionRow testID="scope-another" title={t('family.sheet.another')}
+                       tile={<Tile icon="group-add" color={theme.primary} bg={theme.primaryBg} />} onPress={go('/(dashboard)/family-create')} />
+          ) : null}
         </>
       ) : (
         <>

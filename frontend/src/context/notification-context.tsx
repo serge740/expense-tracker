@@ -3,6 +3,7 @@ import { AppState } from '@/rn';
 import { getNotifications, markAllRead, markNotificationRead } from '@/services/notification.service';
 import { connectRealtime } from '@/services/realtime';
 import { requestReminderRefresh } from '@/utils/reminders';
+import { announceFamilyChange } from '@/utils/family-nudge';
 
 /** The newest notification that arrived while the app was open (for the toast and the sound). */
 export interface Arrival { id?: string; type: string; title?: string; body?: string; at: number }
@@ -50,6 +51,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Instant updates: the server nudges us the moment a notification or reminder is created.
   useEffect(() => connectRealtime((event, payload) => {
+    if (event === 'family-changed') { announceFamilyChange(); return; }
     if (event !== 'new-notification') return;
     void refresh();
     setLastArrival({ id: payload?.id, type: payload?.type ?? 'system', title: payload?.title, body: payload?.body, at: Date.now() });

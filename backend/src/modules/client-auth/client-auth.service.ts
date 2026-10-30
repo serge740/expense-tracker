@@ -13,7 +13,6 @@ import { OAuth2Client } from 'google-auth-library';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FaceService } from './face.service';
 import { EmailService } from '../../global/email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RegisterClientDto } from './dto/register-client.dto';
@@ -32,7 +31,6 @@ export class ClientAuthService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly faceService: FaceService,
     private readonly emailService: EmailService,
     @Inject(forwardRef(() => NotificationsService))
     private readonly notifications: NotificationsService,
@@ -366,46 +364,6 @@ export class ClientAuthService implements OnModuleInit {
     return this.issueTokenPair(record.client);
   }
 
-  // ── Face Enroll ───────────────────────────────────────────────────────────
-  async enrollFace(clientId: string, imageBuffer: Buffer) {
-    const descriptor = await this.faceService.extractDescriptor(imageBuffer);
-    if (!descriptor) {
-      throw new BadRequestException('No face detected. Please ensure your face is clearly visible.');
-    }
-
-    const client = await this.prisma.client.update({
-      where: { id: clientId },
-      data: { faceDescriptor: descriptor, isFaceRecognition: true },
-    });
-
-    return { message: 'Face enrolled successfully', client: this.sanitize(client) };
-  }
-
-  // ── Face Identify (1:N) ───────────────────────────────────────────────────
-  async faceIdentify(imageBuffer: Buffer): Promise<AuthResult> {
-    const submitted = await this.faceService.extractDescriptor(imageBuffer);
-    if (!submitted) {
-      throw new BadRequestException('No face detected. Please ensure your face is clearly visible.');
-    }
-
-    const enrolled = await this.prisma.client.findMany({ where: { isFaceRecognition: true } });
-    if (!enrolled.length) {
-      throw new NotFoundException('No face-registered accounts found. Please register first.');
-    }
-
-    let bestMatch: any = null;
-    let bestDist = Infinity;
-
-    for (const c of enrolled) {
-      if (!c.faceDescriptor) continue;
-      const dist = this.faceService.computeDistance(c.faceDescriptor as number[], submitted);
-      if (dist <= 0.5 && dist < bestDist) { bestDist = dist; bestMatch = c; }
-    }
-
-    if (!bestMatch) throw new UnauthorizedException('Face not recognised. Please register first.');
-    return this.issueTokenPair(bestMatch);
-  }
-
   // ── Enable Biometric ──────────────────────────────────────────────────────
   async enableBiometric(clientId: string) {
     const client = await this.prisma.client.update({
@@ -587,7 +545,7 @@ export class ClientAuthService implements OnModuleInit {
 
   private sanitize(client: any) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { faceDescriptor, emailOtp, emailOtpExpiry, passwordHash, phoneOtp, phoneOtpExpiry, ...safe } = client;
+    const { emailOtp, emailOtpExpiry, passwordHash, phoneOtp, phoneOtpExpiry, ...safe } = client;
     return safe;
   }
 }

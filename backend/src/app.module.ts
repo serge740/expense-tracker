@@ -24,6 +24,8 @@ import { RemindersModule } from './modules/reminders/reminders.module';
 import { ScheduledModule } from './modules/scheduled/scheduled.module';
 import { HomeModule } from './modules/home/home.module';
 import { HealthModule } from './modules/health/health.module';
+import { ITSupportAuthModule } from './modules/it-support-auth/it-support-auth.module';
+import { DataExportModule } from './modules/data-export/data-export.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { HealthModule } from './modules/health/health.module';
     RemindersModule,
     ScheduledModule,
     HomeModule,
+    ITSupportAuthModule,
+    DataExportModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

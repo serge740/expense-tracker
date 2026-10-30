@@ -7,10 +7,12 @@ export const FAMILY_ACTIONS = [
   'member.remove.lowerRoles', 'member.remove.any', 'member.role.change',
   'family.rename', 'family.delete', 'ownership.transfer', 'member.leave',
   'tx.add', 'tx.edit.own', 'tx.edit.other', 'wallet.manage', 'wallet.delete', 'budget.set',
+  'comment.add', 'comment.delete.other', 'goal.manage', 'goal.contribute', 'allowance.manage', 'approval.manage', 'approval.decide',
+  'transfer.contribute', 'transfer.reimburse', 'schedule.manage', 'debt.manage',
 ] as const;
 export type FamilyAction = (typeof FAMILY_ACTIONS)[number];
 
-const VIEW: FamilyAction[] = ['family.view', 'member.list', 'activity.view'];
+const VIEW: FamilyAction[] = ['family.view', 'member.list', 'activity.view', 'comment.add'];
 
 /** The one place that says who may do what. Nothing else in the code compares roles. */
 const TABLE: Record<FamilyRoleName, ReadonlySet<FamilyAction>> = {
@@ -20,14 +22,18 @@ const TABLE: Record<FamilyRoleName, ReadonlySet<FamilyAction>> = {
     'member.remove.lowerRoles', 'member.remove.any', 'member.role.change',
     'family.rename', 'family.delete', 'ownership.transfer',
     'tx.add', 'tx.edit.own', 'tx.edit.other', 'wallet.manage', 'wallet.delete', 'budget.set',
+    'comment.delete.other', 'goal.manage', 'goal.contribute', 'allowance.manage', 'approval.manage', 'approval.decide',
+    'transfer.contribute', 'transfer.reimburse', 'schedule.manage', 'debt.manage',
   ]),
   ADMIN: new Set<FamilyAction>([
     ...VIEW,
     'invite.create', 'invite.list', 'invite.revoke',
     'member.remove.lowerRoles', 'member.leave',
     'tx.add', 'tx.edit.own', 'tx.edit.other', 'wallet.manage', 'budget.set',
+    'comment.delete.other', 'goal.manage', 'goal.contribute', 'allowance.manage', 'approval.decide',
+    'transfer.contribute', 'transfer.reimburse', 'schedule.manage', 'debt.manage',
   ]),
-  MEMBER: new Set<FamilyAction>([...VIEW, 'member.leave', 'tx.add', 'tx.edit.own']),
+  MEMBER: new Set<FamilyAction>([...VIEW, 'member.leave', 'tx.add', 'tx.edit.own', 'goal.contribute', 'transfer.contribute']),
   VIEWER: new Set<FamilyAction>([...VIEW, 'member.leave']),
 };
 

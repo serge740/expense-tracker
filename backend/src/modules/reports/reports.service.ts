@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { loanFilter } from '../../common/utils/loan-filter';
 import { CATEGORY_LABELS } from '../../common/utils/categories';
 import { Scope, scopeWhere } from '../family/scope/scope';
+import { displayName } from '../family/family.service';
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -71,6 +72,34 @@ export class ReportsService {
       amount: Number(g._sum.amount ?? 0),
       percentage: total > 0 ? Math.round((Number(g._sum.amount ?? 0) / total) * 100) : 0,
     }));
+  }
+
+  /**
+   * Who spent and who earned what in the period. In a family every member who added something is listed (named, with a share of
+   * the spending); in Personal it is just the person. Only a name is ever shown, never an email or phone.
+   */
+  async byMember(scope: Scope, month: number, year: number, startDate?: string, endDate?: string, includeLoans = true) {
+    const [start, end] = this.resolveDateRange(month, year, startDate, endDate);
+    const groups = await this.prisma.transaction.groupBy({
+      by: ['clientId', 'type'],
+      where: { ...scopeWhere(scope), type: { in: ['EXPENSE', 'INCOME'] }, date: { gte: start, lt: end }, ...loanFilter('EXPENSE', includeLoans) },
+      _sum: { amount: true },
+      _count: true,
+    });
+    const ids = [...new Set(groups.map(g => g.clientId))];
+    const people = ids.length ? await this.prisma.client.findMany({ where: { id: { in: ids } }, select: { id: true, firstName: true, lastName: true } }) : [];
+    const name = new Map(people.map(c => [c.id, displayName(c)]));
+    const rows = ids.map(id => {
+      const spent = groups.filter(g => g.clientId === id && g.type === 'EXPENSE');
+      const earned = groups.filter(g => g.clientId === id && g.type === 'INCOME');
+      return {
+        clientId: id, name: name.get(id) ?? 'Former member', isYou: id === scope.clientId,
+        spent: spent.reduce((n, g) => n + Number(g._sum.amount ?? 0), 0), earned: earned.reduce((n, g) => n + Number(g._sum.amount ?? 0), 0),
+        count: groups.filter(g => g.clientId === id).reduce((n, g) => n + (typeof g._count === 'number' ? g._count : 0), 0),
+      };
+    }).sort((a, b) => b.spent - a.spent);
+    const total = rows.reduce((n, r) => n + r.spent, 0);
+    return rows.map(r => ({ ...r, share: total > 0 ? Math.round((r.spent / total) * 100) : 0 }));
   }
 
   async summary(scope: Scope, month: number, year: number, startDate?: string, endDate?: string, includeLoans = true) {

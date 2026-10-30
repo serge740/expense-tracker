@@ -23,7 +23,10 @@ import { takePendingUndo } from '@/utils/pending-undo';
 import { DayHeader, GroupHeader, StatementCard, KindChips, ListFooter, OfflineBanner, SkeletonRows, StateBlock, SummaryCard, WalletStrip, type SummaryTab } from '@/components/history/history-parts';
 import { ActiveBar, SearchPanel, SortSheet, UpcomingSection } from '@/components/history/history-extras';
 import { FilterSheet } from '@/components/history/filter-sheet';
-import { getFeed, getFeedSummary, getGroups, getStatement, getSuggestions, type Statement } from '@/services/history.service';
+import { useFamilyNudge } from '@/utils/family-nudge';
+import { ReconcileSheet } from '@/components/history/reconcile-sheet';
+import { AdvancedSheet, AnnotateSheet, ExportSheet, HistoryCalendar, HistoryChart, SavedViewsSheet, ViewSwitch, saveBase64, type ViewMode } from '@/components/history/history-tools';
+import { getFeed, getFeedSummary, getGroups, getExport, getExportFile, getStatement, getSuggestions, type Statement } from '@/services/history.service';
 import { createSavedView, deleteSavedView, getSavedViews, renameSavedView, type SavedView } from '@/services/saved-views.service';
 import { getScheduledList, type Scheduled } from '@/services/scheduled.service';
 import { getWallets, type Wallet } from '@/services/wallet.service';
@@ -78,7 +81,9 @@ export default function HistoryScreen() {
   const [query, setQuery] = useState(() => (hasFilterQuery(params) ? filterFromQuery(params, emptyFilter(thisMonth())).search : ''));
   const [search, setSearch] = useState(() => (hasFilterQuery(params) ? filterFromQuery(params, emptyFilter(thisMonth())).search : ''));
   const [recent, setRecent] = useState<string[]>(loadRecent);
-  const [sheet, setSheet] = useState<null | 'filter' | 'sort' | 'period' | 'menu' | 'jump' | 'pickCategory' | 'pickWallet'>(null);
+  const [sheet, setSheet] = useState<null | 'filter' | 'sort' | 'period' | 'menu' | 'jump' | 'pickCategory' | 'pickWallet' | 'export' | 'views' | 'advanced'>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [annotating, setAnnotating] = useState<FeedRow | null>(null);
   const [tab, setTab] = useState<SummaryTab | null>(null);
   const searchRef = useRef<TextInput>(null);
   const filter: HistoryFilter = useMemo(() => ({ ...core, memberId: isFamily ? core.memberId : null, search }), [core, isFamily, search]);
@@ -201,6 +206,7 @@ export default function HistoryScreen() {
   // ── One wallet chosen: its statement for the period ──
   const oneWallet = core.walletIds.length === 1 ? core.walletIds[0] : null;
   const [statement, setStatement] = useState<Statement | null>(null);
+  const [reconcile, setReconcile] = useState(false);
   const [stmtState, setStmtState] = useState<'loading' | 'ready' | 'error'>('loading');
   const loadStatement = useCallback(() => {
     if (!oneWallet) { setStatement(null); return; }
@@ -322,6 +328,7 @@ export default function HistoryScreen() {
   const targetRows = single ? [single] : rows.filter(r => picked.includes(r.id));
   const pickedRows = targetRows;
   const reload = () => { loadFirst(true); loadSummary(); loadStatement(); };
+  useFamilyNudge(() => { if (!selecting) reload(); });
   const run = async (change: BulkAction, ids: string[] = targetRows.map(r => r.id)) => {
     setWorking(true); setSheet(null); setPeek(null);
     const origin = single;
@@ -344,6 +351,21 @@ export default function HistoryScreen() {
     } catch (e: any) { Alert.alert(t('common.error'), e?.response?.data?.message || t('select.error')); setSingle(null); }
     finally { setWorking(false); }
   };
+  /** Saves History as CSV, Excel or PDF (what the filter shows). */
+  const doExport = async (format: 'csv' | 'xlsx' | 'pdf') => {
+    setSheet(null);
+    try {
+      if (format === 'csv') {
+        const r = await getExport(filter);
+        saveBase64(btoa(unescape(encodeURIComponent('\ufeff' + r.csv))), `history-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
+        setSnack({ message: t(r.truncated ? 'exp.truncated' : 'exp.done', { n: r.count }) });
+      } else {
+        const r = await getExportFile(filter, format);
+        saveBase64(r.base64, r.filename, format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        setSnack({ message: t(r.truncated ? 'exp.truncated' : 'exp.done', { n: r.count }) });
+      }
+    } catch { Alert.alert(t('common.error'), t('history.errorBody')); }
+  };
   const confirmDelete = () => confirmDeleteRows(targetRows);
   const confirmDeleteRows = (list: FeedRow[]) => {
     const fx = deleteEffect(list, fallback).map(x => `${x.change > 0 ? '+' : '−'}${shortAmount(Math.abs(x.change), ZERO_DECIMAL.has(x.currency))} ${x.currency}`).join(', ');
@@ -363,12 +385,14 @@ export default function HistoryScreen() {
     const act = (id: string, icon: string, label: string, onPress: () => void, danger = false): PeekAction => ({ id, icon, label, onPress, danger });
     const open = act('open', 'open-in-new', t('peek.open'), () => { setPeek(null); router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(r as never) } as any); });
     const del = () => { setSingle(r); setPeek(null); confirmDeleteRows([r]); };
-    if (locked) return { note: t('peek.locked'), actions: [open] };
-    if (transfer) return { note: t('peek.transfer'), actions: [open, act('delete', 'delete', t('peek.delete'), del, true)] };
+    const tagsNote = act('tags', 'sell', t('hx.tags.action'), () => { setPeek(null); setAnnotating(r); });
+    if (locked) return { note: t('peek.locked'), actions: [open, tagsNote] };
+    if (transfer) return { note: t('peek.transfer'), actions: [open, tagsNote, act('delete', 'delete', t('peek.delete'), del, true)] };
     return {
       note: null,
       actions: [
         open,
+        tagsNote,
         act('duplicate', 'content-copy', t('peek.duplicate'), () => go(duplicateParams(r))),
         ...(isFamily ? [] : [act('recurring', 'repeat', t('peek.recurring'), () => go(recurringParams(r)))]),
         act('category', 'category', t('peek.category'), () => { setSingle(r); setPeek(null); setSheet('pickCategory'); }),
@@ -389,6 +413,7 @@ export default function HistoryScreen() {
   };
   const hasUpcoming = !isFamily && !searching && filter.phase !== 'past' && (includesToday(filter.period) || filter.phase === 'upcoming');
   const onlyUpcoming = !isFamily && filter.phase === 'upcoming';
+  const listMode = viewMode === 'list';
 
   return (
     <SafeAreaView edges={['top']} style={[s.safe, { backgroundColor: theme.background }]}>
@@ -405,9 +430,19 @@ export default function HistoryScreen() {
         <OptionRow testID="menu-hide-amounts" title={t(hidden ? 'history.showAmounts' : 'history.hideAmounts')} tile={<Tile icon={hidden ? 'visibility' : 'visibility-off'} color={theme.primary} bg={theme.primaryBg} />}
                    onPress={() => { setPref('hideBalances', !hidden); setSheet(null); }} />
         <OptionRow testID="menu-select" title={t('select.start')} tile={<Tile icon="checklist" color={theme.primary} bg={theme.primaryBg} />} onPress={() => { setSheet(null); setSelecting(true); }} />
+        <OptionRow testID="menu-views" title={t('hx.views.title')} tile={<Tile icon="bookmarks" color={theme.primary} bg={theme.primaryBg} />} onPress={() => setSheet('views')} />
+        <OptionRow testID="menu-advanced" title={t('hx.adv.title')} tile={<Tile icon="rule" color={theme.primary} bg={theme.primaryBg} />} onPress={() => setSheet('advanced')} />
+        <OptionRow testID="menu-duplicates" title={t('hx.dup.menu')} tile={<Tile icon="difference" color={theme.primary} bg={theme.primaryBg} />} onPress={() => { setSheet(null); router.push('/(dashboard)/history-duplicates' as any); }} />
+        <OptionRow testID="menu-export" title={t('exp.menu')} tile={<Tile icon="download" color={theme.primary} bg={theme.primaryBg} />} onPress={() => setSheet('export')} />
         <OptionRow testID="menu-activity" title={t('act.menu')} tile={<Tile icon="history" color={theme.primary} bg={theme.primaryBg} />} onPress={() => { setSheet(null); router.push('/(dashboard)/activity' as any); }} />
         <OptionRow testID="menu-trash" title={t('trash.menu')} tile={<Tile icon="delete-outline" color={theme.primary} bg={theme.primaryBg} />} onPress={() => { setSheet(null); router.push('/(dashboard)/trash' as any); }} />
       </OptionSheet>
+      <ExportSheet visible={sheet === 'export'} onClose={() => setSheet(null)} onPick={doExport} />
+      <SavedViewsSheet visible={sheet === 'views'} views={views} onClose={() => setSheet(null)} onApply={v => { applyView(v); setSheet(null); }} onRename={renameView} onDelete={removeView} />
+      <AdvancedSheet visible={sheet === 'advanced'} filter={filter} wallets={wallets} onClose={() => setSheet(null)}
+                     onApply={f => { setCore({ ...f, search: '' }); setQuery(f.search); setSearch(f.search); setSheet(null); setViewMode('list'); scroller.current?.scrollTo({ y: 0, animated: false }); }} />
+      <AnnotateSheet row={annotating} onClose={() => setAnnotating(null)} onSaved={(id, tags, note) => setRows(prev => prev.map(r => (r.id === id ? { ...r, tags, note } : r)))} />
+      {oneWallet && statement ? <ReconcileSheet visible={reconcile} walletId={oneWallet} currency={statement.wallet.currency} onClose={() => setReconcile(false)} onDone={() => { loadStatement(); loadFirst(true); }} /> : null}
       <OptionSheet visible={sheet === 'pickCategory'} title={t('select.pickCategory')} onClose={() => { setSheet(null); setSingle(null); }}>
         {CATEGORIES.filter(c => c.for.includes(pickedRows.some(r => r.type === 'INCOME') && !pickedRows.some(r => r.type === 'EXPENSE') ? 'INCOME' : 'EXPENSE')).map(c => (
           <OptionRow key={c.id} testID={`pick-cat-${c.id}`} title={t(categoryLabelKey(c.id, pickedRows.some(r => r.type === 'INCOME') && !pickedRows.some(r => r.type === 'EXPENSE') ? 'INCOME' : 'EXPENSE') as any)} tile={<Tile icon={c.icon} color={c.color} bg={`${c.color}26`} />} onPress={() => run({ action: 'category', category: c.id })} />
@@ -472,37 +507,41 @@ export default function HistoryScreen() {
         {showList ? (
           <>
             {oneWallet ? (
-              <StatementCard statement={statement} loading={stmtState === 'loading'} error={stmtState === 'error'} hidden={hidden} onRetry={loadStatement} onAll={() => patch({ walletIds: [] })}
+              <StatementCard onCheck={() => setReconcile(true)} statement={statement} loading={stmtState === 'loading'} error={stmtState === 'error'} hidden={hidden} onRetry={loadStatement} onAll={() => patch({ walletIds: [] })}
                              onAdd={() => router.push({ pathname: '/(dashboard)/add', params: { walletId: oneWallet } } as any)}
                              onTransfer={() => router.push({ pathname: '/(dashboard)/transfer', params: { mode: 'transfer', from: oneWallet } } as any)} />
             ) : null}
+            <ViewSwitch value={viewMode} onChange={setViewMode} />
             <KindChips kinds={kinds} isOn={k => isKindOn(filter, k)} onChange={k => setCore(c => (isKindOn(c, k) && c.kinds.length === 1 ? setKind(c, 'all') : setKind(c, k)))} includeLoans={core.includeLoans} onToggleLoans={toggleLoans} showLoans={!isFamily} />
             <ActiveBar filter={filter} chips={chips} wallets={wallets} members={members} scheduleNames={scheduleNames} onRemove={c => setCore(f => removeChip(f, c))} onClear={() => { setCore(c => clearFilter(c)); setQuery(''); setSearch(''); }} onOpen={() => setSheet('filter')} />
             {isFamily ? <View style={{ paddingTop: 6 }}><MemberFilter members={members} value={core.memberId} onChange={id => patch({ memberId: id })} /></View> : null}
             <WalletStrip wallets={wallets} selected={core.walletIds} onSelect={ids => patch({ walletIds: ids })} hidden={hidden} />
-            {hasUpcoming ? <UpcomingSection hidden={hidden} due={filter.due} schedules={filter.schedules} forceOpen={onlyUpcoming} showEmpty={onlyUpcoming} onChanged={() => { loadFirst(true); loadSummary(); }} /> : null}
+            {hasUpcoming && listMode ? <UpcomingSection hidden={hidden} due={filter.due} schedules={filter.schedules} forceOpen={onlyUpcoming} showEmpty={onlyUpcoming} onChanged={() => { loadFirst(true); loadSummary(); }} /> : null}
 
-            {state === 'loading' && !onlyUpcoming ? <SkeletonRows /> : null}
+            {viewMode === 'calendar' ? <HistoryCalendar filter={filter} fallback={fallback} hidden={hidden} firstDay={prefs.weekStart} onPickDay={day => { patch({ period: { kind: 'range', from: day, to: day } }); setViewMode('list'); scroller.current?.scrollTo({ y: 0, animated: false }); }} /> : null}
+            {viewMode === 'chart' ? <HistoryChart filter={filter} fallback={fallback} hidden={hidden} /> : null}
 
-            {!onlyUpcoming && state === 'error' ? (
+            {state === 'loading' && !onlyUpcoming && listMode ? <SkeletonRows /> : null}
+
+            {!onlyUpcoming && listMode && state === 'error' ? (
               <StateBlock testID="list-error" icon="cloud-off" title={t('history.errorTitle')} body={t('history.errorBody')} primary={{ label: t('history.tryAgain'), icon: 'refresh', onPress: () => { loadFirst(); loadSummary(); } }} />
             ) : null}
 
-            {!onlyUpcoming && empty === 'none' ? (
+            {!onlyUpcoming && listMode && empty === 'none' ? (
               <StateBlock testID="empty-none" icon="account-balance-wallet" title={t('history.emptyNoneTitle')} body={t('history.emptyNoneBody')}
                           primary={scope.can('tx.add') ? { label: t('history.addFirst'), icon: 'add', onPress: () => router.push('/(dashboard)/add' as any) } : undefined} />
             ) : null}
-            {!onlyUpcoming && empty === 'filter' && searching ? (
+            {!onlyUpcoming && listMode && empty === 'filter' && searching ? (
               <StateBlock testID="empty-search" icon="search-off" title={t('history.noResultsTitle', { q: search.trim() })} body={t('history.noResultsBody')} primary={{ label: t('history.clearSearch'), icon: 'close', onPress: () => { setQuery(''); setSearch(''); } }} />
             ) : null}
-            {!onlyUpcoming && empty === 'filter' && !searching ? (
+            {!onlyUpcoming && listMode && empty === 'filter' && !searching ? (
               <StateBlock testID="empty-filter" icon="filter-alt-off" title={t('history.emptyFilterTitle')} body={t('history.emptyFilterBody', { period: label })} primary={{ label: t('history.clearFilters'), icon: 'filter-alt-off', onPress: () => setCore(c => clearFilter(c)) }} />
             ) : null}
-            {!onlyUpcoming && empty === 'period' ? (
+            {!onlyUpcoming && listMode && empty === 'period' ? (
               <StateBlock testID="empty-period" icon="event-busy" title={t('history.emptyPeriodTitle', { period: label })} body={t('history.emptyPeriodBody')} primary={{ label: t('history.showAllTime'), icon: 'all-inclusive', onPress: () => goTo({ kind: 'all' }) }} />
             ) : null}
 
-            {state === 'ready' && !onlyUpcoming ? groups.map(g => (
+            {state === 'ready' && !onlyUpcoming && listMode ? groups.map(g => (
               <View key={g.key} testID={`day-${g.key}`}>
                 {serverMode ? groupHead(g.key, g.rows[0]) : mode !== 'none' ? <DayHeader group={g} hidden={hidden} mode={mode as 'day' | 'week' | 'month'} /> : <View style={{ height: 8 }} />}
                 <View style={[s.dayCard, { backgroundColor: theme.surface }]}>
@@ -517,7 +556,7 @@ export default function HistoryScreen() {
               </View>
             )) : null}
 
-            {state === 'ready' && !onlyUpcoming && rows.length > 0 ? <ListFooter more={more === 'loading'} failed={more === 'failed'} ended={!cursor} onRetry={loadMore} /> : null}
+            {state === 'ready' && !onlyUpcoming && listMode && rows.length > 0 ? <ListFooter more={more === 'loading'} failed={more === 'failed'} ended={!cursor} onRetry={loadMore} /> : null}
           </>
         ) : null}
         <View style={{ height: 96 }} />

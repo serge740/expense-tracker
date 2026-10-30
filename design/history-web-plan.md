@@ -135,6 +135,11 @@ Backend G10 (statement, running balance, mismatch). Web: wallet-focused mode (wa
 Backend G13 (event log, writes in transaction/wallet/budget/debt/schedule/reminder/export/account/family services, backfill from existing rows, retention, security-event privacy). Web: Activity mode, event cards (created, edited with before → after, deleted with Restore, status change, money event, reminder, alert, system, family, grouped), its filters and "history of this item" in detail screens, insights strip.
 
 ### Phase H6: later, after design
+
+**Finished 2026-10-30 (web + backend):** saved-views manager (menu, apply / rename / delete), calendar and chart modes (List | Calendar | Chart switch; the calendar shows each day's net and a tap opens that day), duplicates compare (menu "Review duplicates": rows side by side, delete the extra or keep both, kept rows are never flagged again), export to Excel (.xlsx) and PDF besides CSV (an export sheet), advanced filter builder (conditions: words, amount at least / at most, category is / is not, wallet, tag, type, from / until date; all must match), tags and a private note (quick look "Tags and note", tags shown on the row, filterable, searchable, in the exports). The chart uses the first 1,500 rows of the filter. New migration: 20261117090000_history_tags_notes.
+
+**Started 2026-10-30:** balance check (B13, W23) and CSV export (B14, W24) are done on the web. Still open: saved-views manager, calendar and chart modes, duplicates compare, PDF/Excel export, advanced builder, tags and notes.
+
 Saved views manager, calendar and chart modes, reconcile and balance mismatch review, duplicates compare, edit history in detail, export sheet (PDF/CSV/Excel), advanced builder, rules and clean-up tools, flags, tags, notes.
 
 ## 6. Quality gates (every phase)

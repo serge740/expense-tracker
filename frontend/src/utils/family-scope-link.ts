@@ -10,8 +10,8 @@
  */
 export const FAMILY_HEADER = 'X-Family-Id';
 
-/** The routes that read the family header. Everything else (auth, family, debts, scheduled, reminders, notifications, receipts) never gets it. */
-export const SCOPED_PREFIXES = ['/wallets', '/transactions', '/budget', '/reports', '/home'] as const;
+/** The routes that read the family header. Everything else (auth, family, reminders, notifications, receipts) never gets it. */
+export const SCOPED_PREFIXES = ['/wallets', '/transactions', '/budget', '/reports', '/home', '/scheduled', '/debts'] as const;
 
 /** The path part of a request address, without the host or the query. */
 export function requestPath(url?: string): string {

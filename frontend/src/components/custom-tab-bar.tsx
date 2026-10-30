@@ -13,10 +13,11 @@ const TABS: { name: string; path: string; icon: string; label: StringKey }[] = [
   { name: 'profile', path: '/(dashboard)/profile', icon: 'settings', label: 'tab.settings' },
 ];
 
-/** A family has its own bar: Home, Wallets, + and Settings, where Settings is the family's settings (the hub). */
+/** A family has its own bar: Home, Wallets, +, Loans and Settings, where Settings is the family's settings (the hub). */
 const FAMILY_TABS: typeof TABS = [
   { name: 'index', path: '/(dashboard)', icon: 'home', label: 'tab.home' },
   { name: 'wallets', path: '/(dashboard)/wallets', icon: 'account-balance-wallet', label: 'tab.wallets' },
+  { name: 'debts', path: '/(dashboard)/debts', icon: 'handshake', label: 'tab.debts' },
   { name: 'family', path: '/(dashboard)/family', icon: 'settings', label: 'tab.settings' },
 ];
 
@@ -60,9 +61,9 @@ export function CustomTabBar() {
     </View>
   );
 
-  // Family: Home, Wallets, +, Settings. A Viewer only looks, so there is no + and no empty gap.
+  // Family: Home, Wallets, +, Loans, Settings. A Viewer only looks, so there is no + and no empty gap.
   if (scope.isFamily) {
-    const [home, wallets, settings] = FAMILY_TABS;
+    const [home, wallets, loans, settings] = FAMILY_TABS;
     return (
       <View
         accessibilityRole="tablist" testID="family-tab-bar"
@@ -77,6 +78,7 @@ export function CustomTabBar() {
             <Text style={[styles.tabLabel, { color: theme.textMuted }]}>{t('tab.add')}</Text>
           </TouchableOpacity>
         ) : null}
+        {renderTab(loans)}
         {renderTab(settings)}
       </View>
     );

@@ -30,6 +30,24 @@ export class ReportsController {
     }
   }
 
+  /** Who spent and who earned what in the period (in a family, every member; in Personal, just you). */
+  @Get('by-member')
+  async byMember(
+    @ReqScope() scope: Scope,
+    @Query('month')     month?:     string,
+    @Query('year')      year?:      string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate')   endDate?:   string,
+    @Query('includeLoans') includeLoans?: string,
+  ) {
+    try {
+      const now = new Date();
+      return await this.reportsService.byMember(scope, month ? Number(month) : now.getMonth() + 1, year ? Number(year) : now.getFullYear(), startDate, endDate, parseIncludeLoans(includeLoans));
+    } catch (e: any) {
+      throw new HttpException(e.message || 'Failed to fetch spending by member', 400);
+    }
+  }
+
   @Get('by-category')
   async byCategory(
     @ReqScope() scope: Scope,
