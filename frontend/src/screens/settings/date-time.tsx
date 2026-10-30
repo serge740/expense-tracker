@@ -4,6 +4,7 @@ import { View, StyleSheet } from '@/rn';
 import { Text } from '@/components/text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { usePreferences, Preferences } from '@/context/preferences-context';
+import { useI18n } from '@/context/language-context';
 import { SettingsScreen, Section, Row, Chips, OptionBlock } from '@/components/settings/ui';
 
 function formatDate(d: Date, fmt: Preferences['dateFormat']) {
@@ -16,6 +17,7 @@ function formatDate(d: Date, fmt: Preferences['dateFormat']) {
 export default function DateTimeScreen() {
   const theme = useAppTheme();
   const { prefs, setPref, formatTime } = usePreferences();
+  const { t } = useI18n();
   const now = useMemo(() => new Date(), []);
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -40,6 +42,13 @@ export default function DateTimeScreen() {
         <OptionBlock icon="view-week" title="Week starts on" sub="Affects calendars and weekly reports">
           <Chips value={prefs.weekStart} onChange={v => setPref('weekStart', v)}
                  options={[{ label: 'Monday', value: 'monday' }, { label: 'Sunday', value: 'sunday' }]} />
+        </OptionBlock>
+      </Section>
+
+      <Section title="HOME">
+        <OptionBlock icon="date-range" title={t('period.setting')} sub={t('period.settingSub')}>
+          <Chips value={prefs.homePeriod} onChange={v => setPref('homePeriod', v)}
+                 options={[{ label: t('period.optMonth'), value: 'month' }, { label: t('period.optYear'), value: 'year' }, { label: t('period.optAll'), value: 'all' }]} />
         </OptionBlock>
       </Section>
 

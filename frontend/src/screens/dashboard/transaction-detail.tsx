@@ -1,4 +1,5 @@
 // Ported from expo_app/app/(dashboard)/transaction-detail.tsx
+import { setPendingUndo } from '@/utils/pending-undo';
 import React, { useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, Alert, ActivityIndicator } from '@/rn';
 import { SafeAreaView } from '@/rn';
@@ -98,7 +99,8 @@ export default function TransactionDetailScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
-              await deleteTransaction(id);
+              const r = await deleteTransaction(id);
+              if (r.trashId) setPendingUndo({ message: tr('select.deleted', { n: 1 }), trashIds: [r.trashId] });
               router.back();
             } catch (e: any) {
               Alert.alert('Error', errorMessage(e, 'Could not delete transaction.', tr));

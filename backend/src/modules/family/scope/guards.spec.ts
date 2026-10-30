@@ -23,7 +23,7 @@ describe('PersonalOnlyGuard', () => {
  * is added without a decision, so "forgot the guard" cannot happen quietly.
  */
 const MODULES = join(__dirname, '..', '..');
-const SCOPED = ['wallet', 'transaction', 'budget', 'reports', 'home'];                   // use ScopeGuard
+const SCOPED = ['wallet', 'transaction', 'budget', 'reports', 'home', 'activity'];                   // use ScopeGuard
 const PERSONAL_ONLY = ['debts', 'scheduled', 'reminders'];                                // use PersonalOnlyGuard
 const PER_PERSON = ['notifications', 'devices', 'subcategories', 'receipts', 'client-auth', 'passkey', 'web-push', 'family', 'health', 'well-known'];
 

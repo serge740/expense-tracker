@@ -22,6 +22,8 @@ import Transfer from '@/screens/dashboard/transfer';
 import Reports from '@/screens/dashboard/reports';
 import DebtLedger from '@/screens/dashboard/debt-ledger';
 import Scheduled from '@/screens/dashboard/scheduled';
+import Trash from '@/screens/dashboard/trash';
+import Activity from '@/screens/dashboard/activity';
 import Budget from '@/screens/dashboard/budget';
 import TransactionDetail from '@/screens/dashboard/transaction-detail';
 import Family from '@/screens/dashboard/family';
@@ -68,6 +70,8 @@ const dashboardScreens: RouteObject[] = [
   { path: 'reports', element: <Reports /> },
   { path: 'debt-ledger', element: <DebtLedger /> },
   { path: 'scheduled', element: <Scheduled /> },
+  { path: 'trash', element: <Trash /> },
+  { path: 'activity', element: <Activity /> },
   { path: 'budget', element: <Budget /> },
   { path: 'transaction-detail', element: <TransactionDetail /> },
   { path: 'family', element: <Family /> },

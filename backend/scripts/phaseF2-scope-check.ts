@@ -19,6 +19,7 @@ import { TransactionService } from '../src/modules/transaction/transaction.servi
 import { BudgetService } from '../src/modules/budget/budget.service';
 import { ReportsService } from '../src/modules/reports/reports.service';
 import { HomeService } from '../src/modules/home/home.service';
+import { AgendaService } from '../src/modules/home/agenda.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { DebtsService } from '../src/modules/debts/debts.service';
 import { DebtPlanService } from '../src/modules/debts/debt-plan.service';
@@ -56,7 +57,7 @@ async function main() {
   const { reminders } = makeReminders(prisma);
   const debts = new DebtsService(prisma, notifications, reminders, new DebtPlanService(prisma));
   const scheduled = new ScheduledService(prisma, transactions, notifications, reminders);
-  const home = new HomeService(prisma, debts, scheduled);
+  const home = new HomeService(prisma, debts, scheduled, new AgendaService(prisma, debts, scheduled));
 
   const stamp = Date.now().toString(36);
   const ids: Record<string, string> = {};

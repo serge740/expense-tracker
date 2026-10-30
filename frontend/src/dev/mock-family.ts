@@ -22,6 +22,8 @@ export const mockRole = (): 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' => {
 };
 const hasFamily = () => { const v = flag('nofamily'); if (v) remember('nofamily', v); return !(v === '1'); };
 
+import { facetsAnswer, feedAnswer, summaryAnswer } from './mock-history';
+
 const ME = 'mock_me';
 const members = () => {
   const role = mockRole();
@@ -92,6 +94,12 @@ export function respondFamily(method: string, path: string, params: Record<strin
   if (path === '/wallets/overview') return { base: params.base ?? 'RWF', total: 600_000, yesterday: 585_000, change: 15_000, walletCount: 2, byCurrency: { RWF: 600_000 }, unconverted: [], rates: {}, ratesUpdatedAt: Date.now() };
   if (path === '/wallets/activity') return [];
   if ((g = path.match(/^\/wallets\/([^/]+)$/))) return wallets.find(w => w.id === g![1]) ?? wallets[0];
+  if (path === '/transactions/feed' || path === '/transactions/summary' || path === '/transactions/facets') {
+    const rows = transactions().map(t => ({ ...t, wallet: { name: 'Household cash', color: '#B45309', currency: 'RWF', archived: false }, currency: 'RWF', debt: null, fundedBy: null, schedule: null, transfer: null })) as any[];
+    const list = params.memberId ? rows.filter(r => r.author.clientId === params.memberId) : rows;
+    if (path === '/transactions/facets') return facetsAnswer(list, params);
+    return path === '/transactions/feed' ? feedAnswer(list, params) : summaryAnswer(list, params);
+  }
   if (path === '/transactions/recent') return transactions().slice(0, Number(params.limit) || 3);
   if (path === '/transactions/history') return [{ date: 'TODAY', items: transactions().slice(0, 2) }, { date: 'EARLIER', items: transactions().slice(2) }];
   if (path === '/transactions') { const list = params.memberId ? transactions().filter(t => t.author.clientId === params.memberId) : transactions(); return { data: list, total: list.length, page: 1, limit: 20 }; }

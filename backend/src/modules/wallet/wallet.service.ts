@@ -9,6 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { Scope, assertScopeCan, isFamily, scopeCan, scopeData, scopeWhere } from '../family/scope/scope';
 import { errors } from '../family/family-errors';
 import { retryOnConflict } from '../transaction/transaction.service';
+import { diffFields, recordActivity } from '../activity/activity';
 
 const DAY = 24 * 60 * 60 * 1000;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -259,6 +260,7 @@ export class WalletService {
           toWalletId: to.id,
         },
       });
+      await recordActivity(prx, scope, { kind: 'wallet.transfer', entity: 'wallet', entityId: from.id, title: `${from.name} → ${to.name}`, amount, currency: from.currency, changes: from.currency === to.currency ? undefined : [{ field: 'received', from: null, to: `${toAmount} ${to.currency}` }] });
       return created;
     }));
 
@@ -291,12 +293,13 @@ export class WalletService {
         isDefault: count === 0,      // the first wallet of this scope (personal, or this family) is its default
       },
     });
+    await recordActivity(this.prisma, scope, { kind: 'wallet.created', entity: 'wallet', entityId: wallet.id, title: wallet.name, amount: Number(wallet.balance), currency: wallet.currency });
     return this.serialize(wallet, scope);
   }
 
   async update(scope: Scope, id: string, dto: UpdateWalletDto) {
     assertScopeCan(scope, 'wallet.manage');
-    await this.assertInScope(scope, id);
+    const before = await this.assertInScope(scope, id);
     // Changing currency relabels the balance (no conversion) — used to correct
     // wallets created before currencies existed. The app warns before saving.
     const body = (dto ?? {}) as Record<string, unknown>;
@@ -312,11 +315,12 @@ export class WalletService {
       ...(dto.accountHolder !== undefined ? { accountHolder: dto.accountHolder.trim() || null } : {}),
     };
     const wallet = await this.prisma.wallet.update({ where: { id }, data });
+    await recordActivity(this.prisma, scope, { kind: 'wallet.edited', entity: 'wallet', entityId: id, title: wallet.name, currency: wallet.currency, changes: diffFields(before, wallet, ['name', 'bank', 'currency', 'walletType', 'color', 'archived', 'isDefault']) });
     return this.serialize(wallet, scope);
   }
 
   async remove(scope: Scope, id: string) {
-    await this.assertInScope(scope, id);
+    const gone = await this.assertInScope(scope, id);
     if (isFamily(scope)) {
       // A family's history must not change under everyone's feet: only the owner deletes, and only an unused wallet.
       assertScopeCan(scope, 'wallet.delete');
@@ -324,6 +328,7 @@ export class WalletService {
       if (used > 0) throw errors.walletHasHistory();
     }
     await this.prisma.wallet.delete({ where: { id } });
+    await recordActivity(this.prisma, scope, { kind: 'wallet.deleted', entity: 'wallet', entityId: id, title: gone.name, currency: gone.currency });
     return { success: true };
   }
 

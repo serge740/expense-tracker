@@ -20,7 +20,7 @@ import { DatePickerModal } from '@/components/date-picker-modal';
 import { RepeatSheet } from '@/components/repeat-sheet';
 import { ModeChoice, RepeatRow } from '@/components/schedule/schedule-fields';
 import { createScheduled, ScheduleMode } from '@/services/scheduled.service';
-import { RepeatRule } from '@/utils/recurrence';
+import { RepeatRule, ruleProblem } from '@/utils/recurrence';
 import { deviceTimeZone } from '@/utils/reminders';
 import { isScheduledForm, scheduledPayload, scheduleSaveLabel, scheduleStartError } from '@/utils/schedule-form';
 import { PayFromField } from '@/components/add/pay-from';
@@ -37,6 +37,12 @@ const KINDS: { id: Kind; icon: string; label: 'add.expense' | 'add.income' }[] =
   { id: 'INCOME',  icon: 'arrow-downward', label: 'add.income' },
 ];
 
+/** A repeat rule sent in from a starter, only if it is a real one. */
+function startRule(raw?: string): RepeatRule | null {
+  if (!raw) return null;
+  try { const r = JSON.parse(raw); return ruleProblem(r) ? null : (r as RepeatRule); } catch { return null; }
+}
+
 export default function AddTransactionScreen() {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
@@ -46,6 +52,8 @@ export default function AddTransactionScreen() {
   const params = useLocalSearchParams<{
     type?: string; walletId?: string; amount?: string; category?: string;
     description?: string; merchant?: string; date?: string; receiptUrl?: string; receiptReportUrl?: string;
+    // From the "Plan a schedule" starters on Home: a subcategory and a repeat rule (JSON) to start from.
+    subCategory?: string; repeat?: string;
   }>();
 
   const [kind, setKind]           = useState<Kind>('EXPENSE');
@@ -90,7 +98,8 @@ export default function AddTransactionScreen() {
       const preset = params.category ? canonicalCategory(params.category) : null;
       const presetCat = preset && categoryOf(preset.id).for.includes(k) && preset.id !== 'loan' ? preset : null;
       setCategory(presetCat ? presetCat.id : k === 'INCOME' ? 'salary' : 'food');
-      setSubCategory(presetCat?.sub ?? null);
+      setSubCategory(params.subCategory ? params.subCategory.slice(0, 40) : presetCat?.sub ?? null);
+      setRule(startRule(params.repeat));
       setDescription(params.description || params.merchant || '');
       const d = params.date ? new Date(params.date) : new Date();
       setDate(isNaN(d.getTime()) ? new Date() : d);
@@ -101,7 +110,7 @@ export default function AddTransactionScreen() {
       const pre = usable.find(w => w.id === params.walletId) ?? usable.find(w => w.isDefault) ?? usable[0];
       setWalletId(pre?.id ?? null);
     }).catch(() => { setWalletsReady(true); });
-  }, [reloadMine, inFamily, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl]));
+  }, [reloadMine, inFamily, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl, params.subCategory, params.repeat]));
 
   const wallet = wallets.find(w => w.id === walletId) ?? null;
   const currency = wallet?.currency ?? mainCurrency.code;

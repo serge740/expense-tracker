@@ -4,6 +4,9 @@ import { loanFilter } from '../../common/utils/loan-filter';
 import { DebtsService } from '../debts/debts.service';
 import { ScheduledService } from '../scheduled/scheduled.service';
 import { Scope, isFamily, scopeWhere } from '../family/scope/scope';
+import { Period, dateFilter } from '../../common/utils/period';
+import { AgendaService } from './agenda.service';
+import { homeSchedule } from './agenda';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const num = (v: unknown) => Number(v ?? 0);
@@ -16,10 +19,19 @@ export class HomeService {
     private readonly prisma: PrismaService,
     private readonly debts: DebtsService,
     private readonly scheduled: ScheduledService,
+    private readonly agenda: AgendaService,
   ) {}
 
+  /** One calendar month (what Home always showed). */
   async summary(scope: Scope, month: number, year: number, includeLoans = true, now = new Date()) {
-    const range = { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) };
+    const period: Period = { kind: 'month', from: new Date(year, month - 1, 1), to: new Date(year, month, 1), month, year };
+    return this.summaryFor(scope, period, includeLoans, now);
+  }
+
+  /** Any period: a month, a year, everything, or a custom range. */
+  async summaryFor(scope: Scope, period: Period, includeLoans = true, now = new Date()) {
+    const { month, year } = period;
+    const range = dateFilter(period);
     const sum = async (where: object) =>
       num((await this.prisma.transaction.aggregate({ where: { ...scopeWhere(scope), date: range, ...where }, _sum: { amount: true } }))._sum.amount);
 
@@ -35,7 +47,7 @@ export class HomeService {
     // Loans, debts and schedules are personal. Inside a family they are simply not there.
     const personalOnly = !isFamily(scope);
     const clientId = scope.clientId;
-    const [overview, waiting, nextSchedule, wallets] = await Promise.all([
+    const [overview, waiting, nextSchedule, wallets, agenda] = await Promise.all([
       personalOnly ? this.debts.overview(clientId, now) : Promise.resolve({ attention: [] as any[], owe: {} as Record<string, any>, owed: {} as Record<string, any> }),
       personalOnly ? this.scheduled.waiting(clientId, now) : Promise.resolve([] as any[]),
       personalOnly
@@ -45,6 +57,7 @@ export class HomeService {
           })
         : Promise.resolve(null),
       this.prisma.wallet.groupBy({ by: ['currency'], where: { ...scopeWhere(scope), archived: false }, _sum: { balance: true } }),
+      personalOnly ? this.agenda.build(clientId, now) : Promise.resolve(null),
     ]);
 
     // Needs attention: overdue pay dates and near ones, plus scheduled dates waiting for an answer.
@@ -67,11 +80,14 @@ export class HomeService {
 
     return {
       month, year, includeLoans,
+      period: { kind: period.kind, from: period.from, to: period.to },
       totals: { income: round2(income), expense: round2(expense), net: round2(income - expense) },
       loans: { out: round2(loanOut), in: round2(loanIn), borrowed: round2(borrowed) },
       owe: overview.owe,
       owed: overview.owed,
       scheduled: { waiting: waiting.length, next: nextSchedule },
+      // What is coming (scheduled items and loan / credit pay dates), or the latest one when nothing is ahead.
+      schedule: agenda ? homeSchedule(agenda.items, agenda.last, agenda.scheduleCount) : { upcoming: [], more: 0, last: null, scheduleCount: 0 },
       attention: attention.slice(0, MAX_ATTENTION),
       attentionTotal: attention.length,
       netWorth,

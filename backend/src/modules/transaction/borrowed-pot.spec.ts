@@ -12,7 +12,8 @@ function fake(debt: any) {
       updateMany: async (a: any) => { calls.debtUpdates.push(a); },
     },
     transaction: { create: async (a: any) => { calls.created.push(a.data); return { id: 't1', ...a.data }; }, delete: async () => ({}) },
-    wallet: { update: async (a: any) => { calls.walletUpdates.push(a); }, updateMany: async () => ({}) },
+    wallet: { update: async (a: any) => { calls.walletUpdates.push(a); }, updateMany: async () => ({}), findFirst: async () => null },
+    trashedTransaction: { create: async () => ({ id: 'tr1' }) },
   };
   return { prx, calls };
 }

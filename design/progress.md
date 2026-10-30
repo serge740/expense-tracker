@@ -528,3 +528,26 @@ Plan: `design/family-phase3-plan.md`; live task list: `design/family-f3-tasks.md
 - **Real backend run (scratch database `p1test_web`):** `backend/scripts/web-e2e-seed.ts` signs in two people and walks create family, wallet, invite, join, scoped transaction, isolation, personal-only loans and the `/join` page headers: all pass. The real web build was driven in a headless browser against that server (login, switch into the family, Home, Wallets, Settings hub) with correct family currency and bar.
 - **Invite links:** web `INVITE_LINK_ENABLED` is now `true` (link base = `PUBLIC_APP_URL` on the server; set it on Render). The Expo flag is still `false`.
 - **Checks:** vitest 451, tsc clean, nav-check passes (one old deep-link check is occasionally slow and fails once, then passes on rerun), pwa-check passes, `backend/web` rebuilt.
+
+## Web follow-up: Home period, schedules, Scheduled page (2026-10-29)
+
+- Home: period pill and sheet (month / year / all / custom range), default period setting, budget as a slim bar in the net card (this month only), "Schedules" card with days left plus a "Plan a schedule" starter card; net card label spelled out.
+- Scheduled page: status cards and kind filters, loan and credit pay dates listed with scheduled items (`GET /home/agenda`).
+- Backend: `common/utils/period.ts` (+ spec), `home/agenda.ts`, `agenda.service.ts` (+ spec); `/home/summary` and `/transactions/recent` take a period.
+- Everything that exists on the web but not on Expo is tracked in `design/web-only-changes.md`.
+
+## History redesign, phase H1 (web, 2026-10-29)
+
+See `design/history-web-plan.md` section 8. Feed and summary endpoints, the new History page (summary card, chips, wallet strip, day groups, paging, search, states), and the tracking row W17 in `design/web-only-changes.md`.
+
+## History redesign, phase H2 (web, 2026-10-29)
+
+See `design/history-web-plan.md` (Phase H2) and row W18 / B8 in `design/web-only-changes.md`.
+
+- 2026-10-29 — History H2 leftovers (web): saved views, schedule/phase/due/flag filters, group by category/wallet/member/title, whole-filter address, suggestions. See history-web-plan.md and web-only-changes.md (B9, W19). Needs migration 20261104090000_history_saved_views on deploy.
+
+- 2026-10-29 — History H3 part 1 (web): select mode, bulk delete/category/wallet, Undo, Recently deleted. Needs migration 20261105090000_trashed_transactions on deploy. See history-web-plan.md (B10, W20).
+
+- 2026-10-30 — History H4 (web): wallet statement card, running balance per row, wallet-page entry. No new migration. Mismatch detection needs reconcile (H6); the "Adds up" check is arithmetic only. See history-web-plan.md (B11, W21).
+
+- 2026-10-30 — History H5 part 1 (web + backend): Activity timeline for transactions and wallets. Needs migration 20261106090000_activity_events on deploy. Not yet logged: budgets, debts, schedules, reminders, exports, account, family; no backfill (honest "kept from" date); no retention job; no "history of this item" in detail screens or insights strip. See history-web-plan.md (B12, W22).

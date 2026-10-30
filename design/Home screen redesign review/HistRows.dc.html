@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"></helmet>
+<div style="font-family:Poppins,sans-serif;color:var(--ink)">
+<sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+<sc-if value="{{ r.isHead }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:16px 18px 8px;font-size:13px">
+<span style="font-weight:600">{{ r.label }}</span><span style="font-size:12px;color:var(--mu);text-align:right;font-variant-numeric:tabular-nums">{{ r.net }}</span></div>
+</sc-if>
+<sc-if value="{{ r.isInfo }}" hint-placeholder-val="{{ false }}">
+<div style="margin:8px 12px;padding:12px 14px;border-radius:16px;background:var(--prt);color:var(--ink);font-size:12px;line-height:1.5;display:flex;gap:10px"><span class="material-icons-round" style="font-size:18px;color:var(--pr)">info</span><span>{{ r.text }}</span></div>
+</sc-if>
+<sc-if value="{{ r.isEv }}" hint-placeholder-val="{{ false }}">
+<div style="margin:0 12px 8px;background:var(--sf);border-radius:18px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;box-shadow:var(--sh)">
+<div style="width:36px;height:36px;border-radius:12px;background:{{ r.bg }};color:{{ r.fg }};display:flex;align-items:center;justify-content:center;flex:none"><span class="material-icons-round" style="font-size:20px">{{ r.ic }}</span></div>
+<div style="flex:1;min-width:0">
+<div style="display:flex;justify-content:space-between;gap:8px"><div style="font-size:13.5px;line-height:1.4"><b style="font-weight:600">{{ r.actor }}</b> {{ r.text }}</div><span style="font-size:11px;color:var(--mu);flex:none;padding-top:2px">{{ r.time }}</span></div>
+<div style="font-size:11.5px;color:var(--mu);margin-top:2px">{{ r.area }}</div>
+<sc-if value="{{ r.hasChg }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;border-radius:12px;background:var(--sf2);padding:4px 10px">
+<sc-for list="{{ r.chg }}" as="c" hint-placeholder-count="1"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 0;font-size:12px"><span style="color:var(--mu);min-width:62px">{{ c.f }}</span><span style="text-decoration:line-through;color:var(--mu)">{{ c.a }}</span><span class="material-icons-round" style="font-size:14px;color:var(--mu)">arrow_forward</span><b style="font-weight:600">{{ c.b }}</b></div></sc-for></div></sc-if>
+<sc-if value="{{ r.hasImp }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:99px;background:var(--prt);color:var(--pr);font-size:11.5px;font-weight:500"><span class="material-icons-round" style="font-size:14px">account_balance_wallet</span>{{ r.imp }}</div></sc-if>
+<sc-if value="{{ r.hasWarn }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;padding:8px 10px;border-radius:12px;background:var(--negt);color:var(--neg);font-size:12px;display:flex;gap:6px;align-items:center"><span class="material-icons-round" style="font-size:16px">error</span>{{ r.warn }}</div></sc-if>
+<sc-if value="{{ r.hasAct }}" hint-placeholder-val="{{ false }}"><div style="margin-top:6px;display:flex;align-items:center;gap:6px"><div style="min-height:44px;display:inline-flex;align-items:center;gap:4px;color:var(--pr);font-size:13px;font-weight:600"><span class="material-icons-round" style="font-size:18px">{{ r.actIc }}</span>{{ r.act }}</div><span style="font-size:11.5px;color:var(--mu)">{{ r.actNote }}</span></div></sc-if>
+</div></div>
+</sc-if>
+<sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ false }}">
+<div style="margin:0 12px;position:relative;overflow:hidden;background:var(--sf);border-radius:{{ r.br }};border-bottom:{{ r.bb }};opacity:{{ r.op }}">
+<sc-if value="{{ r.swL }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:0;top:0;bottom:0;display:flex;font-size:11px;font-weight:600">
+<div style="width:72px;background:var(--pr);color:var(--onpr);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span class="material-icons-round" style="font-size:22px">edit</span>Edit</div>
+<div style="width:72px;background:var(--neg);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span class="material-icons-round" style="font-size:22px">delete</span>Delete</div></div></sc-if>
+<sc-if value="{{ r.swR }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;top:0;bottom:0;display:flex;font-size:11px;font-weight:600">
+<div style="width:72px;background:var(--pr);color:var(--onpr);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span class="material-icons-round" style="font-size:22px">content_copy</span>Duplicate</div>
+<div style="width:72px;background:var(--prt);color:var(--pr);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px"><span class="material-icons-round" style="font-size:22px">repeat</span>Repeat</div></div></sc-if>
+<div style="position:relative;display:flex;gap:12px;align-items:flex-start;padding:{{ r.pad }};background:{{ r.bgc }};transform:translateX({{ r.tx }})">
+<sc-if value="{{ r.selMode }}" hint-placeholder-val="{{ false }}"><div style="width:44px;height:44px;margin:-9px -10px -9px -12px;display:flex;align-items:center;justify-content:center;flex:none"><span class="material-icons-round" style="font-size:26px;color:{{ r.ckc }}">{{ r.ck }}</span></div></sc-if>
+<div style="width:{{ r.isz }};height:{{ r.isz }};border-radius:50%;background:{{ r.bg }};color:{{ r.fg }};display:flex;align-items:center;justify-content:center;flex:none"><span class="material-icons-round" style="font-size:{{ r.ifs }}">{{ r.ic }}</span></div>
+<div style="flex:1;min-width:0">
+<div style="font-size:14px;font-weight:500;line-height:1.35;overflow-wrap:anywhere;text-decoration:{{ r.deco }};color:{{ r.tc }}"><sc-if value="{{ r.hasAv }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;vertical-align:middle;width:20px;height:20px;border-radius:50%;background:var(--pr);color:var(--onpr);font-size:10px;font-weight:600;align-items:center;justify-content:center;margin-right:6px">{{ r.av }}</span></sc-if>{{ r.tA }}<mark style="background:var(--wrt);color:var(--ink);border-radius:4px;padding:0 2px;outline:1px solid var(--wr)">{{ r.tB }}</mark>{{ r.tC }}</div>
+<sc-if value="{{ r.full }}" hint-placeholder-val="{{ true }}"><div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:3px;font-size:12px;color:var(--mu);line-height:1.4"><span>{{ r.mA }}<mark style="background:var(--wrt);color:var(--ink);border-radius:4px;padding:0 2px;outline:1px solid var(--wr)">{{ r.mB }}</mark>{{ r.mC }}</div>
+<sc-if value="{{ r.hasWal }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px 2px 6px;border-radius:99px;background:var(--sf2);color:var(--ink);font-size:11px;font-weight:500"><span style="width:8px;height:8px;border-radius:3px;background:{{ r.walc }}"></span>{{ r.wal }}</span></sc-if></div>
+<sc-if value="{{ r.hasBadges }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
+<sc-for list="{{ r.badges }}" as="b" hint-placeholder-count="1"><span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px 2px 5px;border-radius:99px;background:{{ b.bg }};color:{{ b.fg }};font-size:11px;font-weight:500;line-height:1.5"><span class="material-icons-round" style="font-size:13px">{{ b.ic }}</span>{{ b.tx }}</span></sc-for></div></sc-if>
+<sc-if value="{{ r.hasProg }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;display:flex;align-items:center;gap:8px"><div style="flex:1;height:6px;border-radius:9px;background:var(--sf2)"><div style="width:{{ r.pct }};height:100%;border-radius:9px;background:var(--pr)"></div></div><span style="font-size:11px;color:var(--mu)">{{ r.progTx }}</span></div></sc-if>
+<sc-if value="{{ r.hasNote }}" hint-placeholder-val="{{ false }}"><div style="margin-top:4px;font-size:12px;color:var(--mu);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">“{{ r.nA }}<mark style="background:var(--wrt);color:var(--ink);border-radius:4px;padding:0 2px;outline:1px solid var(--wr);font-style:normal">{{ r.nB }}</mark>{{ r.nC }}”</div></sc-if>
+<sc-if value="{{ r.hasWarn }}" hint-placeholder-val="{{ false }}"><div style="margin-top:8px;padding:8px 10px;border-radius:12px;background:{{ r.warnBg }};color:{{ r.warnFg }};font-size:12px;display:flex;gap:6px;align-items:flex-start;line-height:1.4"><span class="material-icons-round" style="font-size:16px">{{ r.warnIc }}</span>{{ r.warn }}</div></sc-if>
+<sc-if value="{{ r.hasActs }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+<sc-for list="{{ r.acts }}" as="a" hint-placeholder-count="2"><div style="min-height:44px;padding:0 16px;border-radius:99px;display:inline-flex;align-items:center;gap:4px;background:{{ a.bg }};color:{{ a.fg }};font-size:13px;font-weight:600"><span class="material-icons-round" style="font-size:17px">{{ a.ic }}</span>{{ a.tx }}</div></sc-for></div></sc-if>
+</div></sc-if></div>
+<div style="flex:none;text-align:right;max-width:44%;font-variant-numeric:tabular-nums">
+<div style="font-size:15px;font-weight:600;color:{{ r.amtc }};overflow-wrap:anywhere;line-height:1.35">{{ r.amt }}</div>
+<div style="font-size:11px;color:var(--mu);margin-top:2px;line-height:1.35">{{ r.sub }}</div>
+<sc-if value="{{ r.hasBal }}" hint-placeholder-val="{{ false }}"><div style="font-size:11px;color:var(--mu);margin-top:4px;padding-top:4px;border-top:1px dashed var(--ln)">{{ r.bal }}</div></sc-if>
+<sc-if value="{{ r.rcpt }}" hint-placeholder-val="{{ false }}"><span class="material-icons-round" style="font-size:16px;color:var(--mu);margin-top:4px">attach_file</span></sc-if>
+</div></div></div>
+</sc-if>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;set&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;main&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;en&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const set = this.props.set || 'main', lang = this.props.lang || 'en';
+    const D = {
+      fr: { Receipt:'Reçu', Monthly:'Mensuel', Transfer:'Virement', Borrowed:'Emprunté', Lent:'Prêté', 'Repayment received':'Remboursement reçu', 'Repayment paid':'Remboursement versé', Failed:'Échec', Skipped:'Ignoré', Scheduled:'Planifié', Duplicate:'Doublon possible' },
+      rw: { Receipt:'Inyemezabuguzi', Monthly:'Buri kwezi', Transfer:'Kohereza', Borrowed:'Wagurijwe', Lent:'Warungitse', 'Repayment received':'Wishyuwe', 'Repayment paid':'Wishyuye', Failed:'Byanze', Skipped:'Yasimbutse', Scheduled:'Biteganyijwe', Duplicate:'Bishobora gusubirwamo' },
+      sw: { Receipt:'Risiti', Monthly:'Kila mwezi', Transfer:'Uhamisho', Borrowed:'Umekopa', Lent:'Umekopesha', 'Repayment received':'Marejesho yamepokelewa', 'Repayment paid':'Marejesho yamelipwa', Failed:'Imeshindwa', Skipped:'Imerukwa', Scheduled:'Imepangwa', Duplicate:'Huenda ni nakala' }
+    }[lang] || {};
+    const tr = s => D[s] || s;
+    const C = { food:'#E8842A', trn:'#3B82F6', bill:'#8B5CF6', shop:'#D6458F', hlt:'#E5484D', inc:'#12A06B', loan:'#C98A00', xf:'#00839F', oth:'#6B8591', ent:'#C2410C' };
+    const T = { n:['var(--sf2)','var(--mu)'], p:['var(--prt)','var(--pr)'], g:['var(--post)','var(--pos)'], r:['var(--negt)','var(--neg)'], w:['var(--wrt)','var(--wr)'] };
+    const WC = { MoMo:'#E0A800', Cash:'#2E9E6B', Bank:'#3B6FD4', Card:'#7A4FD0' };
+    const H = (l, n) => ({ k:'H', l, n:n||'' });
+    const I = text => ({ k:'I', text });
+    const r = (ic, h, t, meta, amt, tn, sub, x) => Object.assign({ k:'R', ic, h, t, meta, amt, tn, sub }, x || {});
+    const ev = (ic, h, actor, text, area, time, x) => Object.assign({ k:'E', ic, h, actor, text, area, time }, x || {});
+    const rc = ['receipt_long','Receipt','n'];
+    const sc = ['repeat','Monthly','p'];
+    const seg = (s, h) => { s = s || ''; if (!h) return [s,'','']; const i = s.toLowerCase().indexOf(h.toLowerCase()); return i < 0 ? [s,'',''] : [s.slice(0,i), s.slice(i,i+h.length), s.slice(i+h.length)]; };
+    const sets = {};
+    sets.main = [
+      H('Today','▲ +837,600 RWF'),
+      r('shopping_basket',C.food,'Groceries','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo', b:[rc], rcpt:1 }),
+      r('payments',C.inc,'Salary — Acme Ltd','Salary','+850,000','pos','RWF · 09:00',{ wal:'Bank', b:[['repeat','Monthly','p']] }),
+      r('swap_horiz',C.xf,'Transfer to Cash','MoMo → Cash · not spending','50,000','neu','RWF · 08:10',{ b:[['swap_horiz','Transfer','n']] }),
+      H('Yesterday','▼ −27,000 RWF · −$12.99'),
+      r('call_received',C.loan,'Jean paid you back','Jean M.','+30,000','pos','RWF · 17:05',{ wal:'Bank', b:[['call_received','Repayment received','g']], prog:[3,5] }),
+      r('movie',C.ent,'Netflix','Entertainment','−$12.99','neg','USD · 00:00',{ wal:'Card', b:[sc] }),
+      r('restaurant',C.food,'Lunch with team 🍕','Food · Pizza','−57,000','neg','RWF · 13:05',{ wal:'Cash' }),
+      H('Mon 12 Oct','▲ +198,500 RWF'),
+      r('south_west',C.loan,'Borrowed from Mama','Mama K.','+200,000','neu','RWF · 10:12',{ wal:'MoMo', b:[['south_west','Borrowed · not income','w']] }),
+      r('directions_bus',C.trn,'Bus fare','Transport · Bus','−1,500','neg','RWF · 07:30',{ wal:'MoMo' })
+    ];
+    sets.undo = sets.main.map((x,i) => i === 1 ? Object.assign({}, x, { fade:1 }) : x);
+    sets.filtered = [
+      H('Today','▼ −57,000 RWF'),
+      r('restaurant',C.food,'Lunch with team 🍕','Food · Pizza','−57,000','neg','RWF · 13:05',{ wal:'Cash' }),
+      H('Sat 10 Oct','▼ −18,000 RWF'),
+      r('restaurant',C.food,'Pizza Inn','Food · Pizza','−18,000','neg','RWF · 20:40',{ wal:'MoMo', b:[rc], rcpt:1 }),
+      H('Mon 5 Oct','▼ −9,400 RWF'),
+      r('shopping_basket',C.food,'Supermarket','Food · Groceries','−9,400','neg','RWF · 18:12',{ wal:'MoMo' })
+    ];
+    sets.search = [
+      H('12 results for “pizza”','▼ −84,200 RWF'),
+      r('restaurant',C.food,'Pizza Inn','Food · Pizza','−18,000','neg','RWF · 20:40',{ hl:'pizza', wal:'MoMo', b:[rc], rcpt:1 }),
+      r('restaurant',C.food,'Lunch with team 🍕','Food · Pizza','−57,000','neg','RWF · 13:05',{ hl:'pizza', wal:'Cash', note:'Two large pizzas and drinks for 6' }),
+      r('delivery_dining',C.food,'Glovo order','Food · Takeaway','−9,200','neg','RWF · 21:15',{ hl:'pizza', wal:'MoMo', note:'Friday pizza night' })
+    ];
+    sets.select = [
+      H('Today','3 selected'),
+      r('shopping_basket',C.food,'Groceries','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo', sel:1, sm:1 }),
+      r('payments',C.inc,'Salary — Acme Ltd','Salary','+850,000','pos','RWF · 09:00',{ wal:'Bank', sm:1 }),
+      r('swap_horiz',C.xf,'Transfer to Cash','MoMo → Cash','50,000','neu','RWF · 08:10',{ sm:1, dis:'Transfers can’t be edited in bulk. Open it to change.' }),
+      H('Yesterday','−27,000 RWF'),
+      r('call_received',C.loan,'Jean paid you back','Jean M.','+30,000','pos','RWF · 17:05',{ sm:1, dis:'Linked to a loan. Change it from the loan.', b:[['lock','Loan-linked','n']] }),
+      r('restaurant',C.food,'Lunch with team 🍕','Food · Pizza','−57,000','neg','RWF · 13:05',{ wal:'Cash', sel:1, sm:1 }),
+      r('movie',C.ent,'Netflix','Entertainment','−$12.99','neg','USD · 00:00',{ wal:'Card', sel:1, sm:1 })
+    ];
+    sets.wallet = [
+      H('Today','▲ +870,000 in · ▼ 12,400 out'),
+      r('shopping_basket',C.food,'Groceries','Food · Groceries','−12,400','neg','14:20',{ b:[rc], rcpt:1, bal:'Balance 245,300' }),
+      r('swap_horiz',C.xf,'From Cash','Transfer in · not income','+20,000','neu','11:02',{ b:[['south_west','Transfer in','n']], bal:'Balance 257,700' }),
+      r('swap_horiz',C.xf,'To Bank','Transfer out · rate 1 USD = 1,300 RWF','−130,000','neu','08:10',{ b:[['north_east','Transfer out','n']], bal:'Balance 237,700' }),
+      H('Yesterday','▼ −43,500 RWF'),
+      r('restaurant',C.food,'Pizza Inn','Food · Pizza','−18,000','neg','20:40',{ bal:'Balance 367,700' }),
+      r('arrow_outward',C.loan,'Paid with borrowed money','Transport · Taxi','−4,500','neg','09:12',{ b:[['savings','Funded by loan · Mama','w']], bal:'Balance 385,700' })
+    ];
+    sets.upcoming = [
+      r('home',C.bill,'Rent','Bills · Rent','−150,000','neg','Due today 18:00',{ wal:'MoMo', warn:'Failed to post: not enough balance in MoMo', warnT:'r', b:[['repeat','Monthly','p'],['error','Failed','r']], acts:[['Retry','refresh','p'],['Skip','skip_next','n']] }),
+      r('movie',C.ent,'Netflix','Entertainment','−$12.99','neg','Due in 2 days',{ wal:'Card', b:[sc], acts:[['Confirm','check','p'],['Skip','skip_next','n']] }),
+      r('school',C.food,'School fees (instalment 2 of 3)','Loan · Education','−85,000','neg','Due Fri 6 Nov',{ wal:'Bank', b:[['event','Reminder','w']], acts:[['Pay now','bolt','p'],['Skip','skip_next','n']] })
+    ];
+    sets.trash = [
+      r('delete',C.oth,'Cinema tickets','Entertainment','−8,000','mu','27 days left',{ wal:'Cash', acts:[['Restore','restore','p'],['Delete forever','delete_forever','r']] }),
+      r('delete',C.oth,'Taxi to airport','Transport · Taxi','−22,000','mu','24 days left',{ wal:'MoMo', acts:[['Restore','restore','p'],['Delete forever','delete_forever','r']] }),
+      r('delete',C.oth,'Old gym fee','Health','−30,000','mu','3 days left',{ wal:'Bank', acts:[['Restore','restore','p'],['Delete forever','delete_forever','r']] })
+    ];
+    sets.variants = [
+      H('Core'),
+      r('shopping_basket',C.food,'Expense','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo' }),
+      r('payments',C.inc,'Income','Salary','+850,000','pos','RWF · 09:00',{ wal:'Bank' }),
+      r('swap_horiz',C.xf,'Transfer, same currency','MoMo → Cash · not income or spending','50,000','neu','RWF · 08:10',{ b:[['swap_horiz','Transfer','n']] }),
+      r('swap_horiz',C.xf,'Transfer, two currencies','MoMo → Bank · rate 1 USD = 1,300 RWF','−130,000 → +$100','neu','RWF → USD · 08:10',{ b:[['swap_horiz','Transfer','n']] }),
+      H('Loans'),
+      r('south_west',C.loan,'Borrowed','Mama K.','+200,000','neu','RWF · 10:12',{ wal:'MoMo', b:[['south_west','Borrowed · not income','w']] }),
+      r('north_east',C.loan,'Lent','Jean M.','−60,000','neu','RWF · 11:00',{ wal:'Cash', b:[['north_east','Lent','w']] }),
+      r('call_made',C.loan,'Repayment paid','Mama K.','−40,000','neg','RWF · 12:30',{ wal:'MoMo', b:[['call_made','Repayment paid','w']], prog:[3,5] }),
+      r('call_received',C.loan,'Repayment received','Jean M.','+30,000','pos','RWF · 17:05',{ wal:'Bank', b:[['call_received','Repayment received','g']], prog:[2,4] }),
+      r('arrow_outward',C.trn,'Paid from borrowed money','Transport · Taxi','−4,500','neg','RWF · 09:12',{ wal:'MoMo', b:[['savings','Funded by loan · Mama','w']] }),
+      H('Schedules'),
+      r('repeat',C.bill,'Scheduled / recurring','Bills · Internet','−25,000','neg','RWF · 06:00',{ wal:'Bank', b:[sc] }),
+      r('event',C.bill,'Future-dated','Bills · Rent','−150,000','neg','Scheduled for 12 Nov',{ wal:'MoMo', b:[['event','Scheduled for 12 Nov','p']], op:.92 }),
+      r('error',C.hlt,'Failed scheduled post','Bills · Rent','−150,000','neg','Today 06:00',{ wal:'MoMo', warn:'Not enough balance in MoMo. Top up, then retry.', warnT:'r', b:[['error','Failed','r']], acts:[['Retry','refresh','p']] }),
+      r('skip_next',C.oth,'Skipped scheduled','Entertainment · Netflix','−$12.99','mu','USD · 00:00',{ wal:'Card', deco:1, b:[['skip_next','Skipped','n']] }),
+      H('Evidence and people'),
+      r('receipt_long',C.food,'Receipt and PDF report','Food · Groceries','−48,300','neg','RWF · 14:20',{ wal:'MoMo', b:[['receipt_long','Receipt','n'],['picture_as_pdf','Report','n']], rcpt:1 }),
+      r('shopping_basket',C.food,'Family row, by a member','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo', av:'GM', b:[['person','Added by Grace','n']] }),
+      r('shopping_basket',C.food,'Family row, by you','Food · Groceries','−3,200','neg','RWF · 10:05',{ wal:'MoMo', av:'YOU', b:[['person','You','n']] }),
+      r('movie',C.ent,'Multi-currency, converted','Entertainment','−$12.99','neg','≈ 16,890 RWF · USD',{ wal:'Card' }),
+      H('Flags'),
+      r('content_copy',C.oth,'Possible duplicate','Food · Groceries','−12,400','neg','RWF · 14:22',{ wal:'MoMo', b:[['content_copy','Duplicate','w']], warn:'Looks like “Groceries” at 14:20. Tap to compare.', warnT:'w' }),
+      r('help_outline',C.oth,'Uncategorised','Other','−7,800','neg','RWF · 16:40',{ wal:'Cash', warn:'Choose a category', warnT:'p', warnI:'category' }),
+      r('task_alt',C.inc,'Reconciled','Bills · Water','−6,200','neg','RWF · 08:15',{ wal:'Bank', b:[['check_circle','Reconciled','g']] }),
+      r('restaurant',C.food,'Search match','Food · Pizza','−18,000','neg','RWF · 20:40',{ hl:'pizza', wal:'MoMo', note:'Friday pizza night' }),
+      r('visibility_off',C.oth,'Amount hidden','Food · Groceries','•••••','mu','RWF · 14:20',{ wal:'MoMo' }),
+      H('Selection and swipe'),
+      r('shopping_basket',C.food,'Selected (select mode)','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo', sel:1, sm:1 }),
+      r('lock',C.loan,'Disabled in select mode','Loan-linked','+30,000','pos','RWF · 17:05',{ sm:1, dis:'Linked to a loan. Change it from the loan.' }),
+      r('delete',C.oth,'Pending delete (undo window)','Cinema tickets','−8,000','neg','RWF · 19:00',{ fade:1, deco:1 }),
+      r('shopping_basket',C.food,'Swipe left: Edit · Delete','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo', swipe:'L' }),
+      r('shopping_basket',C.food,'Swipe right: Duplicate · Repeat','Food · Groceries','−12,400','neg','RWF · 14:20',{ wal:'MoMo', swipe:'R' }),
+      r('directions_bus',C.trn,'Compact row','','−1,500','neg','14:20',{ comp:1 }),
+      r('restaurant',C.food,'Compact row with long title that truncates','','−57,000','neg','13:05',{ comp:1 }),
+      H('Edge cases'),
+      r('restaurant',C.food,'A very long title that keeps going: monthly team lunch at the new place near the stadium with everyone 🍕🍝🥗','Eating out → Food (retired category)','−57,000','neg','RWF · 13:05',{ wal:'Old Cash (archived)', walc:'#9AA8AE' }),
+      r('help_outline',C.oth,'','Other','−2,000','neg','RWF · 10:00',{ wal:'Cash', ti:'No title' }),
+      r('account_balance',C.inc,'مطعم النيل','Food','−18,000','neg','RWF · 20:40',{ wal:'MoMo' }),
+      r('real_estate_agent',C.inc,'Land sale','Income','+1.25B','pos','RWF · 11:00',{ wal:'Bank', note:'Full amount +1,250,000,000 (9+ digits abbreviate)' }),
+      r('toll',C.oth,'Rounding fee','Bank charges','−0.01','neg','USD · 11:00',{ wal:'Card' }),
+      r('check',C.food,'Running balance (opt-in)','Food · Groceries','−12,400','neg','14:20',{ wal:'MoMo', bal:'Balance 245,300' })
+    ];
+    sets.activity = [
+      H('Today','9 events · 4 move money'),
+      ev('edit',C.trn,'Grace','edited “Groceries”','Transaction · Family','14:32',{ chg:[['Amount','5,000','6,000'],['Category','Food','Household']], imp:'MoMo −1,000' }),
+      ev('delete',C.hlt,'You','deleted “Cinema tickets”','Transaction · −8,000 · Entertainment','13:10',{ act:'Restore', actIc:'restore', actNote:'29 days left', imp:'Cash +8,000' }),
+      ev('error',C.hlt,'System','could not post “Rent”','Schedule · Money event · −150,000','08:00',{ warn:'Not enough balance in MoMo', act:'Retry', actIc:'refresh' }),
+      ev('layers',C.oth,'System','posted 12 transactions from schedules','Grouped · 12 events','06:00',{ act:'Show all 12', actIc:'expand_more' }),
+      H('Yesterday','7 events'),
+      ev('add_circle',C.inc,'You','added “Pizza Inn”','Transaction created · −18,000','20:40',{}),
+      ev('restore',C.inc,'Mama','restored “Bus fare”','Transaction restored','16:02',{}),
+      ev('pause_circle',C.bill,'You','paused “Netflix”','Schedule status · Active → Paused','12:15',{}),
+      ev('notifications_active',C.loan,'System','sent a reminder: Rent due in 3 days','Reminder · Push and SMS','09:00',{}),
+      ev('savings',C.loan,'System','Food budget reached 80%','Alert · October budget · 80,000 of 100,000','08:20',{}),
+      ev('picture_as_pdf',C.oth,'You','exported a PDF statement','System · MoMo, October','07:45',{}),
+      ev('group_add',C.bill,'Grace','joined The Habimana family','Family · Role: Member','Mon',{}),
+      I('Detailed history starts from 12 Nov 2026. Earlier items are rebuilt from existing records, so past edits and deletions are not shown.')
+    ];
+    let list = sets[set] || sets.main;
+    const mx = Number(this.props.max) || 0;
+    if (mx) list = list.slice(0, mx);
+    const res = [];
+    list.forEach(o => {
+      if (o.k === 'H') { res.push({ isHead:true, label:o.l, net:o.n }); return; }
+      if (o.k === 'I') { res.push({ isInfo:true, text:o.text }); return; }
+      if (o.k === 'E') {
+        const [bg, fg] = [o.h + '26', o.h];
+        res.push({ isEv:true, ic:o.ic, bg, fg, actor:o.actor, text:o.text, area:o.area, time:o.time,
+          hasChg:!!o.chg, chg:(o.chg||[]).map(c => ({ f:c[0], a:c[1], b:c[2] })), hasImp:!!o.imp, imp:o.imp||'',
+          hasWarn:!!o.warn, warn:o.warn||'', hasAct:!!o.act, act:o.act||'', actIc:o.actIc||'', actNote:o.actNote||'' });
+        return;
+      }
+      const t = o.t || o.ti || '';
+      const [tA,tB,tC] = seg(t, o.hl), [mA,mB,mC] = seg(o.meta, o.hl), [nA,nB,nC] = seg(o.note, o.hl);
+      const wt = T[o.warnT || 'n'];
+      const bd = (o.b || []).map(b => ({ ic:b[0], tx:tr(b[1]), bg:T[b[2]][0], fg:T[b[2]][1] }));
+      const amtc = { pos:'var(--pos)', neg:'var(--neg)', mu:'var(--mu)', neu:'var(--ink)' }[o.tn];
+      const sm = !!o.sm;
+      res.push({ isRow:true, ic:o.ic, bg:o.h + '26', fg:o.h, tA, tB, tC, mA, mB, mC, nA, nB, nC,
+        tc: o.ti ? 'var(--mu)' : (o.dis ? 'var(--mu)' : 'var(--ink)'), deco: o.deco ? 'line-through' : 'none',
+        full:!o.comp, isz:o.comp ? '30px' : '40px', ifs:o.comp ? '17px' : '21px', pad:o.comp ? '8px 14px' : '12px 14px',
+        hasWal:!!o.wal, wal:o.wal||'', walc:o.walc || WC[o.wal] || '#6B8591',
+        hasBadges:bd.length > 0, badges:bd, hasProg:!!o.prog, pct:o.prog ? (o.prog[0] / o.prog[1] * 100) + '%' : '0%', progTx:o.prog ? o.prog[0] + ' of ' + o.prog[1] : '',
+        hasNote:!!o.note, hasWarn:!!(o.warn || o.dis), warn:o.dis || o.warn || '',
+        warnBg:o.dis ? 'var(--sf2)' : wt[0], warnFg:o.dis ? 'var(--mu)' : wt[1], warnIc:o.dis ? 'lock' : (o.warnI || (o.warnT === 'r' ? 'error' : o.warnT === 'w' ? 'warning' : 'info')),
+        hasActs:!!o.acts, acts:(o.acts||[]).map(a => ({ tx:a[0], ic:a[1], bg:T[a[2]][0], fg:T[a[2]][1] })),
+        amt:o.amt, amtc, sub:o.sub, hasBal:!!o.bal, bal:o.bal||'', rcpt:!!o.rcpt,
+        hasAv:!!o.av, av:o.av||'', selMode:sm, ck:o.sel ? 'check_circle' : (o.dis ? 'block' : 'radio_button_unchecked'), ckc:o.sel ? 'var(--pr)' : 'var(--mu)',
+        bgc:o.sel ? 'var(--prt)' : 'var(--sf)', op:o.fade ? 0.45 : (o.dis ? 0.7 : 1),
+        swL:o.swipe === 'L', swR:o.swipe === 'R', tx:o.swipe === 'L' ? '-144px' : o.swipe === 'R' ? '144px' : '0' });
+    });
+    res.forEach((x, i) => {
+      if (!x.isRow) return;
+      const first = !res[i-1] || !res[i-1].isRow, last = !res[i+1] || !res[i+1].isRow;
+      x.br = (first ? '18px 18px ' : '0 0 ') + (last ? '18px 18px' : '0 0');
+      x.bb = last ? 'none' : '1px solid var(--ln)';
+    });
+    return { rows: res };
+  }
+}
+</script>
+</body>
+</html>

@@ -9,6 +9,7 @@
     "build": "nest build",
     "build:web": "node scripts/build-web.mjs",
     "check:boot": "ts-node scripts/boot-check.ts",
+    "seed:demo": "ts-node scripts/seed-demo.ts",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest dist/main.js",
     "start:dev": "nest start --watch",

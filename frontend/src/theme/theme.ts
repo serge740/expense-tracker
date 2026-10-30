@@ -18,6 +18,12 @@ export interface AppTheme {
   inputBg: string;
   tabBar: string;
   tabBorder: string;
+  /** A step darker than `surface`: tiles, segmented controls, skeletons (History). */
+  surface2: string;
+  /** Money in / out and warnings as a text colour and its soft background; always paired with a sign, icon or word. */
+  positive: string; positiveTint: string;
+  negative: string; negativeTint: string;
+  warn: string; warnTint: string;
   isDark: boolean;
 }
 
@@ -38,6 +44,10 @@ export const lightTheme: AppTheme = {
   inputBg: '#F3F8FA',
   tabBar: '#FFFFFF',
   tabBorder: 'rgba(0,98,127,0.10)',
+  surface2: '#E9F0F2',
+  positive: '#0B7A4B', positiveTint: '#E0F3E8',
+  negative: '#B3261E', negativeTint: '#FBE6E4',
+  warn: '#8A5300', warnTint: '#FCEFD3',
   isDark: false,
 };
 
@@ -58,5 +68,9 @@ export const darkTheme: AppTheme = {
   inputBg: '#0E2129',
   tabBar: '#0A1A20',
   tabBorder: 'rgba(234,245,248,0.08)',
+  surface2: '#193640',
+  positive: '#5BE08F', positiveTint: '#123A2A',
+  negative: '#FF9D9A', negativeTint: '#41202A',
+  warn: '#F5B84B', warnTint: '#3A2E12',
   isDark: true,
 };

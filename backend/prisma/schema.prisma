@@ -54,6 +54,9 @@ model Client {
   wallets                Wallet[]
   transactions           Transaction[]
   budgets                Budget[]
+  savedViews             SavedView[]
+  trashed           TrashedTransaction[]
+  activity          ActivityEvent[]
   debts                  Debt[]
   reminders              Reminder[]
   scheduledTransactions  ScheduledTransaction[]
@@ -317,6 +320,47 @@ model Budget {
   @@unique([scopeKey, month, year])
   @@index([clientId])
   @@index([familyId])
+}
+
+/// A named filter someone saved on History ("Rent and bills", "MoMo this year"). Personal ones are private; a family's belong to the family.
+/// `scopeKey` is `p:<clientId>` or `f:<familyId>`, like a budget, so a name is unique inside one space.
+/// A deleted transaction kept for 30 days so it can be restored (same id; balances are put back on restore).
+model TrashedTransaction {
+  id           String   @id @default(uuid())
+  originalId   String
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  familyId     String?
+  family       Family?  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  scopeKey     String
+  deletedById  String
+  /// The whole row as it was, so a restore puts back exactly the same thing.
+  snapshot     Json
+  title        String
+  type         String
+  amount       Decimal  @db.Decimal(12, 2)
+  currency     String?
+  deletedAt    DateTime @default(now())
+
+  @@index([scopeKey, deletedAt])
+  @@index([originalId])
+}
+
+model SavedView {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  familyId  String?
+  family    Family?  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  scopeKey  String
+  name      String   @db.VarChar(40)
+  /// The filter, the sort, the grouping and the period (a quick choice by name), as the page sends them.
+  filter    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([scopeKey, name])
+  @@index([scopeKey])
 }
 
 // ── Debts & loans ──────────────────────────────────────────────────────────
@@ -606,6 +650,9 @@ model Family {
   wallets      Wallet[]
   transactions Transaction[]
   budgets      Budget[]
+  savedViews   SavedView[]
+  trashed           TrashedTransaction[]
+  activityEvents    ActivityEvent[]
 }
 
 model FamilyMember {
@@ -658,4 +705,26 @@ model FamilyActivity {
   createdAt DateTime @default(now())
 
   @@index([familyId, createdAt])
+}
+
+/// Append-only line of the Activity timeline: who did what to which thing, and for edits the before → after.
+model ActivityEvent {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  familyId  String?
+  family    Family?  @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  scopeKey  String
+  actorId   String
+  kind      String   @db.VarChar(40)
+  entity    String   @db.VarChar(20)
+  entityId  String?
+  title     String
+  amount    Decimal? @db.Decimal(12, 2)
+  currency  String?
+  changes   Json?
+  createdAt DateTime @default(now())
+
+  @@index([scopeKey, createdAt])
+  @@index([entity, entityId])
 }

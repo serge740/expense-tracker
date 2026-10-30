@@ -1,6 +1,8 @@
 // Ported from expo_app/services/home.service.ts
 import api from '@/api';
 import type { DebtKind } from '@/services/debt.service';
+import { periodParams, thisMonth, type Period } from '@/utils/period';
+import type { AgendaItem, HomeSchedule, LastScheduled } from '@/utils/schedule-agenda';
 
 export interface DebtBucket {
   amount: number;
@@ -54,10 +56,16 @@ export interface HomeSummary {
   owe: Record<string, DebtBucket>;
   owed: Record<string, DebtBucket>;
   scheduled: { waiting: number; next: { id: string; title: string; nextDueAt: string } | null };
+  /** What is coming (scheduled items and loan / credit pay dates), or the latest one when nothing is ahead. */
+  schedule: HomeSchedule;
   attention: AttentionItem[];
   attentionTotal: number;
   netWorth: NetWorth[];
 }
 
-export const getHomeSummary = (params: { month?: number; year?: number; includeLoans?: boolean } = {}): Promise<HomeSummary> =>
-  api.get('/home/summary', { params: { ...params, includeLoans: params.includeLoans === false ? 'false' : undefined } }).then(r => r.data);
+export const getHomeSummary = (params: { period?: Period; includeLoans?: boolean } = {}): Promise<HomeSummary> =>
+  api.get('/home/summary', { params: { ...periodParams(params.period ?? thisMonth()), includeLoans: params.includeLoans === false ? 'false' : undefined } }).then(r => r.data);
+
+/** Scheduled items and loan / credit pay dates in one list (personal only: a family has none). */
+export const getAgenda = (): Promise<{ items: AgendaItem[]; last: LastScheduled | null; scheduleCount: number }> =>
+  api.get('/home/agenda').then(r => r.data);

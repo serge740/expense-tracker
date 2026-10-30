@@ -9,7 +9,7 @@ const UNIQUES: Record<string, string[][]> = {
   familyMember: [['id'], ['activeKey'], ['familyId', 'clientId']],
   familyInvite: [['id'], ['tokenHash'], ['code']],
   family: [['id']], familyActivity: [['id']], client: [['id']],
-  wallet: [['id']], transaction: [['id']], budget: [['id'], ['scopeKey', 'month', 'year']],
+  wallet: [['id']], transaction: [['id']], trashedTransaction: [['id']], activityEvent: [['id']], budget: [['id'], ['scopeKey', 'month', 'year']],
 };
 const DEFAULTS: Record<string, () => Row> = {
   family: () => ({ currency: 'RWF', timezone: 'UTC', status: 'ACTIVE', archivedAt: null }),
@@ -18,6 +18,8 @@ const DEFAULTS: Record<string, () => Row> = {
   familyActivity: () => ({ targetId: null, meta: null }),
   client: () => ({}),
   wallet: () => ({ familyId: null, archived: false, walletType: 'CHECKING', balance: 0, isDefault: false, accountNumber: null, accountHolder: null, last4: null, currency: 'RWF', color: '#0F2F3A' }),
+  trashedTransaction: () => ({ deletedAt: new Date() }),
+  activityEvent: () => ({ createdAt: new Date() }),
   transaction: () => ({ familyId: null, walletId: null, toWalletId: null, description: null, subCategory: null, receiptUrl: null, receiptReportUrl: null, debtId: null, debtRole: null, fundedByDebtId: null, scheduledOccurrenceId: null, toAmount: null, exchangeRate: null }),
   budget: () => ({ familyId: null }),
 };
@@ -62,7 +64,7 @@ function matches(row: Row, where: Row | undefined): boolean {
 
 export class FamilyFakePrisma {
   private seq = 0;
-  tables: Record<string, Row[]> = { client: [], family: [], familyMember: [], familyInvite: [], familyActivity: [], wallet: [], transaction: [], budget: [] };
+  tables: Record<string, Row[]> = { client: [], family: [], familyMember: [], familyInvite: [], familyActivity: [], wallet: [], transaction: [], budget: [], trashedTransaction: [], activityEvent: [] };
   /** Called with the table name before every write, so a test can make two requests interleave. */
   beforeWrite?: (table: string) => Promise<void> | void;
 
@@ -158,6 +160,8 @@ export class FamilyFakePrisma {
   familyActivity = this.model('familyActivity');
   wallet = this.model('wallet');
   transaction = this.model('transaction');
+  trashedTransaction = this.model('trashedTransaction');
+  activityEvent = this.model('activityEvent');
   budget = this.model('budget');
 
   private lock: Promise<unknown> = Promise.resolve();

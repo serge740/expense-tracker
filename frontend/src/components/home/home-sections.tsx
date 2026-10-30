@@ -37,14 +37,13 @@ export function LoansBar({ loans, includeLoans, onToggle }: {
 
 // ── Debts, credits and scheduled ─────────────────────────────────────────────
 
-export function DebtCreditCards({ owe, owed, scheduled, hidden, onOwe, onOwed, onScheduled }: {
-  owe: Record<string, DebtBucket>; owed: Record<string, DebtBucket>; scheduled: HomeSummary['scheduled'];
-  hidden: boolean; onOwe: () => void; onOwed: () => void; onScheduled: () => void;
+export function DebtCreditCards({ owe, owed, hidden, onOwe, onOwed }: {
+  owe: Record<string, DebtBucket>; owed: Record<string, DebtBucket>;
+  hidden: boolean; onOwe: () => void; onOwed: () => void;
 }) {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
-  const hasScheduled = scheduled.waiting > 0 || !!scheduled.next;
-  if (!currencyEntries(owe).length && !currencyEntries(owed).length && !hasScheduled) return null;
+  if (!currencyEntries(owe).length && !currencyEntries(owed).length) return null;
 
   const detail = (b: DebtBucket) => {
     const parts = [t('home.openN', { n: b.count })];
@@ -56,11 +55,6 @@ export function DebtCreditCards({ owe, owed, scheduled, hidden, onOwe, onOwed, o
   const cards = [
     ...currencyEntries(owe).map(([cur, b]) => ({ key: `owe-${cur}`, color: OWE, label: t('home.youOwe'), value: formatMoney(b.amount, cur, { hidden }), sub: detail(b), onPress: onOwe })),
     ...currencyEntries(owed).map(([cur, b]) => ({ key: `owed-${cur}`, color: OWED, label: t('home.owedToYou'), value: formatMoney(b.amount, cur, { hidden }), sub: detail(b), onPress: onOwed })),
-    ...(hasScheduled ? [{
-      key: 'scheduled', color: theme.primary, label: t('home.scheduled'),
-      value: scheduled.waiting > 0 ? t('home.waitingN', { n: scheduled.waiting }) : t('home.noneWaiting'),
-      sub: scheduled.next ? t('home.nextSched', { title: scheduled.next.title }) : '', onPress: onScheduled, plainValue: true,
-    }] : []),
   ] as Array<{ key: string; color: string; label: string; value: string; sub: string; onPress: () => void; plainValue?: boolean }>;
 
   return (

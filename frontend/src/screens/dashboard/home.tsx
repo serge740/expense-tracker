@@ -19,6 +19,9 @@ import { getHomeSummary, AttentionItem, HomeSummary } from '@/services/home.serv
 import { ToneChip } from '@/components/debt/tone-chip';
 import { PushBanner } from '@/components/push/prompts';
 import { DebtCreditCards, FeedChips, LoansBar, NeedsAttention, NetWorthRows } from '@/components/home/home-sections';
+import { PeriodPill, PeriodSheet, usePeriodLabel } from '@/components/home/period-sheet';
+import { PlanCard, ScheduleCard } from '@/components/home/schedule-cards';
+import { defaultPeriod, historyParams, isThisMonth, periodKey, type Period } from '@/utils/period';
 import { useI18n } from '@/context/language-context';
 import { usePreferences } from '@/context/preferences-context';
 import { currencyEntries, needsLoansHint, type FeedView } from '@/utils/home';
@@ -53,6 +56,11 @@ export default function HomeScreen() {
   const fitSize = (text: string, boxW: number, max: number, min = 14) => Math.max(min, Math.min(max, Math.floor(boxW / (Math.max(text.length, 1) * 0.6))));
   // A family has no loans, debts or schedules: loans are always "included" (there are none) and only three chips make sense.
   const [familyView, setFamilyView] = useState<FeedView>('all');
+  // What the figures and the feed cover: the setting decides where Home starts, the pill changes it for this visit.
+  const [period, setPeriod] = useState<Period>(() => defaultPeriod(prefs.homePeriod));
+  const [periodOpen, setPeriodOpen] = useState(false);
+  const periodName = usePeriodLabel()(period);
+  const pKey = periodKey(period);
   const includeLoans = isFamily ? true : prefs.includeLoans;
   const view = isFamily ? familyView : prefs.homeView;
 
@@ -66,17 +74,17 @@ export default function HomeScreen() {
   const [showBudget,     setShowBudget]     = useState(false);
 
   const now       = new Date();
-  const month     = now.getMonth() + 1;
-  const year      = now.getFullYear();
   const monthName = now.toLocaleDateString('en-US', { month: 'long' });
+  // The budget belongs to one month: it is only shown while Home is on this month.
+  const budgetShown = isThisMonth(period, now);
 
   // The month figures and the feed follow the "Include loans" switch; the feed also follows the chip.
   const loadSummary = useCallback(async () => {
-    try { setSummary(await getHomeSummary({ month, year, includeLoans })); } catch { /* keep the last one */ }
-  }, [month, year, includeLoans]);
+    try { setSummary(await getHomeSummary({ period, includeLoans })); } catch { /* keep the last one */ }
+  }, [pKey, includeLoans]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadFeed = useCallback(async () => {
-    try { setRecent(await getRecentTransactions(5, view, includeLoans)); } catch { /* keep the last one */ }
-  }, [view, includeLoans]);
+    try { setRecent(await getRecentTransactions(5, view, includeLoans, period)); } catch { /* keep the last one */ }
+  }, [view, includeLoans, pKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The full load is kept stable (through refs) so changing a chip or the switch refreshes only what it affects.
   const summaryRef = useRef(loadSummary);
@@ -108,7 +116,7 @@ export default function HomeScreen() {
     if (it.source === 'SCHEDULED') router.push({ pathname: '/(dashboard)/scheduled', params: { id: it.scheduleId } } as any);
     else router.push({ pathname: '/(dashboard)/debts', params: { openId: it.debtId } } as any);
   };
-  const showDebtSection = !isFamily && !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0 || summary.scheduled.waiting > 0 || !!summary.scheduled.next);
+  const showDebtSection = !isFamily && !!summary && (currencyEntries(summary.owe).length > 0 || currencyEntries(summary.owed).length > 0);
 
   const pct      = budget?.percentage ?? 0;
   const pctLabel = `${Math.min(pct, 100)}% used`;
@@ -125,7 +133,7 @@ export default function HomeScreen() {
     : (theme.isDark ? ['#1D3B47', '#112730', '#0D1E25'] : ['#0A7799', '#00627F', '#064A5F']);
   const net = summary?.totals.net ?? 0;
   const status = !summary ? null
-    : budget && budget.limit > 0 && pct >= 100 ? { label: `▼ ${tr('home.overBudget')}`, color: '#FF9D9A' }
+    : budgetShown && budget && budget.limit > 0 && pct >= 100 ? { label: `▼ ${tr('home.overBudget')}`, color: '#FF9D9A' }
     : net < 0 ? { label: `▼ ${tr('home.overBudget')}`, color: '#FF9D9A' }
     : { label: `▲ ${tr('home.onTrack')}`, color: '#4ADE80' };
   const netColor = net >= 0 ? '#FFFFFF' : '#FF9D9A';
@@ -147,6 +155,8 @@ export default function HomeScreen() {
         onClose={() => setShowBudget(false)}
         onSaved={handleBudgetSaved}
       />
+
+      <PeriodSheet visible={periodOpen} period={period} onClose={() => setPeriodOpen(false)} onChange={setPeriod} />
 
       <ScrollView
         contentContainerStyle={[s.scroll, { backgroundColor: theme.background }]}
@@ -183,14 +193,14 @@ export default function HomeScreen() {
               <MaterialIcons name="notifications-none" size={20} color={theme.text} />
             </TouchableOpacity>
           </View>
-          <View style={s.pillRow}><ScopePill /></View>
+          <View style={s.pillRow}><ScopePill /><PeriodPill period={period} onPress={() => setPeriodOpen(true)} /></View>
         </FadeInView>
 
         {/* ── Hero: this month at a glance ── */}
         <FadeInView delay={60} slideFrom="bottom" distance={20}>
           <LinearGradient colors={heroColors} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={[s.hero, compact && { padding: 16, paddingBottom: 14, borderRadius: 26 }]}>
             <View style={s.heroTop}>
-              <Text numberOfLines={2} style={[s.heroLabel, { color: dim, fontSize: compact ? 10 : 11 }]}>{tr('home.netLabel', { month: monthName }).toUpperCase()}</Text>
+              <Text numberOfLines={2} style={[s.heroLabel, { color: dim, fontSize: compact ? 10 : 11 }]}>{tr('home.netLabel', { month: periodName }).toUpperCase()}</Text>
               {status && !loading ? (
                 <View style={[s.statusChip, { backgroundColor: `${status.color}22` }]}>
                   <Text style={[s.statusText, { color: status.color }]}>{status.label}</Text>
@@ -230,6 +240,21 @@ export default function HomeScreen() {
               </View>
             </View>
             {summary && !isFamily && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
+            {budgetShown && budget && budget.limit > 0 ? (
+              <View style={s.budgetBar} testID="budget-bar">
+                <View style={s.budgetBarTop}>
+                  <Text style={[s.budgetBarText, { color: pct >= 100 ? '#FF9D9A' : '#FFFFFF' }]}>{tr('home.budgetBar', { pct: Math.min(pct, 999) })}</Text>
+                  {scope.can('budget.set') ? (
+                    <TouchableOpacity testID="edit-budget" onPress={() => setShowBudget(true)} hitSlop={8} accessibilityLabel="Edit budget"><MaterialIcons name="edit" size={14} color="rgba(255,255,255,0.7)" /></TouchableOpacity>
+                  ) : null}
+                </View>
+                <View style={s.budgetTrack}><View style={[s.budgetFill, { width: pctWidth, backgroundColor: pct >= 100 ? '#FF9D9A' : '#4ADE80' }]} /></View>
+                <View style={s.budgetBarTop}>
+                  <Text style={s.budgetSmall}>{sym}{Math.round(budget.spent).toLocaleString()}</Text>
+                  <Text style={s.budgetSmall}>{sym}{Math.round(budget.limit).toLocaleString()}</Text>
+                </View>
+              </View>
+            ) : null}
           </LinearGradient>
         </FadeInView>
 
@@ -269,9 +294,8 @@ export default function HomeScreen() {
                 <Text style={[s.seeAll, { color: theme.primary }]}>{tr('home.manage')}</Text>
               </TouchableOpacity>
             </View>
-            <DebtCreditCards owe={summary.owe} owed={summary.owed} scheduled={summary.scheduled} hidden={prefs.hideBalances}
-                             onOwe={() => router.push('/(dashboard)/debts' as any)} onOwed={() => router.push('/(dashboard)/debts' as any)}
-                             onScheduled={() => router.push('/(dashboard)/scheduled' as any)} />
+            <DebtCreditCards owe={summary.owe} owed={summary.owed} hidden={prefs.hideBalances}
+                             onOwe={() => router.push('/(dashboard)/debts' as any)} onOwed={() => router.push('/(dashboard)/debts' as any)} />
             <NeedsAttention items={summary.attention} total={summary.attentionTotal} hidden={prefs.hideBalances} fallbackCurrency={currency.code} onOpen={openAttention} />
             <View style={{ height: 10 }} />
             <NetWorthRows netWorth={summary.netWorth} hidden={prefs.hideBalances} />
@@ -279,49 +303,18 @@ export default function HomeScreen() {
           </FadeInView>
         )}
 
-        {/* ── Budget ── */}
-        {budget && budget.limit > 0 ? (
+        {/* ── Schedules: what is coming, with the days left (scheduled items and loan or credit pay dates) ── */}
+        {!isFamily && summary ? (
           <FadeInView delay={180} slideFrom="bottom" distance={16}>
-            <View style={[s.budgetCard, { backgroundColor: theme.surface }]}>
-              <View style={s.budgetTop}>
-                <Text style={[s.budgetTitle, { color: theme.text }]}>{monthName} Budget</Text>
-                <View style={s.budgetTopRight}>
-                  <Text style={[s.budgetPct, { color: pct >= 100 ? theme.expense : theme.primary }]}>{pctLabel}</Text>
-                  {scope.can('budget.set') ? (
-                    <TouchableOpacity testID="edit-budget" onPress={() => setShowBudget(true)} style={s.editBudgetBtn} activeOpacity={0.7}>
-                      <MaterialIcons name="edit" size={14} color={theme.textMuted} />
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-              </View>
-              <View style={[s.track, { backgroundColor: theme.border }]}>
-                <View style={[s.fill, { backgroundColor: pct >= 100 ? theme.expense : theme.primary, width: pctWidth }]} />
-              </View>
-              <View style={s.budgetFoot}>
-                <Text style={[s.budgetSub, { color: theme.textSecondary }]}>{sym}{budget.spent.toFixed(2)} spent</Text>
-                <Text style={[s.budgetSub, { color: theme.textMuted }]}>{sym}{budget.limit.toFixed(2)} limit</Text>
-              </View>
-              <Text style={[s.budgetSub, { color: theme.textMuted, marginTop: 6 }]}>{tr('home.budgetNoLoans')}</Text>
+            <View style={s.sectionRow}>
+              <Text style={[s.sectionTitle, { color: theme.text }]}>{tr('home.schedules')}</Text>
+              <TouchableOpacity testID="schedules-manage" onPress={() => router.push('/(dashboard)/scheduled' as any)} activeOpacity={0.7}>
+                <Text style={[s.seeAll, { color: theme.primary }]}>{tr('home.manage')}</Text>
+              </TouchableOpacity>
             </View>
-          </FadeInView>
-        ) : !loading && scope.can('budget.set') ? (
-          <FadeInView delay={180} slideFrom="bottom" distance={16}>
-            <TouchableOpacity
-              testID="set-budget"
-              style={[s.setBudgetRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
-              onPress={() => setShowBudget(true)}
-              activeOpacity={0.75}
-            >
-              <Svg width={40} height={40} viewBox="0 0 40 40">
-                <Circle cx={20} cy={20} r={16} fill="none" stroke={theme.border} strokeWidth={5} />
-                <Circle cx={20} cy={20} r={16} fill="none" stroke={theme.primary} strokeWidth={5} strokeDasharray="100.5" strokeDashoffset={75} strokeLinecap="round" transform="rotate(-90 20 20)" />
-              </Svg>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.setBudgetText, { color: theme.primary }]}>{tr('home.setBudget')}</Text>
-                <Text style={[s.setBudgetSub, { color: theme.textSecondary }]}>{tr('home.setBudgetSub')}</Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={20} color={theme.textMuted} />
-            </TouchableOpacity>
+            <ScheduleCard schedule={summary.schedule} hidden={prefs.hideBalances} />
+            <View style={{ height: 12 }} />
+            <PlanCard />
           </FadeInView>
         ) : null}
 
@@ -330,7 +323,7 @@ export default function HomeScreen() {
           <View style={s.sectionRow}>
             <Text style={[s.sectionTitle, { color: theme.text }]}>{tr('home.recent')}</Text>
             <TouchableOpacity
-              onPress={() => router.push({ pathname: '/(dashboard)/history', params: { view, includeLoans: String(includeLoans) } } as any)}
+              onPress={() => router.push({ pathname: '/(dashboard)/history', params: { view, includeLoans: String(includeLoans), ...historyParams(period) } } as any)}
               activeOpacity={0.7}
             >
               <Text style={[s.seeAll, { color: theme.primary }]}>{tr('home.seeAll')}</Text>
@@ -402,7 +395,7 @@ const s = StyleSheet.create({
   greeting:   { fontSize: 11, fontWeight: '500', letterSpacing: 0.8 },
   userName:   { fontSize: 19, fontWeight: '700', lineHeight: 23 },
   roundBtn:   { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  pillRow:    { paddingHorizontal: 18, marginTop: 12, alignItems: 'flex-start' },
+  pillRow:    { paddingHorizontal: 18, marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
 
   hero:       { marginHorizontal: 18, marginTop: 16, borderRadius: 30, padding: 20, paddingBottom: 16, overflow: 'hidden' },
   heroTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -418,6 +411,13 @@ const s = StyleSheet.create({
   tileIcon:   { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   tileLabel:  { fontSize: 11, letterSpacing: 0.5 },
   tileVal:    { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
+
+  budgetBar:    { marginTop: 10, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 14, paddingVertical: 10 },
+  budgetBarTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  budgetBarText:{ fontSize: 13, fontWeight: '600' },
+  budgetTrack:  { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.18)', marginVertical: 7 },
+  budgetFill:   { height: 6, borderRadius: 3 },
+  budgetSmall:  { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
 
   quickWrap:  { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 14, marginBottom: 14 },
   quickPill:  { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingRight: 10, borderRadius: 99 },

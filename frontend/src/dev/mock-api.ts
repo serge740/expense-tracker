@@ -3,6 +3,7 @@
  * or a database: open any address with ?mock=1 (remembered for the tab). Never part of a production build.
  */
 import { respondFamily, type MockError } from './mock-family';
+import { activityAnswer, facetsAnswer, feedAnswer, groupsAnswer, personalFeedRows, statementAnswer, suggestAnswer, summaryAnswer, trashAnswer, viewsAnswer, withBalances } from './mock-history';
 import api from '@/lib/api';
 import { storage } from '@/lib/storage';
 import { endpointHash } from '@/lib/push';
@@ -76,6 +77,21 @@ const scheduled = [
   { id: 's2', type: 'INCOME', category: 'salary', title: 'Salary', subCategory: null, description: null, amount: 950_000, walletId: 'w1', currency: 'RWF', startAt: iso(-90), timezone: 'Africa/Kigali', repeat: { unit: 'MONTH', every: 1, weekdays: [], monthDays: [28], nth: null, months: [], ends: { type: 'never' } }, mode: 'AUTO_POST', status: 'ACTIVE', nextDueAt: iso(2, 9), waiting: [{ id: 'o1', dueAt: iso(-1, 9), overdue: true }] },
 ];
 
+/** What is coming: scheduled items and loan / credit pay dates. `?nosched=1` shows the empty case with a last one, `?nosched=2` none ever. */
+const agendaItems = () => [
+  { key: 'debt:d2', source: 'DEBT', refId: 'd2', occurrenceId: null, title: 'Pay Marie Claire', person: 'Marie Claire', dueAt: iso(-2, 9), overdue: true, waiting: false, failed: false, failReason: null, amount: 80_000, currency: 'RWF', direction: 'OUT' },
+  { key: 'occ:o1', source: 'SCHEDULED', refId: 's2', occurrenceId: 'o1', title: 'Salary', person: null, dueAt: iso(-1, 9), overdue: true, waiting: true, failed: false, failReason: null, amount: 950_000, currency: 'RWF', direction: 'IN' },
+  { key: 'debt:d1', source: 'DEBT', refId: 'd1', occurrenceId: null, title: 'Pay John Mugisha', person: 'John Mugisha', dueAt: iso(6, 9), overdue: false, waiting: false, failed: false, failReason: null, amount: 75_000, currency: 'RWF', direction: 'OUT' },
+  { key: 'sch:s1', source: 'SCHEDULED', refId: 's1', occurrenceId: null, title: 'Rent', person: null, dueAt: iso(10, 9), overdue: false, waiting: false, failed: false, failReason: null, amount: 300_000, currency: 'RWF', direction: 'OUT' },
+  { key: 'debt:c1', source: 'CREDIT', refId: 'c1', occurrenceId: null, title: 'Eric Habimana owes you', person: 'Eric Habimana', dueAt: iso(40, 9), overdue: false, waiting: false, failed: false, failReason: null, amount: 80_000, currency: 'RWF', direction: 'IN' },
+];
+const agendaFor = () => {
+  const mode = new URLSearchParams(location.search).get('nosched');
+  if (mode === '1') return { items: [], last: { title: 'Rent', at: iso(-12, 9), status: 'POSTED' }, scheduleCount: 2 };
+  if (mode === '2') return { items: [], last: null, scheduleCount: 0 };
+  return { items: agendaItems(), last: null, scheduleCount: 2 };
+};
+
 const homeSummary = {
   month: new Date().getMonth() + 1, year: new Date().getFullYear(), includeLoans: true,
   totals: { income: 1_140_000, expense: 474_200, net: 665_800 },
@@ -83,6 +99,7 @@ const homeSummary = {
   owe: { RWF: { amount: 230_000, count: 2, overdue: 1, nextDueAt: iso(6, 9) } },
   owed: { RWF: { amount: 80_000, count: 1, overdue: 0, nextDueAt: null } },
   scheduled: { waiting: 1, next: { id: 's2', title: 'Salary', nextDueAt: iso(2, 9) } },
+  schedule: { upcoming: [] as any[], more: 0, last: null as any, scheduleCount: 2 },
   attention: [
     { source: 'DEBT', debtId: 'd2', kind: 'BORROWED', person: 'Marie Claire', currency: 'RWF', remaining: 80_000, dueAt: iso(-2, 9), overdue: true },
     { source: 'DEBT', debtId: 'd1', kind: 'BORROWED', person: 'John Mugisha', currency: 'RWF', remaining: 150_000, dueAt: iso(6, 9), overdue: false },
@@ -165,11 +182,14 @@ async function respondPush(method: string, path: string, body: any): Promise<unk
   return { ok: true };
 }
 
-function respond(method: string, url: string, params: Record<string, any> = {}): unknown {
+function respond(method: string, url: string, params: Record<string, any> = {}, body: any = {}): unknown {
   const path = url.split('?')[0];
   const m = method.toLowerCase();
   let g: RegExpMatchArray | null;
 
+  if (path === '/activity' && m === 'get') return activityAnswer(params, iso);
+  if (path.startsWith('/transactions/views')) return viewsAnswer(m, path, body);
+  if (path === '/transactions/bulk' || path.startsWith('/transactions/trash') || (m === 'delete' && /^\/transactions\/[^/]+$/.test(path))) return trashAnswer(m, path, body, personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many')));
   if (m !== 'get') {
     if (path === '/transactions' && m === 'post') return { id: 'tNew', ...JSON.parse('{}') };
     return { success: true, id: 'ok', message: 'ok' };
@@ -196,11 +216,33 @@ function respond(method: string, url: string, params: Record<string, any> = {}):
     { id: 's5', kind: 'EXPENSE', category: 'bills', name: 'Airtime', usageCount: 4, lastUsedAt: new Date(now).toISOString() },
   ];
 
+  if (path === '/transactions/statement') return statementAnswer(personalFeedRows(transactions, wallets as any, iso, false), wallets as any, params);
+  if (path === '/transactions/groups') return groupsAnswer(personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many')), params);
+  if (path === '/transactions/suggest') return suggestAnswer(personalFeedRows(transactions, wallets as any, iso, false), String(params.q ?? ''));
+  if (path === '/transactions/feed' || path === '/transactions/summary' || path === '/transactions/facets') {
+    const q = new URLSearchParams(location.search);
+    const all = personalFeedRows(transactions, wallets as any, iso, q.has('many'));
+    if (path === '/transactions/facets') return facetsAnswer(all, params);
+    if (path === '/transactions/feed') {
+      const page = feedAnswer(all, { ...params, ...(q.has('histerr') ? { __histerr: 1 } : {}) }) as { items?: any[] };
+      return page.items ? { ...page, items: withBalances(all, wallets as any, params, page.items) } : page;
+    }
+    return summaryAnswer(all, { ...params, ...(q.has('sumerr') ? { __sumerr: 1 } : {}) });
+  }
   if (path === '/transactions/recent') return transactions.slice(0, Number(params.limit) || 3);
   if (path === '/transactions/history') return groupByDay(transactions);
   if (path === '/transactions') return { data: transactions, total: transactions.length, page: 1, limit: 20 };
 
-  if (path === '/home/summary') return homeSummary;
+  if (path === '/home/summary') {
+    const a = agendaFor();
+    // The figures follow the period: a quarter of this month for a short range, more for a year, the most for everything.
+    const k = params.all ? 4 : params.from ? 0.3 : params.month ? 1 : params.year ? 3.5 : 1;
+    const scale = (n: number) => Math.round(n * k);
+    return { ...homeSummary, period: { kind: params.all ? 'all' : params.from ? 'range' : params.month ? 'month' : params.year ? 'year' : 'month', from: null, to: null },
+      totals: { income: scale(homeSummary.totals.income), expense: scale(homeSummary.totals.expense), net: scale(homeSummary.totals.net) },
+      schedule: { upcoming: a.items.slice(0, 2), more: Math.max(0, a.items.length - 2), last: a.items.length ? null : a.last, scheduleCount: a.scheduleCount } };
+  }
+  if (path === '/home/agenda') return agendaFor();
   if (path === '/budget/current') return { limit: 600_000, spent: 492_000, remaining: 108_000, percentage: 82, month: new Date().getMonth() + 1, year: new Date().getFullYear() };
 
   if (path === '/reports/summary') return { totalIncome: 1_140_000, totalExpense: 474_200, net: 665_800 };
@@ -219,7 +261,7 @@ function respond(method: string, url: string, params: Record<string, any> = {}):
   if (path === '/debts/ledger/transactions') return { data: [], total: 0, page: 1, limit: 30 };
   if ((g = path.match(/^\/debts\/([^/]+)$/))) return debts.find(d => d.id === g![1]) ?? debts[0];
 
-  if (path === '/scheduled') return scheduled;
+  if (path === '/scheduled') return params.status === 'ENDED' ? [{ ...scheduled[0], id: 's9', title: 'Phone instalment', status: 'ENDED', nextDueAt: null, waiting: [] }] : scheduled;
   if (path === '/scheduled/waiting') return [{ id: 'o1', scheduleId: 's2', dueAt: iso(-1, 9), overdue: true, type: 'INCOME', title: 'Salary', amount: 950_000, category: 'salary', walletId: 'w1', currency: 'RWF' }];
   if ((g = path.match(/^\/scheduled\/([^/]+)$/))) return { ...(scheduled.find(s => s.id === g![1]) ?? scheduled[0]), upcoming: [iso(10, 9), iso(40, 9), iso(70, 9)], history: [{ id: 'h1', dueAt: iso(-20, 9), status: 'POSTED', failReason: null, transactionId: 't12' }] };
 
@@ -253,7 +295,7 @@ export function enableMock() {
       ? familyAnswer
       : path.startsWith('/push-notifications')
         ? await respondPush(config.method ?? 'get', path, body)
-        : respond(config.method ?? 'get', config.url ?? '', params);
+        : respond(config.method ?? 'get', config.url ?? '', params, body);
     if (data && typeof data === 'object' && '__error' in (data as object)) {
       const e = (data as MockError).__error;
       throw Object.assign(new Error(`Request failed with status code ${e.status}`), { isAxiosError: true, config, response: { status: e.status, statusText: String(e.status), data: e.data, headers: {}, config } });

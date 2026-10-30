@@ -60,7 +60,7 @@ const logs = [];
 ws.onmessage = e => {
   const m = JSON.parse(e.data);
   if (m.id && waiting.has(m.id)) { const { res, rej } = waiting.get(m.id); waiting.delete(m.id); m.error ? rej(new Error(m.error.message)) : res(m.result); }
-  if (m.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(m.params.type)) logs.push(`${m.params.type}: ${m.params.args.map(a => a.value ?? a.description).join(' ')}`);
+  if (m.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(m.params.type)) logs.push(`${m.params.type}: ${m.params.args.map(a => a.value ?? a.description).join(' ')}${process.env.SHOTS_STACK ? ' @ ' + (m.params.stackTrace?.callFrames ?? []).map(f => f.functionName).filter(Boolean).slice(0, 14).join(' < ') : ''}`);
   if (m.method === 'Runtime.exceptionThrown') logs.push(`exception: ${m.params.exceptionDetails.exception?.description ?? m.params.exceptionDetails.text}`);
 };
 const send = (method, params = {}) => new Promise((res, rej) => { const i = ++id; waiting.set(i, { res, rej }); ws.send(JSON.stringify({ id: i, method, params })); });
@@ -120,7 +120,7 @@ for (const item of items) {
   const bad = notes.filter(n => /not found/.test(n));
   if (bad.length) failed++;
   console.log(`ok ${name}${notes.length ? '  [' + notes.join('; ') + ']' : ''}`);
-  for (const l of logs.slice(0, 6)) console.log('   console ' + l.slice(0, 240));
+  for (const l of logs.slice(0, 6)) console.log('   console ' + l.slice(0, 700));
 }
 
 ws.close();

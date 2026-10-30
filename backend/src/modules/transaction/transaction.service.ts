@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Period, dateFilter } from '../../common/utils/period';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { QueryTransactionDto } from './dto/query-transaction.dto';
@@ -10,6 +11,7 @@ import { canonicalCategory, normalizeSubCategory } from '../../common/utils/cate
 import { rememberSubCategory } from '../../common/utils/subcategory';
 import { Scope, assertCanEditTransaction, assertScopeCan, isFamily, personalScope, scopeData, scopeKeyOf, scopeWhere } from '../family/scope/scope';
 import { displayName } from '../family/family.service';
+import { diffFields, recordActivity } from '../activity/activity';
 import { errors } from '../family/family-errors';
 
 /** Who wrote each row of a family list, and which one is the person asking (so the app can show "you" and know what they may edit). */
@@ -81,11 +83,13 @@ export class TransactionService {
     return { data: data.map(t => this.mapTx(t, authors)), total, page, limit };
   }
 
-  async findRecent(scope: Scope, limit = 3, view?: string, includeLoans?: string) {
+  /** The latest rows; with a period, the latest rows inside it (Home follows its period picker). */
+  async findRecent(scope: Scope, limit = 3, view?: string, includeLoans?: string, period: Period | null = null) {
     const chip = parseView(view);
     const txns = await this.prisma.transaction.findMany({
       where: {
         ...scopeWhere(scope), type: { notIn: ['TRANSFER', 'DEBT'] },
+        ...(period ? { date: dateFilter(period) } : {}),
         ...(chip !== 'all' || includeLoans !== undefined ? { AND: [viewFilter(chip, parseIncludeLoans(includeLoans))] } : {}),
       },
       orderBy: { date: 'desc' },
@@ -213,6 +217,7 @@ export class TransactionService {
 
     // What this person typed or picked is offered to them first next time. A scheduled post is not a new choice.
     if (!extra.scheduledOccurrenceId) await rememberSubCategory(prx, clientId, dto.type, category, subCategory);
+    await recordActivity(prx, scope, { kind: 'transaction.created', entity: 'transaction', entityId: created.id, title: created.title, amount: amount, changes: extra.scheduledOccurrenceId ? [{ field: 'source', from: null, to: 'scheduled' }] : undefined });
 
     return created;
   }
@@ -319,6 +324,7 @@ export class TransactionService {
         });
       }
 
+      await recordActivity(prx, scope, { kind: 'transaction.edited', entity: 'transaction', entityId: id, title: result.title, amount: Number(result.amount), changes: diffFields(existing, result, ['title', 'amount', 'category', 'subCategory', 'description', 'walletId', 'date']) });
       return result;
     });
 
@@ -326,15 +332,27 @@ export class TransactionService {
     return this.mapTx(updated, authors);
   }
 
+  /** Keeps a copy of the row for 30 days so Undo and Recently deleted can put it back exactly as it was. */
+  private async keepInTrash(prx: Prisma.TransactionClient, scope: Scope, t: { id: string; clientId: string; familyId: string | null; walletId: string | null; type: string; title: string; amount: Prisma.Decimal }) {
+    const w = t.walletId ? await prx.wallet.findFirst({ where: { id: t.walletId, ...scopeWhere(scope) }, select: { currency: true } }) : null;
+    const row = await prx.trashedTransaction.create({
+      data: { originalId: t.id, clientId: t.clientId, familyId: t.familyId, scopeKey: scopeKeyOf(scope), deletedById: scope.clientId, snapshot: JSON.parse(JSON.stringify(t)), title: t.title, type: t.type, amount: t.amount, currency: w?.currency ?? null }, select: { id: true },
+    });
+    return row.id;
+  }
+
   async remove(scope: Scope, id: string) {
     const existing = await this.assertInScope(scope, id);
     assertCanEditTransaction(scope, existing.clientId);
 
     if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
+    let trashId = '';
     if (existing.type === 'TRANSFER') {
       // Undo both sides: money goes back to the source, leaves the destination.
       await this.prisma.$transaction(async (prx) => {
+        trashId = await this.keepInTrash(prx, scope, existing);
         await prx.transaction.delete({ where: { id } });
+        await recordActivity(prx, scope, { kind: 'transaction.deleted', entity: 'transaction', entityId: id, title: existing.title, amount: Number(existing.amount) });
         if (existing.walletId) {
           await prx.wallet.updateMany({ where: { id: existing.walletId }, data: { balance: { increment: existing.amount } } });
         }
@@ -342,11 +360,13 @@ export class TransactionService {
           await prx.wallet.updateMany({ where: { id: existing.toWalletId }, data: { balance: { decrement: existing.toAmount ?? existing.amount } } });
         }
       });
-      return { success: true };
+      return { success: true, trashId };
     }
 
     await this.prisma.$transaction(async (prx) => {
+      trashId = await this.keepInTrash(prx, scope, existing);
       await prx.transaction.delete({ where: { id } });
+      await recordActivity(prx, scope, { kind: 'transaction.deleted', entity: 'transaction', entityId: id, title: existing.title, amount: Number(existing.amount) });
       if (existing.fundedByDebtId) {
         await prx.debt.updateMany({ where: { id: existing.fundedByDebtId }, data: { spent: { decrement: existing.amount } } });
       }
@@ -364,7 +384,7 @@ export class TransactionService {
       }
     });
 
-    return { success: true };
+    return { success: true, trashId };
   }
 
   private mapTx(t: { id: string; clientId?: string; type: TransactionType; category: CategorySlug; title: string; subCategory?: string | null; description: string | null; amount: Prisma.Decimal | number; date: Date; walletId: string | null; receiptUrl: string | null; receiptReportUrl?: string | null; debtId?: string | null; debtRole?: string | null }, authors?: Authors) {

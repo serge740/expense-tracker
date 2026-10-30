@@ -36,6 +36,8 @@ export interface Preferences {
   // Home: count loans in the month's income / expense, and the feed chip last used.
   includeLoans: boolean;
   homeView: 'all' | 'income' | 'expense' | 'debt' | 'credit' | 'scheduled';
+  // The stretch of time Home opens on (the pill on Home can change it for the visit).
+  homePeriod: 'month' | 'year' | 'all';
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -66,6 +68,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   hideBalances: false,
   includeLoans: true,
   homeView: 'all',
+  homePeriod: 'month',
 };
 
 export const STORAGE_KEY = 'app_preferences_v1'; // same key as the phone app

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"><style>body{margin:0;background:#e8eef0;font-family:Poppins,sans-serif}a{color:#00627F}a:hover{color:#00455a}</style></helmet>
+<section style="padding:20px 56px 0;display:flex;gap:10px;flex-wrap:wrap;font-family:Poppins,sans-serif"><a href="History%20Redesign.dc.html" style="font-size:13px;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:99px;background:#fff">History Redesign</a><a href="History%20States.dc.html" style="font-size:13px;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:99px;background:#fff">History States</a><a href="History%20Sheets.dc.html" style="font-size:13px;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:99px;background:#fff">History Sheets</a><a href="History%20Manage.dc.html" style="font-size:13px;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:99px;background:#fff">History Manage</a><a href="History%20Rows%20and%20Components.dc.html" style="font-size:13px;font-weight:600;text-decoration:none;padding:8px 16px;border-radius:99px;background:#fff">History Rows and Components</a></section>
+<sc-if value="{{ show.notes }}" hint-placeholder-val="{{ false }}"><section id="notes" style="padding:48px 56px 8px;max-width:1500px;font-family:Poppins,sans-serif;color:#10242B">
+<div style="font-size:13px;font-weight:600;letter-spacing:1px;color:#00627F">ABY EXPENSE · HISTORY REDESIGN</div>
+<div style="font-size:40px;font-weight:600;line-height:1.2;margin-top:6px">One calm page that finds, shows and manages</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:22px">
+<sc-for list="{{ ideas }}" as="n" hint-placeholder-count="4"><div style="background:#fff;border-radius:22px;padding:18px 20px"><div style="font-size:15px;font-weight:600">{{ n.h }}</div><div style="font-size:13px;line-height:1.6;color:#44606a;margin-top:4px">{{ n.b }}</div></div></sc-for></div></section></sc-if>
+
+<sc-for list="{{ groups }}" as="g" hint-placeholder-count="5">
+<section id="{{ g.id }}" style="padding:36px 56px 8px;font-family:Poppins,sans-serif;color:#10242B">
+<div style="display:flex;align-items:center;gap:12px"><span style="background:#00627F;color:#fff;border-radius:99px;padding:4px 14px;font-size:13px;font-weight:600">{{ g.id }}</span><span style="font-size:24px;font-weight:600">{{ g.title }}</span></div>
+<div style="font-size:13px;color:#44606a;margin:4px 0 18px;max-width:900px;line-height:1.5">{{ g.note }}</div>
+<div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
+<sc-for list="{{ g.items }}" as="a" hint-placeholder-count="3"><div><div style="font-size:12px;font-weight:600;color:#44606a;margin:0 0 8px 6px">{{ a.label }}</div><dc-import name="HistPhone" theme="{{ a.theme }}" w="{{ a.w }}" screen="{{ a.screen }}" lang="{{ a.lang }}" hint-size="{{ a.hs }}"></dc-import></div></sc-for></div></section>
+</sc-for>
+
+<sc-if value="{{ show.rows }}" hint-placeholder-val="{{ false }}"><section id="rows" style="padding:36px 56px 8px;font-family:Poppins,sans-serif;color:#10242B">
+<div style="display:flex;align-items:center;gap:12px"><span style="background:#00627F;color:#fff;border-radius:99px;padding:4px 14px;font-size:13px;font-weight:600">7</span><span style="font-size:24px;font-weight:600">Every row variant · light and dark</span></div>
+<div style="font-size:13px;color:#44606a;margin:4px 0 18px;max-width:900px;line-height:1.5">Each row: category icon, title, category › sub-category, tappable wallet tag, badges (icon + words), signed amount, currency and time. Meaning always has a sign, icon or word besides colour. Amounts of 10M+ abbreviate (1.25B); the full figure shows in the peek.</div>
+<div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
+<sc-for list="{{ themes }}" as="th" hint-placeholder-count="2"><div style="{{ th.style }};width:420px;padding:10px 0 20px;border-radius:28px;background:var(--bg);box-sizing:border-box"><div style="padding:6px 18px;font-size:12px;font-weight:600;color:var(--mu)">{{ th.name }}</div><dc-import name="HistRows" set="variants" lang="en" hint-size="420px,2800px"></dc-import></div></sc-for></div></section></sc-if>
+
+<sc-if value="{{ show.comps }}" hint-placeholder-val="{{ false }}"><section id="components" style="padding:36px 56px 8px;font-family:Poppins,sans-serif;color:#10242B">
+<div style="display:flex;align-items:center;gap:12px"><span style="background:#00627F;color:#fff;border-radius:99px;padding:4px 14px;font-size:13px;font-weight:600">8</span><span style="font-size:24px;font-weight:600">Component sheet</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:28px;margin-top:18px;align-items:flex-start">
+<sc-for list="{{ themes }}" as="th" hint-placeholder-count="2"><div style="{{ th.style }};width:420px;padding:20px;border-radius:28px;background:var(--bg);color:var(--ink);box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+<div style="font-size:12px;font-weight:600;color:var(--mu)">{{ th.name }} · chips</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><span style="height:36px;padding:0 14px;border-radius:99px;background:var(--pr);color:var(--onpr);display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600"><span class="material-icons-round" style="font-size:16px">check</span>Selected</span><span style="height:36px;padding:0 14px;border-radius:99px;background:var(--sf);border:1.5px solid var(--ln);box-sizing:border-box;display:inline-flex;align-items:center;font-size:13px">Default</span><span style="height:36px;padding:0 14px;border-radius:99px;background:var(--prt);color:var(--pr);display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600">Food › Pizza<span class="material-icons-round" style="font-size:16px">close</span></span><span style="height:36px;padding:0 12px;border-radius:99px;border:1.5px dashed var(--neg);color:var(--neg);box-sizing:border-box;display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:600"><span class="material-icons-round" style="font-size:15px">block</span>Not Rent</span></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Badges (icon + word)</div>
+<div style="display:flex;gap:4px;flex-wrap:wrap;font-size:11px;font-weight:500"><span style="padding:2px 8px 2px 5px;border-radius:99px;background:var(--sf2);color:var(--mu);display:inline-flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:13px">receipt_long</span>Receipt</span><span style="padding:2px 8px 2px 5px;border-radius:99px;background:var(--prt);color:var(--pr);display:inline-flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:13px">repeat</span>Monthly</span><span style="padding:2px 8px 2px 5px;border-radius:99px;background:var(--wrt);color:var(--wr);display:inline-flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:13px">south_west</span>Borrowed</span><span style="padding:2px 8px 2px 5px;border-radius:99px;background:var(--post);color:var(--pos);display:inline-flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:13px">check_circle</span>Reconciled</span><span style="padding:2px 8px 2px 5px;border-radius:99px;background:var(--negt);color:var(--neg);display:inline-flex;align-items:center;gap:3px"><span class="material-icons-round" style="font-size:13px">error</span>Failed</span></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Amount style · tabular, signed, currency below</div>
+<div style="display:flex;gap:22px;font-variant-numeric:tabular-nums"><div><div style="font-size:15px;font-weight:600;color:var(--pos)">+850,000</div><div style="font-size:11px;color:var(--mu)">RWF</div></div><div><div style="font-size:15px;font-weight:600;color:var(--neg)">−12,400</div><div style="font-size:11px;color:var(--mu)">RWF</div></div><div><div style="font-size:15px;font-weight:600">50,000</div><div style="font-size:11px;color:var(--mu)">Transfer</div></div><div><div style="font-size:15px;font-weight:600;color:var(--mu)">•••••</div><div style="font-size:11px;color:var(--mu)">Hidden</div></div></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Day header</div>
+<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;padding:2px 6px"><b style="font-weight:600">Yesterday</b><span style="font-size:12px;color:var(--mu)">▼ −27,000 RWF · −$12.99</span></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Snackbar · 5 s undo with countdown</div>
+<div style="position:relative;min-height:52px;border-radius:18px;background:var(--ink);color:var(--bg);display:flex;align-items:center;gap:10px;padding:0 6px 0 16px;font-size:13.5px"><span class="material-icons-round" style="font-size:20px">check_circle</span><span style="flex:1">Deleted “Groceries”.</span><span style="min-height:44px;padding:0 14px;display:flex;align-items:center;font-weight:700;color:var(--snk)">UNDO</span></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Skeletons · same heights as real content</div>
+<div style="background:var(--sf);border-radius:18px;padding:4px 14px"><div style="display:flex;gap:12px;align-items:center;padding:12px 0"><div style="width:40px;height:40px;border-radius:50%;background:var(--sf2)"></div><div style="flex:1"><div style="height:12px;width:60%;border-radius:6px;background:var(--sf2)"></div><div style="height:10px;width:40%;border-radius:6px;background:var(--sf2);margin-top:8px"></div></div><div style="height:14px;width:60px;border-radius:6px;background:var(--sf2)"></div></div></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Empty-state block</div>
+<div style="background:var(--sf);border-radius:22px;padding:18px;text-align:center"><div style="width:56px;height:56px;margin:0 auto 8px;border-radius:50%;background:var(--prt);color:var(--pr);display:flex;align-items:center;justify-content:center"><span class="material-icons-round" style="font-size:30px">filter_alt_off</span></div><div style="font-size:15px;font-weight:600">No transactions match</div><div style="font-size:12.5px;color:var(--mu);margin:4px 0 12px">Loosen a filter or clear all.</div><div style="min-height:44px;border-radius:99px;background:var(--pr);color:var(--onpr);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600">Clear filters</div></div>
+<div style="font-size:12px;font-weight:600;color:var(--mu)">Scope identity</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><span style="display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px 0 4px;border-radius:99px;background:#DCEDF2;color:#00627F;font-size:12px;font-weight:600"><span style="width:20px;height:20px;border-radius:50%;background:#00627F;color:#fff;display:flex;align-items:center;justify-content:center"><span class="material-icons-round" style="font-size:13px">person</span></span>Personal</span><span style="display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 10px 0 4px;border-radius:99px;background:#E8E3FA;color:#5B3FD0;font-size:12px;font-weight:600"><span style="width:20px;height:20px;border-radius:50%;background:#5B3FD0;color:#fff;display:flex;align-items:center;justify-content:center"><span class="material-icons-round" style="font-size:13px">groups</span></span>The Habimana family</span></div>
+</div></sc-for></div></section></sc-if>
+
+<sc-if value="{{ show.dec }}" hint-placeholder-val="{{ false }}"><section id="decisions" style="padding:36px 56px 80px;font-family:Poppins,sans-serif;color:#10242B;max-width:1500px">
+<div style="display:flex;align-items:center;gap:12px"><span style="background:#00627F;color:#fff;border-radius:99px;padding:4px 14px;font-size:13px;font-weight:600">9</span><span style="font-size:24px;font-weight:600">What I would move or drop, motion, icons</span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:18px">
+<sc-for list="{{ decisions }}" as="n" hint-placeholder-count="6"><div style="background:#fff;border-radius:22px;padding:18px 20px"><div style="font-size:15px;font-weight:600">{{ n.h }}</div><div style="font-size:13px;line-height:1.6;color:#44606a;margin-top:4px">{{ n.b }}</div></div></sc-for></div></section></sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const V = {
+      light: { '--bg':'#F2F7F8','--sf':'#FFFFFF','--sf2':'#E9F0F2','--ink':'#10242B','--mu':'#566B74','--ln':'#DCE6EA','--pr':'#00627F','--prt':'#DCEDF2','--onpr':'#FFFFFF','--pos':'#0B7A4B','--post':'#E0F3E8','--neg':'#B3261E','--negt':'#FBE6E4','--wr':'#8A5300','--wrt':'#FCEFD3','--sh':'0 1px 2px rgba(16,36,43,.06)','--snk':'#7FD6EE' },
+      dark: { '--bg':'#0A1519','--sf':'#11242B','--sf2':'#193640','--ink':'#E8F1F4','--mu':'#9AB1BA','--ln':'#23404A','--pr':'#5CC3E2','--prt':'#143A46','--onpr':'#03222C','--pos':'#5BE08F','--post':'#123A2A','--neg':'#FF9D9A','--negt':'#41202A','--wr':'#F5B84B','--wrt':'#3A2E12','--sh':'none','--snk':'#00627F' }
+    };
+    const themes = [{ name:'Light', style:V.light }, { name:'Dark', style:V.dark }];
+    const it = (label, theme, w, screen, lang) => ({ label, theme, w, screen, lang:lang || 'en', hs:(w + 14) + 'px,814px' });
+    const groups = [
+      { id:'1', title:'Main screen · light, dark, Family · 320, 375, 430', note:'Teal for Personal, purple for Family (scope pill, chips, buttons, tints). 320 shows French, dark 320 shows Kinyarwanda and dark 430 Swahili to prove 40% longer text. Header: scope pill, title, search, filter with badge, overflow. Then Money | Activity, one summary card (period navigator, per-currency tabs, net, income, spent), kind chips, wallet strip, one dismissible insight, collapsed Upcoming, grouped list.', items:[
+        it('Light · 320 · Français','light',320,'main','fr'), it('Light · 375 · English','light',375,'main'), it('Light · 430','light',430,'main'),
+        it('Dark · 320 · Kinyarwanda','dark',320,'main','rw'), it('Dark · 375','dark',375,'main'), it('Dark · 430 · Kiswahili','dark',430,'main','sw'),
+        it('Family · 320 · Français','family',320,'main','fr'), it('Family · 375','family',375,'main'), it('Family dark · 430','familydark',430,'main')] },
+      { id:'2', title:'List states', note:'Filtered (active-filters bar incl. an excluded chip), Upcoming expanded with a failed item, delete with undo, first load, error, offline with load-more failure, and the three empty cases.', items:[
+        it('Filtered','light',375,'filtered'), it('Upcoming expanded · failed item','light',375,'upcoming'), it('Delete + undo snackbar','light',375,'undo'),
+        it('Loading (skeleton keeps height)','light',375,'loading'), it('Error (not shown as empty)','light',375,'error'), it('Offline + load more failed','light',375,'offline'),
+        it('Empty · no transactions at all','light',375,'empty-none'), it('Empty · filters','light',375,'empty-filter'), it('Empty · period','light',375,'empty-period')] },
+      { id:'3', title:'Search · idle, typing with tokens, results, no results', note:'Search takes the whole header. Recognised tokens become chips inside the field. Results keep the list, highlight matches (title, sub-category, note) and show a one-line result summary. Keyboard not drawn.', items:[
+        it('Idle','light',375,'search-idle'), it('Typing + tokens','light',375,'search-typing'), it('Results','light',375,'search-results'), it('No results','light',375,'search-none')] },
+      { id:'4', title:'Sheets · filter (3 scroll positions), sort and group, period, quick peek', note:'One filter sheet. Used categories first with counts, three-state checkboxes, sub-categories with last-used date, tap again to exclude. Scheduled filters include Past / Upcoming / Both, source, specific schedules, due and outcome. Live “Show N results” button.', items:[
+        it('Filter · top','light',375,'filter'), it('Filter · categories','light',375,'filter-cat'), it('Filter · amount, schedules, flags','dark',375,'filter-more'),
+        it('Sort and group','light',375,'sort'), it('Period picker + custom range','light',375,'period'), it('Quick peek (permission-aware)','dark',375,'peek')] },
+      { id:'5', title:'Manage and understand · select, bulk confirm, recently deleted, wallet statement, Activity', note:'Select mode swaps the header for a teal bar and says what “Select all” covers; disabled rows give the reason. Wallet-focused mode becomes a statement: wallet card, opening + in − out = closing check, running balance. Activity shows before → after, money impact, restore, grouped events and an honest “starts from” note.', items:[
+        it('Select mode','light',375,'select'), it('Bulk delete confirmation','light',375,'bulk'), it('Recently deleted','light',375,'trash'),
+        it('Wallet-focused · light','light',375,'wallet'), it('Wallet-focused · dark','dark',375,'wallet'), it('Activity · light','light',375,'activity'), it('Activity · Family','familydark',375,'activity')] }
+    ];
+    const ideas = [
+      { h:'Find fast', b:'Period navigator lives inside the summary, search and filter sit in the header, kind chips and wallet strip are one swipe away.' },
+      { h:'Calm hierarchy', b:'One card for totals, flat rows grouped by day in soft cards, colour kept for meaning, always paired with a sign, icon or word.' },
+      { h:'One list, many views', b:'Money, Activity and wallet statement reuse the same chrome and rows, so wallet detail can embed the same list.' },
+      { h:'Same brand, two spaces', b:'Only the accent tokens change for Family (teal #00627F to purple #5B3FD0); layout is identical, with a groups icon and family name in the scope pill.' }
+    ];
+    const decisions = [
+      { h:'Not drawn in this pass', b:'Calendar and chart modes, reconcile mode, edit-history inside detail, duplicate compare, saved-views manager, export sheet and the advanced AND/OR builder. They reuse these parts; say which to draw next.' },
+      { h:'Move to the overflow menu', b:'Hide amounts, view mode, running balance toggle, saved views, export, rules and clean-up. They are rare, and each added header icon costs 44 px at 320.' },
+      { h:'Merge', b:'History and the Expenses list should be one screen. Wallet detail should embed this list with the wallet locked, and its own short list can go.' },
+      { h:'Show only when useful', b:'Insight strip, Upcoming and active-filters bar appear only with data. Per-chip counts are dropped on mobile; the filter sheet has counts.' },
+      { h:'Compare delta and sparkline', b:'Kept on the summary, but only for the selected currency tab. In “≈ converted” mode a note says rates apply. Amounts are never summed across currencies silently.' },
+      { h:'Activity retention', b:'Show “Detailed history starts from <date>” at the foot. Keep security events in a separate log owned by the user, not shown to other family members.' },
+      { h:'Motion', b:'Row leaving: 180 ms collapse. Period change: 200 ms horizontal slide. Sheets: 250 ms rise. Snackbar: 5 s countdown bar. Reduced motion swaps all of this for instant changes.' },
+      { h:'Icons (Material Icons Round)', b:'search, tune, more_vert, receipt_long, timeline, chevron_left/right, expand_more, south_west, north_east, swap_horiz, repeat, event_upcoming, call_made/received, savings, attach_file, content_copy, edit, delete, restore, check_circle, error, cloud_off, lock, block, insights, groups, person, ios_share.' },
+      { h:'Touch and accessibility', b:'Every control is at least 44 px (small pills sit in 44 px hit areas). Swipe actions have a peek-sheet twin. Each row reads as one sentence. Type scales: rows grow, the summary reflows to a grid.' }
+    ];
+    const ids = ["1"]; const show = {"notes":1,"rows":0,"comps":0,"dec":0};
+    return { themes, groups: groups.filter(g => ids.indexOf(g.id) >= 0), ideas, decisions, show };
+  }
+}
+</script>
+</body>
+</html>

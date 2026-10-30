@@ -5,10 +5,11 @@ import { DebtsModule } from '../debts/debts.module';
 import { ScheduledModule } from '../scheduled/scheduled.module';
 import { HomeController } from './home.controller';
 import { HomeService } from './home.service';
+import { AgendaService } from './agenda.service';
 
 @Module({
   imports: [ClientAuthModule, FamilyModule, DebtsModule, ScheduledModule],
   controllers: [HomeController],
-  providers: [HomeService],
+  providers: [HomeService, AgendaService],
 })
 export class HomeModule {}

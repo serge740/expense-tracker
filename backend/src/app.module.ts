@@ -11,6 +11,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { WebPushModule } from './modules/web-push/web-push.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { TransactionModule } from './modules/transaction/transaction.module';
+import { ActivityModule } from './modules/activity/activity.module';
 import { SubCategoriesModule } from './modules/subcategories/subcategories.module';
 import { FamilyModule } from './modules/family/family.module';
 import { ReportsModule } from './modules/reports/reports.module';
@@ -37,6 +38,7 @@ import { HealthModule } from './modules/health/health.module';
     WebPushModule,
     WalletModule,
     TransactionModule,
+    ActivityModule,
     SubCategoriesModule,
     FamilyModule,
     ReportsModule,

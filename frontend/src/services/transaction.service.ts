@@ -1,5 +1,6 @@
 // Ported from expo_app/services/transaction.service.ts
 import api from '@/api';
+import { periodParams, type Period } from '@/utils/period';
 import { ComponentProps } from 'react';
 import { MaterialIcons } from '@/rn';
 import { ALL_CATEGORY_SLUGS, CategorySlug, canonicalCategory, categoryOf } from '@/constants/categories';
@@ -77,9 +78,9 @@ export const getTransactions = (params?: Record<string, any>): Promise<Paginated
   api.get('/transactions', { params }).then(r => r.data);
 
 /** `view` is a Home chip (income | expense | debt | credit | scheduled); `includeLoans: false` leaves loan rows out of all / income / expense. */
-export const getRecentTransactions = (limit = 3, view?: string, includeLoans?: boolean): Promise<Transaction[]> =>
+export const getRecentTransactions = (limit = 3, view?: string, includeLoans?: boolean, period?: Period): Promise<Transaction[]> =>
   api.get('/transactions/recent', {
-    params: { limit, ...(view && view !== 'all' ? { view } : {}), ...(includeLoans === false ? { includeLoans: 'false' } : {}) },
+    params: { limit, ...(view && view !== 'all' ? { view } : {}), ...(includeLoans === false ? { includeLoans: 'false' } : {}), ...(period ? periodParams(period) : {}) },
   }).then(r => r.data);
 
 export const getTransactionHistory = (params?: Record<string, any>): Promise<TransactionGroup[]> =>
@@ -91,7 +92,7 @@ export const createTransaction = (data: CreateTransactionDto): Promise<Transacti
 export const updateTransaction = (id: string, data: Partial<CreateTransactionDto>): Promise<Transaction> =>
   api.patch(`/transactions/${id}`, data).then(r => r.data);
 
-export const deleteTransaction = (id: string): Promise<{ success: boolean }> =>
+export const deleteTransaction = (id: string): Promise<{ success: boolean; trashId?: string }> =>
   api.delete(`/transactions/${id}`).then(r => r.data);
 
 export function formatSubtitle(tx: Transaction): string {
@@ -107,3 +108,14 @@ export function formatSubtitle(tx: Transaction): string {
 
   return `${cat} · ${dateStr}`;
 }
+
+// ── Select mode, Undo and Recently deleted ──
+export interface BulkResult { done: string[]; failed: Array<{ id: string; reason: string }>; trashIds: string[] }
+export type BulkAction = { action: 'delete' } | { action: 'category'; category: string; subCategory?: string } | { action: 'wallet'; walletId: string };
+export const bulkChange = (ids: string[], change: BulkAction): Promise<BulkResult> =>
+  api.post('/transactions/bulk', { ids, ...change }).then(r => r.data);
+
+export interface TrashItem { id: string; title: string; type: string; category: string; subCategory: string | null; amount: number; currency: string | null; date: string; deletedAt: string; expiresAt: string; mine: boolean }
+export const getTrash = (): Promise<{ days: number; items: TrashItem[] }> => api.get('/transactions/trash').then(r => r.data);
+export const restoreTrash = (id: string): Promise<{ success: boolean; transactionId: string }> => api.post(`/transactions/trash/${id}/restore`).then(r => r.data);
+export const purgeTrash = (id: string): Promise<{ success: boolean }> => api.delete(`/transactions/trash/${id}`).then(r => r.data);

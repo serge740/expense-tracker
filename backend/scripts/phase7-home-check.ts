@@ -12,6 +12,7 @@ import { DebtsService } from '../src/modules/debts/debts.service';
 import { DebtPlanService } from '../src/modules/debts/debt-plan.service';
 import { ScheduledService } from '../src/modules/scheduled/scheduled.service';
 import { HomeService } from '../src/modules/home/home.service';
+import { AgendaService } from '../src/modules/home/agenda.service';
 import { blankRule } from '../src/modules/scheduled/recurrence';
 import { makeReminders } from './_fakes';
 
@@ -37,7 +38,7 @@ async function main() {
   const transactions = new TransactionService(prisma, notifications);
   const debts = new DebtsService(prisma, notifications, reminders, new DebtPlanService(prisma));
   const scheduled = new ScheduledService(prisma, transactions, notifications, reminders);
-  const home = new HomeService(prisma, debts, scheduled);
+  const home = new HomeService(prisma, debts, scheduled, new AgendaService(prisma, debts, scheduled));
 
   await prisma.reminder.deleteMany({});
   const stamp = Date.now();
