@@ -2,18 +2,22 @@ import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { MaterialIcons } from '@/rn';
-import { router, useFocusEffect } from '@/router/router';
+import { router, useFocusEffect, useLocalSearchParams } from '@/router/router';
 import { Text } from '@/components/text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useI18n } from '@/context/language-context';
 import { usePreferences } from '@/context/preferences-context';
 import { StateBlock } from '@/components/history/history-parts';
-import { getActivity, type ActivityChange, type ActivityItem } from '@/services/history.service';
+import { getActivity, type ActivityChange, type ActivityItem, type ActivityWeek } from '@/services/history.service';
 import { restoreTrash } from '@/services/transaction.service';
 import { shortAmount } from '@/utils/history';
 import type { StringKey } from '@/i18n/strings';
 
-type Tab = 'all' | 'transaction' | 'wallet';
+type Tab = 'all' | 'transaction' | 'wallet' | 'debt' | 'budget' | 'schedule' | 'family';
+const TABS: Array<{ id: Tab; label: StringKey }> = [
+  { id: 'all', label: 'act.all' }, { id: 'transaction', label: 'act.transactions' }, { id: 'wallet', label: 'act.wallets' }, { id: 'debt', label: 'act.debts' },
+  { id: 'budget', label: 'act.budgets' }, { id: 'schedule', label: 'act.schedules' }, { id: 'family', label: 'act.familyTab' },
+];
 const KIND: Record<string, { label: StringKey; icon: string; tone: 'pos' | 'neg' | 'info' }> = {
   'transaction.created': { label: 'act.created', icon: 'add-circle-outline', tone: 'pos' },
   'transaction.edited': { label: 'act.edited', icon: 'edit', tone: 'info' },
@@ -23,6 +27,20 @@ const KIND: Record<string, { label: StringKey; icon: string; tone: 'pos' | 'neg'
   'wallet.edited': { label: 'act.walletEdited', icon: 'edit', tone: 'info' },
   'wallet.deleted': { label: 'act.walletDeleted', icon: 'delete-outline', tone: 'neg' },
   'wallet.transfer': { label: 'act.transfer', icon: 'swap-horiz', tone: 'info' },
+  'budget.set': { label: 'act.budgetSet', icon: 'savings', tone: 'info' },
+  'debt.created': { label: 'act.debtCreated', icon: 'handshake', tone: 'pos' },
+  'debt.payment': { label: 'act.debtPayment', icon: 'payments', tone: 'pos' },
+  'debt.payment_removed': { label: 'act.debtPaymentRemoved', icon: 'remove-circle-outline', tone: 'neg' },
+  'debt.written_off': { label: 'act.debtWrittenOff', icon: 'money-off', tone: 'info' },
+  'debt.reopened': { label: 'act.debtReopened', icon: 'restore', tone: 'info' },
+  'debt.archived': { label: 'act.debtArchived', icon: 'archive', tone: 'info' },
+  'debt.restored': { label: 'act.debtRestored', icon: 'unarchive', tone: 'pos' },
+  'debt.deleted': { label: 'act.debtDeleted', icon: 'delete-outline', tone: 'neg' },
+  'schedule.created': { label: 'act.schedCreated', icon: 'event-repeat', tone: 'pos' },
+  'schedule.edited': { label: 'act.schedEdited', icon: 'edit-calendar', tone: 'info' },
+  'schedule.paused': { label: 'act.schedPaused', icon: 'pause-circle-outline', tone: 'info' },
+  'schedule.resumed': { label: 'act.schedResumed', icon: 'play-circle-outline', tone: 'pos' },
+  'schedule.ended': { label: 'act.schedEnded', icon: 'event-busy', tone: 'neg' },
 };
 
 /** The timeline: what was added, changed, deleted or moved, newest first, edits shown as before → after. */
@@ -30,7 +48,10 @@ export default function ActivityScreen() {
   const theme = useAppTheme();
   const { t, formatDate } = useI18n();
   const { prefs } = usePreferences();
-  const [tab, setTab] = useState<Tab>('all');
+  const params = useLocalSearchParams<{ entity?: string; entityId?: string }>();
+  const entityId = params.entityId || undefined;
+  const [tab, setTab] = useState<Tab>((entityId && (params.entity as Tab)) || 'all');
+  const [week, setWeek] = useState<ActivityWeek | null>(null);
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [since, setSince] = useState<string | null>(null);
@@ -41,11 +62,12 @@ export default function ActivityScreen() {
 
   const load = useCallback(async (which: Tab, cursor: string | null = null) => {
     try {
-      const r = await getActivity({ cursor, entity: which === 'all' ? undefined : which });
+      const r = await getActivity({ cursor, entityId, entity: which === 'all' ? undefined : which });
+      setWeek(r.week ?? null);
       setItems(x => (cursor ? [...x, ...r.items] : r.items)); setNext(r.next); setSince(r.since); setState('ready');
     } catch { setState(x => (x === 'loading' ? 'error' : x)); }
     finally { setRefreshing(false); setMore(false); }
-  }, []);
+  }, [entityId]);
   useFocusEffect(useCallback(() => { load(tab); }, [load, tab]));
 
   const pick = (x: Tab) => { setTab(x); setState('loading'); setItems([]); };
@@ -73,11 +95,12 @@ export default function ActivityScreen() {
         <TouchableOpacity onPress={back} accessibilityRole="button" accessibilityLabel="Back" style={s.iconBtn}><MaterialIcons name="arrow-back" size={24} color={theme.text} /></TouchableOpacity>
         <Text style={[s.title, { color: theme.text }]}>{t('act.title')}</Text>
       </View>
+      {week && !entityId && week.total > 0 ? <Text testID="act-week" style={{ color: theme.textSecondary, fontSize: 12.5, paddingHorizontal: 16, paddingBottom: 8 }}>{t('act.week', { added: week.added, changed: week.changed, deleted: week.deleted })}</Text> : null}
       <View style={s.tabs}>
-        {(['all', 'transaction', 'wallet'] as Tab[]).map(x => (
+        {(entityId ? [] : TABS).map(({ id: x, label: lab }) => (
           <TouchableOpacity key={x} testID={`act-tab-${x}`} onPress={() => pick(x)} accessibilityRole="tab" accessibilityState={{ selected: tab === x }}
                             style={[s.tab, { backgroundColor: tab === x ? theme.primaryBg : theme.surface, borderColor: tab === x ? theme.primary : theme.border }]}>
-            <Text style={{ color: tab === x ? theme.primary : theme.text, fontSize: 13, fontWeight: tab === x ? '700' : '500' }}>{t(x === 'all' ? 'act.all' : x === 'transaction' ? 'act.transactions' : 'act.wallets')}</Text>
+            <Text style={{ color: tab === x ? theme.primary : theme.text, fontSize: 13, fontWeight: tab === x ? '700' : '500' }}>{t(lab)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -88,7 +111,7 @@ export default function ActivityScreen() {
         {state === 'ready' && items.length ? (
           <View style={[s.card, { backgroundColor: theme.surface }]}>
             {items.map((it, i) => {
-              const k = KIND[it.kind] ?? { label: 'act.edited' as StringKey, icon: 'history', tone: 'info' as const };
+              const k = KIND[it.kind] ?? { label: (it.kind.startsWith('family.') ? 'act.familyEvent' : 'act.edited') as StringKey, icon: 'history', tone: 'info' as const };
               const c = tone(k.tone);
               return (
                 <View key={it.id} testID="act-row" style={[s.row, i > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}>
@@ -132,7 +155,7 @@ const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 20, fontWeight: '700' },
-  tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   tab: { paddingHorizontal: 14, minHeight: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
   card: { borderRadius: 20, overflow: 'hidden' },

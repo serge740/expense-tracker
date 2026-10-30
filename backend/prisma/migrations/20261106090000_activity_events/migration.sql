@@ -21,3 +21,15 @@ CREATE TABLE `ActivityEvent` (
 
 ALTER TABLE `ActivityEvent` ADD CONSTRAINT `ActivityEvent_clientId_fkey` FOREIGN KEY (`clientId`) REFERENCES `Client`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE `ActivityEvent` ADD CONSTRAINT `ActivityEvent_familyId_fkey` FOREIGN KEY (`familyId`) REFERENCES `Family`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Backfill: what already exists is shown as "added" on the day it was added, so the timeline does not start empty.
+-- Edits and deletes before today were never recorded and cannot be recovered.
+INSERT INTO `ActivityEvent` (`id`, `clientId`, `familyId`, `scopeKey`, `actorId`, `kind`, `entity`, `entityId`, `title`, `amount`, `currency`, `createdAt`)
+SELECT UUID(), t.`clientId`, t.`familyId`, IF(t.`familyId` IS NULL, CONCAT('p:', t.`clientId`), CONCAT('f:', t.`familyId`)), t.`clientId`,
+       'transaction.created', 'transaction', t.`id`, t.`title`, t.`amount`, NULL, t.`createdAt`
+FROM `Transaction` t WHERE t.`debtId` IS NULL AND t.`type` <> 'TRANSFER';
+
+INSERT INTO `ActivityEvent` (`id`, `clientId`, `familyId`, `scopeKey`, `actorId`, `kind`, `entity`, `entityId`, `title`, `amount`, `currency`, `createdAt`)
+SELECT UUID(), w.`clientId`, w.`familyId`, IF(w.`familyId` IS NULL, CONCAT('p:', w.`clientId`), CONCAT('f:', w.`familyId`)), w.`clientId`,
+       'wallet.created', 'wallet', w.`id`, w.`name`, NULL, w.`currency`, w.`createdAt`
+FROM `Wallet` w;

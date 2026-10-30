@@ -266,8 +266,9 @@ export function activityAnswer(params: Record<string, any>, iso: (offsetDays: nu
     { id: 'a3', kind: 'wallet.edited', entity: 'wallet', entityId: 'w2', title: 'MoMo', amount: null, currency: 'RWF', changes: [{ field: 'name', from: 'MTN', to: 'MoMo' }], createdAt: iso(-2, 11), trashId: null },
     { id: 'a4', kind: 'wallet.transfer', entity: 'wallet', entityId: 'w1', title: 'Main account → MoMo', amount: 50000, currency: 'RWF', changes: null, createdAt: iso(-3, 8), trashId: null },
     { id: 'a5', kind: 'transaction.created', entity: 'transaction', entityId: 't1', title: 'Salary', amount: 250000, currency: 'RWF', changes: null, createdAt: iso(-4, 7), trashId: null },
-  ].filter(e => !params.entity || e.entity === params.entity);
+    { id: 'a6', kind: 'debt.payment', entity: 'debt', entityId: 'd1', title: 'John', amount: 20000, currency: 'RWF', changes: null, createdAt: iso(-5, 10), trashId: null },
+  ].filter(e => (!params.entity || e.entity === params.entity) && (!params.entityId || e.entityId === params.entityId));
   const start = params.cursor ? Number(String(params.cursor).split('|')[1]) || 0 : 0;
   const page = all.slice(start, start + 4);
-  return { since: iso(-4, 7), next: start + 4 < all.length ? `x|${start + 4}` : null, items: page };
+  return { since: iso(-5, 10), week: { total: 5, added: 1, changed: 3, deleted: 1 }, next: start + 4 < all.length ? `x|${start + 4}` : null, items: page };
 }

@@ -34,6 +34,26 @@ describe('Activity timeline', () => {
     await expect(w.transactions.create(me, spend(a.id, 10))).resolves.toBeDefined();
   });
 
+  test('a budget change is recorded with the old and new limit', async () => {
+    const w = makeWorld();
+    const me = await w.scopeOf('aline');
+    await w.budgets.upsert(me, { limit: 1000, month: 3, year: 2026 } as any);
+    await w.budgets.upsert(me, { limit: 1500, month: 3, year: 2026 } as any);
+    const rows = events(w).filter(e => e.kind === 'budget.set');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].changes).toEqual([{ field: 'limit', from: 1000, to: 1500 }]);
+  });
+
+  test('family changes also reach the timeline of that family only', async () => {
+    const w = makeWorld();
+    const owner = await w.scopeOf('aline');
+    expect(owner.kind).toBe('personal');
+    await w.families.log(w.db as any, 'fam-12345678', 'aline', 'member.role_changed', 'eric', { from: 'MEMBER', to: 'VIEWER' });
+    const e = events(w).find(x => x.kind === 'family.member.role_changed')!;
+    expect(e.scopeKey).toBe('f:fam-12345678');
+    expect(e.changes).toEqual([{ field: 'role', from: 'MEMBER', to: 'VIEWER' }]);
+  });
+
   test('diffFields only reports what really changed', () => {
     expect(diffFields({ a: 1, b: 'x', c: null }, { a: 1, b: 'y', c: '' }, ['a', 'b', 'c'])).toEqual([{ field: 'b', from: 'x', to: 'y' }]);
   });

@@ -130,7 +130,7 @@ Backend G10 (statement, running balance, mismatch). Web: wallet-focused mode (wa
 
 ### Phase H5: Activity
 
-**Status: first part done (2026-10-30)** — `ActivityEvent` table, `recordActivity` wired into transaction create/edit/delete/restore and wallet create/edit/delete/transfer, `GET /activity`, Activity screen. **Left:** log budgets, debts, schedules, reminders, exports, account and family events; backfill; retention; "history of this item" on transaction and wallet detail (the API already takes `entityId`); insights strip; grouped events.
+**Status: done on the web (2026-10-30).** Logged: transactions, wallets, budgets, loans, schedules, family. Backfill of "added" lines is in the migration; retention is one year (dropped on read); "history of this item" on the transaction and wallet pages; week summary. **By design not logged:** account / sign-in / security events (privacy), exports and reminders (nothing of value to undo). **Later:** grouped events ("12 changes"), history of this item on loan and schedule pages (the API already takes `entityId`), an Activity entry in the Expo app.
 
 Backend G13 (event log, writes in transaction/wallet/budget/debt/schedule/reminder/export/account/family services, backfill from existing rows, retention, security-event privacy). Web: Activity mode, event cards (created, edited with before → after, deleted with Restore, status change, money event, reminder, alert, system, family, grouped), its filters and "history of this item" in detail screens, insights strip.
 

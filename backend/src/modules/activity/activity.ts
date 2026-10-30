@@ -2,8 +2,12 @@ import { Scope, scopeKeyOf } from '../family/scope/scope';
 
 export type ActivityKind =
   | 'transaction.created' | 'transaction.edited' | 'transaction.deleted' | 'transaction.restored'
-  | 'wallet.created' | 'wallet.edited' | 'wallet.deleted' | 'wallet.transfer';
-export type ActivityEntity = 'transaction' | 'wallet';
+  | 'wallet.created' | 'wallet.edited' | 'wallet.deleted' | 'wallet.transfer'
+  | 'budget.set'
+  | 'debt.created' | 'debt.payment' | 'debt.payment_removed' | 'debt.written_off' | 'debt.reopened' | 'debt.archived' | 'debt.restored' | 'debt.deleted'
+  | `family.${string}`
+  | 'schedule.created' | 'schedule.edited' | 'schedule.paused' | 'schedule.resumed' | 'schedule.ended';
+export type ActivityEntity = 'transaction' | 'wallet' | 'budget' | 'debt' | 'schedule' | 'family';
 export interface ActivityChange { field: string; from: string | number | null; to: string | number | null }
 export interface ActivityInput {
   kind: ActivityKind; entity: ActivityEntity; entityId?: string | null; title: string;

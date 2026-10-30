@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DebtRole, Prisma } from '../../../generated/prisma';
+import { personalScope } from '../family/scope/scope';
+import { recordActivity, type ActivityKind } from '../activity/activity';
 import { CreateDebtDto, DebtPaymentDto, InstallmentDto, UpdateDebtDto } from './dto/debt.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RemindersService } from '../reminders/reminders.service';
@@ -88,6 +90,11 @@ export class DebtsService {
   }
 
   /** Every change to a debt ends here: reminders are re-aligned with its pay dates, then the debt is returned. */
+  /** One line in the Activity timeline for this debt or loan. */
+  private log(clientId: string, kind: ActivityKind, d: { id: string; person: string; currency: string }, amount?: number, changes?: Array<{ field: string; from: string | number | null; to: string | number | null }>) {
+    return recordActivity(this.prisma as never, personalScope(clientId), { kind, entity: 'debt', entityId: d.id, title: d.person, amount: amount ?? null, currency: d.currency, changes });
+  }
+
   private async finish(clientId: string, id: string) {
     // The estimated payment plan first (it makes or trims pay dates), then the reminders follow those dates.
     await this.plans.reconcile(id).catch(() => undefined);
@@ -395,6 +402,7 @@ export class DebtsService {
       await prx.debt.update({ where: { id: d.id }, data: { principalTransactionId } });
       return d;
     });
+    await this.log(clientId, 'debt.created', debt, amount, [{ field: 'kind', from: null, to: kind }]);
     return this.finish(clientId, debt.id);
   }
 
@@ -510,6 +518,7 @@ export class DebtsService {
       this.notifications.notify(clientId, `${capitalNoun(d.kind)} settled`,
         d.kind === 'BORROWED' ? `You've fully repaid ${d.person}.` : `${d.person} has fully repaid you.`, 'transaction');
     }
+    await this.log(clientId, 'debt.payment', d, amount);
     return this.finish(clientId, id);
   }
 
@@ -522,6 +531,7 @@ export class DebtsService {
       await prx.debtPayment.delete({ where: { id: p.id } });
       await this.recompute(prx, d.id);
     });
+    await this.log(clientId, 'debt.payment_removed', d, Number(p.amount));
     return this.finish(clientId, id);
   }
 
@@ -543,6 +553,7 @@ export class DebtsService {
       const unmet = derived.filter(x => x.view !== 'PAID').map(x => x.id);
       if (unmet.length) await prx.debtInstallment.updateMany({ where: { id: { in: unmet } }, data: { status: 'SKIPPED' } });
     });
+    await this.log(clientId, 'debt.written_off', d, remaining);
     return this.finish(clientId, id);
   }
 
@@ -552,19 +563,21 @@ export class DebtsService {
     if (d.status !== 'WRITTEN_OFF' && d.status !== 'FORGIVEN') throw new BadRequestException('Only a written-off or forgiven record can be reopened');
     const status = statusFor({ kind: d.kind, amount: Number(d.amount), paid: Number(d.paid), writtenOff: 0, current: 'OPEN' });
     await this.prisma.debt.update({ where: { id }, data: { writtenOffAmount: 0, status } });
+    await this.log(clientId, 'debt.reopened', d);
     return this.finish(clientId, id);
   }
 
   /** Hide a debt without touching any money. Reversible. */
   async archive(clientId: string, id: string) {
     const d = await this.owned(clientId, id);
-    if (!d.archivedAt) await this.prisma.debt.update({ where: { id }, data: { archivedAt: new Date() } });
+    if (!d.archivedAt) { await this.prisma.debt.update({ where: { id }, data: { archivedAt: new Date() } }); await this.log(clientId, 'debt.archived', d); }
     return this.finish(clientId, id);
   }
 
   async restore(clientId: string, id: string) {
-    await this.owned(clientId, id);
+    const d = await this.owned(clientId, id);
     await this.prisma.debt.update({ where: { id }, data: { archivedAt: null } });
+    await this.log(clientId, 'debt.restored', d);
     return this.finish(clientId, id);
   }
 
@@ -620,12 +633,13 @@ export class DebtsService {
 
   /** Delete a debt and undo every wallet movement it caused. */
   async remove(clientId: string, id: string) {
-    await this.owned(clientId, id);
+    const gone = await this.owned(clientId, id);
     await this.prisma.$transaction(async prx => {
       const txns = await prx.transaction.findMany({ where: { clientId, debtId: id }, select: { id: true } });
       for (const t of txns) await this.unmove(prx, t.id);
       await prx.debt.delete({ where: { id } });
     });
+    await this.log(clientId, 'debt.deleted', gone, Number(gone.amount));
     return { success: true };
   }
 }

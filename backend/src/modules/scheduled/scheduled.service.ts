@@ -10,6 +10,8 @@ import { normalizeRule, occurrences, RepeatRule, ruleProblem, Wall } from './rec
 import { CreateScheduledDto, ConfirmOccurrenceDto, UpdateScheduledDto } from './dto/scheduled.dto';
 import { canonicalCategory, normalizeSubCategory } from '../../common/utils/categories';
 import { rememberSubCategory } from '../../common/utils/subcategory';
+import { personalScope } from '../family/scope/scope';
+import { diffFields, recordActivity, type ActivityKind } from '../activity/activity';
 
 const MIN = 60_000;
 /** After a long outage, at most this many missed dates are caught up; the rest are dropped and the schedule resumes from now. */
@@ -99,6 +101,11 @@ export class ScheduledService implements OnModuleInit {
     return { ...s, amount: Number(s.amount), repeat: (s.repeat as RepeatRule | null) ?? null };
   }
 
+  /** One line in the Activity timeline for this schedule. */
+  private log(clientId: string, kind: ActivityKind, s: { id: string; title: string; amount: unknown }, changes?: Array<{ field: string; from: string | number | null; to: string | number | null }>) {
+    return recordActivity(this.prisma as never, personalScope(clientId), { kind, entity: 'schedule', entityId: s.id, title: s.title, amount: Number(s.amount), changes });
+  }
+
   private async owned(clientId: string, id: string) {
     const s = await this.prisma.scheduledTransaction.findFirst({ where: { id, clientId } });
     if (!s) throw new NotFoundException('Scheduled transaction not found');
@@ -183,6 +190,7 @@ export class ScheduledService implements OnModuleInit {
       },
     });
     await rememberSubCategory(this.prisma, clientId, dto.type, category, subCategory);
+    await this.log(clientId, 'schedule.created', s);
     await this.materialize(s.id);
     return this.findOne(clientId, s.id);
   }
@@ -230,7 +238,8 @@ export class ScheduledService implements OnModuleInit {
         data.lastDueAt = startChanged ? null : now;
         data.nextDueAt = null;
       }
-      await prx.scheduledTransaction.update({ where: { id }, data });
+      const after = await prx.scheduledTransaction.update({ where: { id }, data });
+      await this.log(clientId, 'schedule.edited', after, [...diffFields(s, after, ['title', 'amount', 'category', 'subCategory', 'description', 'walletId', 'mode', 'startAt', 'timezone']), ...(ruleChanged ? [{ field: 'repeat', from: null, to: 'changed' }] : [])]);
       if (typeof data.subCategory === 'string') await rememberSubCategory(prx, clientId, s.type, finalCategory, data.subCategory);
     });
     if (timingChanged) await this.materialize(id);
@@ -245,6 +254,7 @@ export class ScheduledService implements OnModuleInit {
       this.prisma.scheduledOccurrence.deleteMany({ where: { scheduleId: id, status: 'PENDING' } }),
       this.prisma.scheduledTransaction.update({ where: { id }, data: { status: 'PAUSED', nextDueAt: null } }),
     ]);
+    await this.log(clientId, 'schedule.paused', s);
     return this.findOne(clientId, id);
   }
 
@@ -253,16 +263,18 @@ export class ScheduledService implements OnModuleInit {
     const s = await this.owned(clientId, id);
     if (s.status !== 'PAUSED') throw new BadRequestException('Only a paused schedule can be resumed');
     await this.prisma.scheduledTransaction.update({ where: { id }, data: { status: 'ACTIVE', lastDueAt: new Date() } });
+    await this.log(clientId, 'schedule.resumed', s);
     await this.materialize(id);
     return this.findOne(clientId, id);
   }
 
   async end(clientId: string, id: string) {
-    await this.owned(clientId, id);
+    const s = await this.owned(clientId, id);
     await this.prisma.$transaction([
       this.prisma.scheduledOccurrence.deleteMany({ where: { scheduleId: id, status: 'PENDING' } }),
       this.prisma.scheduledTransaction.update({ where: { id }, data: { status: 'ENDED', nextDueAt: null } }),
     ]);
+    await this.log(clientId, 'schedule.ended', s);
     return this.findOne(clientId, id);
   }
 

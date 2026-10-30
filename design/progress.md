@@ -551,3 +551,5 @@ See `design/history-web-plan.md` (Phase H2) and row W18 / B8 in `design/web-only
 - 2026-10-30 — History H4 (web): wallet statement card, running balance per row, wallet-page entry. No new migration. Mismatch detection needs reconcile (H6); the "Adds up" check is arithmetic only. See history-web-plan.md (B11, W21).
 
 - 2026-10-30 — History H5 part 1 (web + backend): Activity timeline for transactions and wallets. Needs migration 20261106090000_activity_events on deploy. Not yet logged: budgets, debts, schedules, reminders, exports, account, family; no backfill (honest "kept from" date); no retention job; no "history of this item" in detail screens or insights strip. See history-web-plan.md (B12, W22).
+
+- 2026-10-30 — History H5 finished (web + backend): loans, budget, schedules and family also logged, backfill in the migration, one-year retention, week summary, tabs, history of this item on transaction and wallet pages.

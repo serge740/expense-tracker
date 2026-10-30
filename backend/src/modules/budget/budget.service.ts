@@ -4,6 +4,7 @@ import { UpsertBudgetDto } from './dto/upsert-budget.dto';
 import { NO_DEBT_FLOWS } from '../../common/utils/loan-filter';
 import { Scope, assertScopeCan, scopeData, scopeKeyOf, scopeWhere } from '../family/scope/scope';
 import { errors } from '../family/family-errors';
+import { recordActivity } from '../activity/activity';
 
 @Injectable()
 export class BudgetService {
@@ -44,12 +45,14 @@ export class BudgetService {
     const month = dto.month ?? now.getMonth() + 1;
     const year  = dto.year  ?? now.getFullYear();
 
+    const before = await this.prisma.budget.findFirst({ where: { ...scopeWhere(scope), month, year }, select: { limit: true } });
     const budget = await this.prisma.budget.upsert({
       where:  { scopeKey_month_year: { scopeKey: scopeKeyOf(scope), month, year } },
       create: { ...scopeData(scope), scopeKey: scopeKeyOf(scope), month, year, limit },
       update: { limit },
     });
 
+    await recordActivity(this.prisma, scope, { kind: 'budget.set', entity: 'budget', entityId: budget.id, title: `${String(month).padStart(2, '0')}/${year}`, amount: limit, changes: before && Number(before.limit) !== limit ? [{ field: 'limit', from: Number(before.limit), to: limit }] : undefined });
     return { ...budget, limit: Number(budget.limit) };
   }
 }

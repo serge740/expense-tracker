@@ -312,9 +312,14 @@ try {
   check('an edit shows what it was and what it became', await seen('Amount: 2.5K → 3K') || await seen('Amount:'), await path());
   check('a deleted transaction offers Restore', await until("!!document.querySelector('[data-testid=act-restore]')"), await path());
   check('it says honestly where the record starts', await until("!!document.querySelector('[data-testid=act-since]')"), await path());
-  check('Show earlier loads the next lines', (await byId('act-more')) && (await until("document.querySelectorAll('[data-testid=act-row]').length === 5")), await rowsOf('act-row'));
+  check('Show earlier loads the next lines', (await byId('act-more')) && (await until("document.querySelectorAll('[data-testid=act-row]').length === 6")), await rowsOf('act-row'));
   check('the Wallets tab keeps only wallet lines', (await byId('act-tab-wallet')) && (await until("document.querySelectorAll('[data-testid=act-row]').length === 2")), await rowsOf('act-row'));
   check('Restore takes the transaction back and the line stays', (await byId('act-tab-transaction')) && (await until("!!document.querySelector('[data-testid=act-restore]')")) && (await byId('act-restore')) && (await until("document.querySelectorAll('[data-testid=act-row]').length > 0")), await path());
+  await send('Page.navigate', { url: `${origin}/app/activity?mock=1` });
+  check('a week summary sits above the tabs', await seen('This week: 1 added'), await path());
+  check('the Loans tab shows loan lines only', (await byId('act-tab-debt')) && (await until("document.querySelectorAll('[data-testid=act-row]').length === 1")), await rowsOf('act-row'));
+  await send('Page.navigate', { url: `${origin}/app/wallet-detail?mock=1&walletId=w2` });
+  check('a wallet page opens only its own history', (await until("!!document.querySelector('[data-testid=wallet-activity]')")) && (await byId('wallet-activity')) && (await until("document.querySelectorAll('[data-testid=act-row]').length === 1 && !document.querySelector('[data-testid=act-tab-all]')")), await path());
 
   // ── Family: the switcher, the screens that follow the space, the hub, and the invite page ──
   const TOKEN = 'abcDEF123_-abcDEF123_-abcd';

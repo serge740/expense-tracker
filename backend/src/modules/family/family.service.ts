@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { recordActivity } from '../activity/activity';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FamilyAccessService, Membership } from './family-access.service';
 import { FamilyRoleName, canRemove } from './family-permissions';
@@ -38,6 +39,10 @@ export class FamilyService {
   /** Writes one line of the family's history. Always called inside the same transaction as the change it records. */
   async log(db: any, familyId: string, actorId: string, action: string, targetId?: string, meta?: Record<string, unknown>) {
     await db.familyActivity.create({ data: { familyId, actorId, action, targetId: targetId ?? null, meta: meta ?? null } });
+    // The same line also goes into the Activity timeline everyone in the family can read.
+    const m = (meta ?? {}) as Record<string, unknown>;
+    await recordActivity(db, { kind: 'family', clientId: actorId, familyId } as never, { kind: `family.${action}`, entity: 'family', entityId: targetId ?? familyId, title: String(m.name ?? action.replace(/[._]/g, ' ')),
+      changes: m.from !== undefined || m.to !== undefined ? [{ field: 'role', from: String(m.from ?? ''), to: String(m.to ?? '') }] : undefined });
   }
 
   /** A person may make or join a family only with a verified email or phone (stops throwaway accounts). */

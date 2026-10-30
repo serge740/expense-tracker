@@ -237,6 +237,13 @@ export default function TransactionDetailScreen() {
           )}
         </View>
 
+        <TouchableOpacity testID="detail-activity" onPress={() => router.push({ pathname: '/(dashboard)/activity' as any, params: { entity: 'transaction', entityId: id } })} accessibilityRole="button"
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
+          <MaterialIcons name="history" size={20} color={theme.primary} />
+          <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontWeight: '600' }}>{tr('act.itemHistory')}</Text>
+          <MaterialIcons name="chevron-right" size={22} color={theme.primary} />
+        </TouchableOpacity>
+
         {/* Delete button (in a family only where the role allows it) */}
         {!mayDelete ? <Text testID="detail-not-yours" style={{ color: theme.textMuted, fontSize: 12.5, textAlign: 'center', marginTop: 18, lineHeight: 18 }}>{tr('family.tx.notYours')}</Text> : null}
         {mayDelete ? (

@@ -58,11 +58,12 @@ export const getStatement = (f: HistoryFilter): Promise<Statement> =>
 
 export interface ActivityChange { field: string; from: string | number | null; to: string | number | null }
 export interface ActivityItem {
-  id: string; kind: string; entity: 'transaction' | 'wallet'; entityId: string | null; title: string;
+  id: string; kind: string; entity: string; entityId: string | null; title: string;
   amount: number | null; currency: string | null; changes: ActivityChange[] | null; createdAt: string;
   actor?: { name: string; isYou: boolean }; trashId: string | null;
 }
-export interface ActivityPage { since: string | null; next: string | null; items: ActivityItem[] }
+export interface ActivityWeek { total: number; added: number; changed: number; deleted: number }
+export interface ActivityPage { since: string | null; week?: ActivityWeek; next: string | null; items: ActivityItem[] }
 /** What changed, newest first. `entity` narrows it to transactions or wallets; `entityId` to one item's own history. */
-export const getActivity = (p: { cursor?: string | null; entity?: 'transaction' | 'wallet'; entityId?: string } = {}): Promise<ActivityPage> =>
+export const getActivity = (p: { cursor?: string | null; entity?: string; entityId?: string } = {}): Promise<ActivityPage> =>
   api.get('/activity', { params: { limit: 30, ...(p.cursor ? { cursor: p.cursor } : {}), ...(p.entity ? { entity: p.entity } : {}), ...(p.entityId ? { entityId: p.entityId } : {}) } }).then(r => r.data);

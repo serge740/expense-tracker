@@ -217,6 +217,12 @@ export default function WalletDetailScreen() {
           <Text style={[s.sectionTitle, { color: theme.text, marginTop: 0 }]}>{t('detail.activity')}</Text>
           <Text style={[s.count, { color: theme.textMuted }]}>{t('detail.recent', { n: activity.length })}</Text>
         </View>
+        <TouchableOpacity testID="wallet-activity" onPress={() => router.push({ pathname: '/(dashboard)/activity' as any, params: { entity: 'wallet', entityId: wallet.id } })} accessibilityRole="button"
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
+          <MaterialIcons name="history" size={20} color={theme.primary} />
+          <Text style={{ flex: 1, color: theme.primary, fontSize: 14, fontWeight: '600' }}>{t('act.itemHistory')}</Text>
+          <MaterialIcons name="chevron-right" size={22} color={theme.primary} />
+        </TouchableOpacity>
         <TouchableOpacity testID="wallet-statement" onPress={() => router.push({ pathname: '/(dashboard)/history' as any, params: { walletId: wallet.id, all: 'true' } })} accessibilityRole="button"
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, backgroundColor: theme.primaryBg }}>
           <MaterialIcons name="receipt-long" size={20} color={theme.primary} />
