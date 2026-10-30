@@ -4,6 +4,7 @@ import { Prisma, Transaction } from '../../../generated/prisma';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
+import { ReconcileDto } from './dto/reconcile.dto';
 import { ExchangeRateService } from './exchange-rate.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Scope, assertScopeCan, isFamily, scopeCan, scopeData, scopeWhere } from '../family/scope/scope';
@@ -272,6 +273,38 @@ export class WalletService {
       'transaction',
     );
     return { id: tx.id, amount, toAmount, rate, from: from.currency, to: to.currency };
+  }
+
+  /**
+   * Compares the balance this app holds with what the real account shows. A match is remembered; a difference is reported,
+   * and only put right (with a visible "Balance adjustment" transaction) when the person asks for it.
+   */
+  async reconcile(scope: Scope, id: string, dto: ReconcileDto) {
+    assertScopeCan(scope, 'wallet.manage');
+    const actual = round2(Number(dto?.actualBalance));
+    if (!Number.isFinite(actual)) throw new BadRequestException('Enter the balance your account shows');
+    const w = await this.assertInScope(scope, id);
+    const expected = round2(Number(w.balance));
+    const difference = round2(actual - expected);
+    const base = { walletId: id, currency: w.currency, expected, actual, difference };
+    if (Math.abs(difference) < 0.005) {
+      await this.prisma.wallet.update({ where: { id }, data: { reconciledAt: new Date(), reconciledBalance: actual } });
+      await recordActivity(this.prisma, scope, { kind: 'wallet.reconciled', entity: 'wallet', entityId: id, title: w.name, amount: actual, currency: w.currency });
+      return { ...base, matches: true, adjusted: false };
+    }
+    if (!dto.adjust) return { ...base, matches: false, adjusted: false };
+    if (w.archived) throw new BadRequestException('An archived wallet cannot be changed');
+    assertScopeCan(scope, 'tx.add');
+    const income = difference > 0;
+    const row = await retryOnConflict(() => this.prisma.$transaction(async prx => {
+      await prx.wallet.update({ where: { id }, data: { balance: { increment: new Prisma.Decimal(difference) }, reconciledAt: new Date(), reconciledBalance: actual } });
+      const t = await prx.transaction.create({
+        data: { ...scopeData(scope), type: income ? 'INCOME' : 'EXPENSE', category: 'other', title: 'Balance adjustment', description: 'Added to match the real account', amount: Math.abs(difference), date: new Date(), walletId: id },
+      });
+      await recordActivity(prx, scope, { kind: 'wallet.reconciled', entity: 'wallet', entityId: id, title: w.name, amount: actual, currency: w.currency, changes: [{ field: 'balance', from: expected, to: actual }] });
+      return t;
+    }));
+    return { ...base, matches: false, adjusted: true, transactionId: row.id };
   }
 
   async create(scope: Scope, dto: CreateWalletDto) {

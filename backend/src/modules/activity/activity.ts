@@ -2,7 +2,7 @@ import { Scope, scopeKeyOf } from '../family/scope/scope';
 
 export type ActivityKind =
   | 'transaction.created' | 'transaction.edited' | 'transaction.deleted' | 'transaction.restored'
-  | 'wallet.created' | 'wallet.edited' | 'wallet.deleted' | 'wallet.transfer'
+  | 'wallet.created' | 'wallet.edited' | 'wallet.deleted' | 'wallet.transfer' | 'wallet.reconciled'
   | 'budget.set'
   | 'debt.created' | 'debt.payment' | 'debt.payment_removed' | 'debt.written_off' | 'debt.reopened' | 'debt.archived' | 'debt.restored' | 'debt.deleted'
   | `family.${string}`

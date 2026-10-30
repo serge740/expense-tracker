@@ -6,6 +6,7 @@ import { ClientJwtAuthGuard } from '../../guards/clientGuard.guard';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
+import { ReconcileDto } from './dto/reconcile.dto';
 import { ReqScope, ScopeGuard } from '../family/scope/scope.guard';
 import { Scope } from '../family/scope/scope';
 
@@ -26,6 +27,14 @@ export class WalletController {
     } catch (e: any) {
       throw bad(e, 'Failed to fetch wallets');
     }
+  }
+
+  /** Check a wallet against the real account: reports the difference, and puts it right only when asked. */
+  @Post(':id/reconcile')
+  @HttpCode(200)
+  async reconcile(@ReqScope() scope: Scope, @Param('id') id: string, @Body() dto: ReconcileDto) {
+    try { return await this.walletService.reconcile(scope, id, dto); }
+    catch (e: any) { throw fail(e, 'Failed to check the balance'); }
   }
 
   @Get('summary')

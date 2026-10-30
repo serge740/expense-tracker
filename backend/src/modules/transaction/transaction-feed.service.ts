@@ -229,7 +229,7 @@ export class TransactionFeedService {
    * back from today's balance (the balance is the truth); the "balanced" flag checks the period's own movements against them.
    */
   async statement(scope: Scope, walletId: string, f: FeedFilter) {
-    const wallet = await this.prisma.wallet.findFirst({ where: { id: walletId, ...scopeWhere(scope) }, select: { id: true, name: true, color: true, currency: true, balance: true, archived: true } });
+    const wallet = await this.prisma.wallet.findFirst({ where: { id: walletId, ...scopeWhere(scope) }, select: { id: true, name: true, color: true, currency: true, balance: true, archived: true, reconciledAt: true, reconciledBalance: true } });
     if (!wallet) throw new NotFoundException('Wallet not found');
     const period = f.period;
     const balance = num(wallet.balance);
@@ -241,7 +241,7 @@ export class TransactionFeedService {
     const opening = from ? round2(balance - (sinceFrom ? this.net(sinceFrom) : 0)) : round2(balance - this.net(await this.effects(scope, walletId, {})));
     const moneyIn = round2(inside.income + inside.transferIn), moneyOut = round2(inside.expense + inside.transferOut);
     return {
-      wallet: { id: wallet.id, name: wallet.name, color: wallet.color, currency: wallet.currency, archived: wallet.archived, balance },
+      wallet: { id: wallet.id, name: wallet.name, color: wallet.color, currency: wallet.currency, archived: wallet.archived, balance, reconciledAt: wallet.reconciledAt, reconciledBalance: wallet.reconciledBalance === null ? null : num(wallet.reconciledBalance) },
       period: { from, to },
       opening, in: moneyIn, out: moneyOut, closing,
       parts: { income: round2(inside.income), transfersIn: round2(inside.transferIn), spending: round2(inside.expense), transfersOut: round2(inside.transferOut) },
