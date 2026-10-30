@@ -45,7 +45,9 @@ function fmtAmount(n: number | null) {
 
 function fmtDate(iso: string | null) {
   if (!iso) return '—';
-  const d = new Date(iso);
+  // A plain day (2026-10-28) is that day on the person's own calendar, not midnight in another time zone.
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  const d = day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])) : new Date(iso);
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
@@ -207,6 +209,7 @@ export default function ScanScreen() {
         amount:      ocrResult.amount?.toString() ?? '',
         merchant:    ocrResult.merchant ?? '',
         date:        ocrResult.date ?? '',
+        currency:    ocrResult.currency ?? '',
         type:        'EXPENSE',
         category:    ocrResult.category ?? '',
         description: ocrResult.description ?? '',
@@ -405,6 +408,11 @@ export default function ScanScreen() {
                 <Text style={s.detailLabel}>Date</Text>
                 <Text style={s.detailValue}>{fmtDate(ocrResult.date)}</Text>
               </View>
+              {ocrResult.dateUncertain || !ocrResult.date ? (
+                <Text testID="scan-date-warning" style={{ color: '#F5B94A', fontSize: 12, marginBottom: 6 }}>
+                  {ocrResult.date ? 'The date on the receipt was unclear. Please check it on the next screen.' : 'No clear date was found, so today is used. Please check it on the next screen.'}
+                </Text>
+              ) : null}
 
               {ocrResult.description ? (
                 <View style={s.detailRow}>

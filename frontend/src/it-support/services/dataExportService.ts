@@ -36,7 +36,7 @@ class DataExportService {
       pdf: `abyexpense-report-${dateStr}.pdf`,
     };
 
-    const { data } = await api.post('/it-support/data-export/export', options, {
+    const { data } = await api.post('/it-support-api/data-export/export', options, {
       responseType: 'blob',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -49,7 +49,7 @@ class DataExportService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('conflictStrategy', conflictStrategy);
-    const { data } = await api.post('/it-support/data-export/import/preview', formData, {
+    const { data } = await api.post('/it-support-api/data-export/import/preview', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data;
@@ -60,19 +60,19 @@ class DataExportService {
     formData.append('file', file);
     if (options.conflictStrategy) formData.append('conflictStrategy', options.conflictStrategy);
     if (options.groups) formData.append('groups', JSON.stringify(options.groups));
-    const { data } = await api.post('/it-support/data-export/import', formData, {
+    const { data } = await api.post('/it-support-api/data-export/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return data;
   }
 
   async getImportHistory(): Promise<any[]> {
-    const { data } = await api.get('/it-support/data-export/import/history');
+    const { data } = await api.get('/it-support-api/data-export/import/history');
     return data;
   }
 
   async rollbackImport(snapshotId: string): Promise<{ success: boolean }> {
-    const { data } = await api.post(`/it-support/data-export/import/rollback/${snapshotId}`);
+    const { data } = await api.post(`/it-support-api/data-export/import/rollback/${snapshotId}`);
     return data;
   }
 }

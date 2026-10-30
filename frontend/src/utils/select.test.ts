@@ -8,9 +8,10 @@ describe('deleteEffect', () => {
     const e = deleteEffect([row({ amount: -100 }), row({ amount: -50 }), row({ type: 'INCOME', amount: 300 }), row({ amount: -5, wallet: { currency: 'USD' } as any })], 'RWF');
     expect(e).toEqual([{ currency: 'RWF', change: -150 }, { currency: 'USD', change: 5 }]);
   });
-  it('leaves out transfers and loan rows', () => {
-    expect(deleteEffect([row({ type: 'TRANSFER', amount: 80 }), row({ debtId: 'd1', amount: -9 })], 'RWF')).toEqual([]);
-    expect(isLocked(row({ debtId: 'd1' }))).toBe(true);
+  it('leaves out transfers, counts loan rows like any other', () => {
+    expect(deleteEffect([row({ type: 'TRANSFER', amount: 80 })], 'RWF')).toEqual([]);
+    expect(deleteEffect([row({ debtId: 'd1', amount: -9 })], 'RWF')).toEqual([{ currency: 'RWF', change: 9 }]);
+    expect(isLocked(row({ debtId: 'd1' }))).toBe(false);
     expect(isLocked(row({}))).toBe(false);
   });
 });
@@ -20,13 +21,12 @@ describe('quick peek helpers', () => {
   const r = (o: any) => row({ title: 'Lunch', category: 'food', walletId: 'w1', date: '2026-10-31T09:00:00.000Z', ...o });
   it('offers other rows with the same title in another category', () => {
     const a = r({ id: 'a' });
-    const list = [a, r({ id: 'b', category: 'other' }), r({ id: 'c', title: ' lunch ', category: 'other' }), r({ id: 'd', category: 'food' }), r({ id: 'e', category: 'other', debtId: 'x' }), r({ id: 'f', title: 'Taxi', category: 'other' })];
+    const list = [a, r({ id: 'b', category: 'other' }), r({ id: 'c', title: ' lunch ', category: 'other' }), r({ id: 'd', category: 'food' }), r({ id: 'f', title: 'Taxi', category: 'other' })];
     expect(similarRows(list, a, 'transport').map(x => x.id)).toEqual(['d', 'b', 'c'].sort((x, y) => list.findIndex(z => z.id === x) - list.findIndex(z => z.id === y)));
   });
-  it('copies an expense positive, not transfers or loans', () => {
+  it('copies an expense positive, but not a transfer', () => {
     expect(duplicateParams(r({ amount: -4200 }))).toEqual({ type: 'EXPENSE', amount: '4200', category: 'food', description: 'Lunch', walletId: 'w1' });
     expect(duplicateParams(r({ type: 'TRANSFER' }))).toBeNull();
-    expect(duplicateParams(r({ debtId: 'd' }))).toBeNull();
   });
   it('makes a monthly rule starting next month, on a day every month has', () => {
     const p = recurringParams(r({ amount: -10 }), new Date(2026, 9, 29))!;

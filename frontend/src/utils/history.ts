@@ -506,8 +506,8 @@ export function emptyKind(opts: { rows: number; hasAny: boolean; filtered: boole
 
 // ── Select mode ──────────────────────────────────────────────────────────────
 
-/** A row that Debts & loans owns cannot be changed from here; the server says so too. */
-export const isLocked = (row: FeedRow): boolean => !!row.debtId || row.type === 'DEBT';
+/** Loan and debt rows are ordinary transactions now: they can be changed or deleted without touching the loan. Only the old DEBT type stays fixed. */
+export const isLocked = (row: FeedRow): boolean => row.type === 'DEBT';
 
 /** What deleting these rows does to wallet balances, per currency (income comes back out, spending goes back in; transfers and locked rows are left out). */
 export function deleteEffect(rows: FeedRow[], fallback: string): Array<{ currency: string; change: number }> {

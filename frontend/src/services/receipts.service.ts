@@ -7,6 +7,10 @@ export interface ProcessedReceipt {
   amount: number | null;
   merchant: string | null;
   date: string | null;
+  /** The currency printed on the receipt, when it says. */
+  currency?: string | null;
+  /** The date was corrected or could not be read: ask the person to check it. */
+  dateUncertain?: boolean;
   category: string | null;
   description: string | null;
   confidence: number;

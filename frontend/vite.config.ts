@@ -14,7 +14,11 @@ import { defineConfig } from 'vitest/config';
 const API_PATHS = [
   'client-auth', 'budget', 'debts', 'devices', 'family', 'health', 'home', 'notifications', 'receipts',
   'reminders', 'reports', 'push-notifications', 'scheduled', 'subcategories', 'transactions', 'wallets', 'uploads', '.well-known', 'socket.io',
-  'it-support-auth', 'it-support',
+  // 'it-support' (bare) deliberately NOT here — that's the frontend portal's own page prefix
+  // (/it-support/login, /it-support/data-export as a page); proxying it would intercept those
+  // page GETs and 404 them against the backend. it-support-api is a disjoint prefix for exactly
+  // that reason — see data-export.controller.ts.
+  'it-support-auth', 'it-support-api',
 ];
 
 /**
