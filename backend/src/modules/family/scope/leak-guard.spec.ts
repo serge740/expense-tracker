@@ -17,10 +17,6 @@ const OPS = ['findMany', 'findFirst', 'findUnique', 'count', 'aggregate', 'group
 
 /** `file` is relative to src; `snippet` must appear inside the call; `why` is the review note. */
 const ALLOWED: Array<{ file: string; snippet: string; why: string }> = [
-  { file: 'modules/debts/debts.service.ts', snippet: 'where: { id: walletId }', why: 'Updates a wallet that an earlier lookup in the same function already limited to the same scope as the debt (personal or family)' },
-  { file: 'modules/debts/debts.service.ts', snippet: 'where: { id: transactionId }', why: "Reads the payment row of one of the debt's own payments (never another space's row)" },
-  { file: 'modules/debts/debts.service.ts', snippet: 'principalTransactionId', why: "The debt's own first transaction, found by the id the debt stored" },
-  { file: 'modules/debts/debts.service.ts', snippet: 'principal.walletId', why: 'The wallet of that principal transaction, which was created in the same scope as the debt (personal or family)' },
   { file: 'modules/debts/debts.service.ts', snippet: "{ where, orderBy: { date: 'desc' }, skip", why: 'The filter variable is built from clientId and debtId a few lines above (debt rows only)' },
   { file: 'modules/debts/debts.service.ts', snippet: '{ where }', why: 'Count over that same debt-only filter' },
   { file: 'modules/scheduled/scheduled.service.ts', snippet: 'select: { currency: true }', why: 'Reads the currency of the wallet the schedule already holds (checked as personal when the schedule was saved)' },

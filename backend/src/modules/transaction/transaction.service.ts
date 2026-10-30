@@ -342,7 +342,6 @@ export class TransactionService {
   async update(scope: Scope, id: string, dto: Partial<CreateTransactionDto>) {
     const existing = await this.assertInScope(scope, id);
     assertCanEditTransaction(scope, existing.clientId);
-    if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
     if (existing.fundedByDebtId || dto.fundedByDebtId) throw new BadRequestException('This was paid from borrowed money — delete it and add it again to change it.');
     if (existing.type === 'TRANSFER' || (dto.type as string) === 'TRANSFER') {
       throw new BadRequestException('Transfers cannot be edited. Delete it and make a new transfer.');
@@ -416,7 +415,6 @@ export class TransactionService {
     const existing = await this.assertInScope(scope, id);
     assertCanEditTransaction(scope, existing.clientId);
 
-    if (existing.type === 'DEBT' || existing.debtId) throw new BadRequestException('This was recorded by Debts & loans — change it there.');
     let trashId = '';
     if (existing.type === 'TRANSFER') {
       // Undo both sides: money goes back to the source, leaves the destination.
@@ -438,6 +436,11 @@ export class TransactionService {
       trashId = await this.keepInTrash(prx, scope, existing);
       await prx.transaction.delete({ where: { id } });
       await recordActivity(prx, scope, { kind: 'transaction.deleted', entity: 'transaction', entityId: id, title: existing.title, amount: Number(existing.amount) });
+      // A loan or debt that pointed at this transaction keeps its own record; it just no longer points here.
+      if (existing.debtId) {
+        await prx.debtPayment.updateMany({ where: { transactionId: id }, data: { transactionId: null } });
+        await prx.debt.updateMany({ where: { principalTransactionId: id }, data: { principalTransactionId: null } });
+      }
       if (existing.fundedByDebtId) {
         await prx.debt.updateMany({ where: { id: existing.fundedByDebtId }, data: { spent: { decrement: existing.amount } } });
       }

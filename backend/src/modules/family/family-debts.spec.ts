@@ -61,15 +61,41 @@ describe('Family debts', () => {
     expect(((await svc.transactionsOf(owner, d.id)) as any)).toHaveLength(2);
   });
 
-  test('paying off a family debt closes it and tells the managers; removing it takes its rows away', async () => {
-    const { svc, owner, w, fam } = await setup();
+  test('paying off a family debt closes it and tells the managers', async () => {
+    const { svc, owner, w } = await setup();
     const d: any = await svc.create(owner, { kind: 'BORROWED', person: 'Bank', amount: 1000, currency: 'RWF' } as any);
     w.notified.length = 0;
     const done: any = await svc.addPayment(owner, d.id, { amount: 1000 } as any);
     expect(done.status).toBe('SETTLED');
     expect(w.notified.some(n => n[0] === 'aline' && String(n[1]).includes('settled'))).toBe(true);
+  });
+
+  test('deleting a debt, or one of its payments, leaves the transactions and the wallet exactly as they are', async () => {
+    const { svc, owner, home, bal, w } = await setup();
+    const d: any = await svc.create(owner, { kind: 'LENT', person: 'Neighbour', amount: 20000, currency: 'RWF', walletId: home.id } as any);
+    await svc.addPayment(owner, d.id, { amount: 5000, walletId: home.id } as any);
+    const before = [bal(home.id), w.db.tables.transaction.length];
+    const paid: any = await svc.findOne(owner, d.id);
+    await svc.removePayment(owner, d.id, paid.payments[0].id);
+    expect([bal(home.id), w.db.tables.transaction.length]).toEqual(before);
     await svc.remove(owner, d.id);
     expect(w.db.tables.debt).toHaveLength(0);
-    expect(w.db.tables.transaction.filter(t => t.familyId === fam.id && t.debtId)).toHaveLength(0);
+    expect([bal(home.id), w.db.tables.transaction.length]).toEqual(before);
+    expect(w.db.tables.transaction.every(t => t.debtId === null)).toBe(true);
+  });
+
+  test('deleting the transaction of a debt does not stop, and does not change, the debt', async () => {
+    const { svc, owner, home, bal, w } = await setup();
+    const d: any = await svc.create(owner, { kind: 'LENT', person: 'Neighbour', amount: 20000, currency: 'RWF', walletId: home.id } as any);
+    await svc.addPayment(owner, d.id, { amount: 5000, walletId: home.id } as any);
+    const payment = w.db.tables.transaction.find(t => t.debtRole === 'REPAY_IN')!;
+    await w.transactions.remove(owner, payment.id);
+    expect(bal(home.id)).toBe(80000);                       // that income came out of the wallet again
+    const after: any = await svc.findOne(owner, d.id);
+    expect([after.paid, after.remaining, after.status]).toEqual([5000, 15000, 'OPEN']);
+    expect(w.db.tables.debtPayment[0].transactionId).toBeNull();
+    const principal = w.db.tables.transaction.find(t => t.debtRole === 'LEND_OUT')!;
+    await w.transactions.remove(owner, principal.id);       // the original loan row can go too
+    expect(((await svc.findOne(owner, d.id)) as any).amount).toBe(20000);
   });
 });

@@ -23,8 +23,13 @@ import { RequestWithITAdmin } from '../../common/interfaces/it-admin.interface';
 // strategy, summary, rolled-back-by). This schema has no generic cross-entity audit log table
 // (ActivityEvent is Client-scoped with a real FK to Client, which an ITAdmin id can't satisfy),
 // so export — a read-only action — is just logged, not persisted.
+// Deliberately NOT under /it-support/* — that's the frontend portal's own page-routing prefix
+// (/it-support/login, /it-support/data-export as a page). A dev-server proxy rule for /it-support
+// would intercept the browser's GET for those page URLs and forward them here, 404ing on a page
+// load/refresh. Keeping the API prefix disjoint from the frontend's route prefix avoids that
+// entirely, same reasoning as /it-support-auth already (correctly) uses.
 @UseGuards(ITAdminJwtAuthGuard)
-@Controller('it-support/data-export')
+@Controller('it-support-api/data-export')
 export class DataExportController {
   private readonly logger = new Logger(DataExportController.name);
 

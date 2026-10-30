@@ -160,18 +160,6 @@ export class DebtsService {
     return tx.id;
   }
 
-  /** Undo a debt transaction's effect on its wallet and delete it. */
-  private async unmove(prx: Tx, transactionId: string) {
-    const tx = await prx.transaction.findUnique({ where: { id: transactionId } });
-    if (!tx) return;
-    const into = tx.type === 'INCOME' || (tx.type === 'DEBT' && !!tx.toWalletId);
-    const walletId = tx.walletId ?? tx.toWalletId;
-    if (walletId) {
-      await prx.wallet.updateMany({ where: { id: walletId }, data: { balance: into ? { decrement: tx.amount } : { increment: tx.amount } } });
-    }
-    await prx.transaction.delete({ where: { id: transactionId } });
-  }
-
   /** Re-derive paid + status from the payments that really exist (no running subtraction). */
   private async recompute(prx: Tx, debtId: string) {
     const d = await prx.debt.findUniqueOrThrow({ where: { id: debtId } });
@@ -349,7 +337,7 @@ export class DebtsService {
     const scope = scopeOf(who);
     const k = this.kindOf(kind);
     const take = Math.min(Math.max(limit, 1), 100);
-    const where: Prisma.TransactionWhereInput = { ...scopeWhere(scope), debtRole: { in: rolesOf(k) } };
+    const where: Prisma.TransactionWhereInput = { ...scopeWhere(scope), debtRole: { in: rolesOf(k) }, debtId: { not: null } };
     const [rows, total] = await Promise.all([
       this.prisma.transaction.findMany({ where, orderBy: { date: 'desc' }, skip: (Math.max(page, 1) - 1) * take, take }),
       this.prisma.transaction.count({ where }),
@@ -469,21 +457,7 @@ export class DebtsService {
         if (!same) await prx.debtInstallment.create({ data: { debtId: id, dueAt: planStartRow.at, plannedAmount: planStartRow.planned } });
         else if (same.status === 'PENDING' && same.plannedAmount == null) await prx.debtInstallment.update({ where: { id: same.id }, data: { plannedAmount: planStartRow.planned } });
       }
-      // Changing the amount also corrects the original cash movement, so debt and wallet never drift.
-      if (amount !== undefined && amount !== oldAmount && d.principalTransactionId) {
-        const principal = await prx.transaction.findUnique({ where: { id: d.principalTransactionId } });
-        if (principal) {
-          const delta = round2(amount - oldAmount);
-          await prx.transaction.update({ where: { id: principal.id }, data: { amount } });
-          if (principal.walletId) {
-            const into = directionFor(d.kind, 'principal') === 'in';
-            await prx.wallet.updateMany({
-              where: { id: principal.walletId },
-              data: { balance: into ? { increment: delta } : { decrement: delta } },
-            });
-          }
-        }
-      }
+      // Changing the amount changes the debt only. The transaction that recorded it is a record of its own and stays as it is.
       // A due date sent here only seeds the first pay date; later dates are added, moved or skipped one by one.
       if (dto.dueDate && !(await prx.debtInstallment.count({ where: { debtId: id, status: 'PENDING' } }))) {
         await prx.debtInstallment.create({ data: { debtId: id, dueAt: new Date(dto.dueDate), plannedAmount: null } });
@@ -555,7 +529,8 @@ export class DebtsService {
     const p = d.payments.find(x => x.id === paymentId);
     if (!p) throw new NotFoundException('Payment not found');
     await this.prisma.$transaction(async prx => {
-      if (p.transactionId) await this.unmove(prx, p.transactionId);
+      // Removing the payment record leaves the transaction (and the wallet) alone; it just stops pointing at this debt.
+      if (p.transactionId) await prx.transaction.updateMany({ where: { id: p.transactionId, ...scopeWhere(scope) }, data: { debtId: null } });
       await prx.debtPayment.delete({ where: { id: p.id } });
       await this.recompute(prx, d.id);
     });
@@ -679,8 +654,8 @@ export class DebtsService {
     assertScopeCan(scope, 'debt.manage');
     const gone = await this.owned(scope, id);
     await this.prisma.$transaction(async prx => {
-      const txns = await prx.transaction.findMany({ where: { ...scopeWhere(scope), debtId: id }, select: { id: true } });
-      for (const t of txns) await this.unmove(prx, t.id);
+      // Deleting a debt leaves its transactions and the wallets as they are; they just stop pointing at it.
+      await prx.transaction.updateMany({ where: { ...scopeWhere(scope), debtId: id }, data: { debtId: null } });
       await prx.debt.delete({ where: { id } });
     });
     await this.log(scope, 'debt.deleted', gone, Number(gone.amount));
