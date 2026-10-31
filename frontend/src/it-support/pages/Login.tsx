@@ -34,7 +34,7 @@ export default function Login() {
             <DatabaseBackup size={22} />
           </span>
           <h1 className="font-display text-[19px] font-bold text-fg">IT Support Portal</h1>
-          <p className="mt-1 text-[12.5px] text-fg-3">AbyExpense data export &amp; restore</p>
+          <p className="mt-1 text-[12.5px] text-fg-3">AbyEx data export &amp; restore</p>
         </div>
 
         <label className="mb-3 block">

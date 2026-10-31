@@ -1,5 +1,5 @@
-// Makes the AbyExpense logo files from the artwork in scripts/brand/aby-source.png (drawn in a real browser, no image library):
-//   public/images/logo/aby-logo.png       the whole logo (mark + "AbyExpense"), trimmed, on pure white
+// Makes the AbyEx logo files from the artwork in scripts/brand/aby-source.png (drawn in a real browser, no image library):
+//   public/images/logo/aby-logo.png       the whole logo (mark + "AbyEx"), trimmed, on pure white
 //   public/images/logo/aby-icon.png       just the mark, square, on pure white (favicon, app icon, notification icon)
 //   public/images/logo/aby-mark-mono.png  the mark as a white shape on transparent (the small notification-bar badge)
 // The rabbit files next to them are never touched. Run:  node scripts/make-brand.mjs

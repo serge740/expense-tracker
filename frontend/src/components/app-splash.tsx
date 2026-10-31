@@ -15,12 +15,12 @@ export function AppSplash({ onComplete }: { onComplete: () => void }) {
     return () => clearTimeout(t);
   }, [onComplete]);
 
-  // The AbyExpense logo comes in on plain white; the rabbit splash below is kept for going back (see brand.ts).
+  // The AbyEx logo comes in on plain white; the rabbit splash below is kept for going back (see brand.ts).
   if (LOGO_SET === 'aby') {
     return (
       <View pointerEvents="none" style={[s.root, { backgroundColor: '#FFFFFF', animation: 'splash-out 480ms cubic-bezier(0.55, 0, 1, 0.45) 1900ms both' }]}>
         <View style={{ animation: 'splash-logo 600ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both' }}>
-          <Image source={LOGO_FULL} style={{ width: 260, height: 177 }} resizeMode="contain" accessibilityLabel="AbyExpense" />
+          <Image source={LOGO_FULL} style={{ width: 260, height: 177 }} resizeMode="contain" accessibilityLabel="AbyEx" />
         </View>
       </View>
     );

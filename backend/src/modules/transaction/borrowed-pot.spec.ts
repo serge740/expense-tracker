@@ -44,12 +44,13 @@ describe('spending borrowed money (a debt\'s pot)', () => {
     await expect(service().createInTx(fake(null).prx, 'c1', dto())).rejects.toThrow(BadRequestException);
   });
 
-  it('cannot be edited, and deleting it gives the money back to the pot', async () => {
+  it('cannot be moved to another loan or a wallet, and deleting it gives the money back to the pot', async () => {
     const existing = { id: 't1', clientId: 'c1', type: 'EXPENSE', amount: 20000, walletId: null, debtId: null, fundedByDebtId: 'd1' };
     const { prx, calls } = fake(debt());
     const svc: any = new TransactionService({ $transaction: (fn: any) => fn(prx) } as any, { notify: () => {} } as any);
     svc.assertInScope = async () => existing;
-    await expect(svc.update(personalScope('c1'), 't1', { title: 'x' })).rejects.toThrow(BadRequestException);
+    await expect(svc.update(personalScope('c1'), 't1', { fundedByDebtId: 'd2' })).rejects.toThrow(BadRequestException);
+    await expect(svc.update(personalScope('c1'), 't1', { walletId: 'w1' })).rejects.toThrow(BadRequestException);
     await svc.remove(personalScope('c1'), 't1');
     expect(calls.debtUpdates[0].data).toEqual({ spent: { decrement: 20000 } });
   });

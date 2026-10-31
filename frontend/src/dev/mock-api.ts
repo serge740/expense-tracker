@@ -193,7 +193,7 @@ function respond(method: string, url: string, params: Record<string, any> = {}, 
   }
   if (path === '/transactions/export' && m === 'get') return { csv: 'Date,Type,Title\r\n2026-10-01,EXPENSE,Lunch\r\n', count: 1, truncated: false };
   if (path === '/activity' && m === 'get') return activityAnswer(params, iso);
-  { const tools = toolsAnswer(m, path, body, () => personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many'))); if (tools !== undefined) return tools; }
+  { const tools = toolsAnswer(m, path, body, () => personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many')), wallets as any); if (tools !== undefined) return tools; }
   if (path.startsWith('/transactions/views')) return viewsAnswer(m, path, body);
   if (path === '/transactions/bulk' || path.startsWith('/transactions/trash') || (m === 'delete' && /^\/transactions\/[^/]+$/.test(path))) return trashAnswer(m, path, body, personalFeedRows(transactions, wallets as any, iso, new URLSearchParams(location.search).has('many')));
   if (m !== 'get') {

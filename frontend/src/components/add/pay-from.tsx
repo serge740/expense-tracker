@@ -21,6 +21,10 @@ interface Props {
   loanId: string | null;
   onWallet: (id: string | null) => void;
   onLoan: (id: string) => void;
+  /** Offer "no wallet" as a choice even when there are wallets (editing a transaction that has none). */
+  allowNone?: boolean;
+  /** What to show before anything is chosen (the Add form makes the person choose). */
+  placeholder?: string;
 }
 
 const walletSub = (w: Wallet) => `${w.currency}${w.last4 ? ` · •• ${w.last4}` : ''}`;
@@ -29,7 +33,7 @@ const walletSub = (w: Wallet) => `${w.currency}${w.last4 ? ` · •• ${w.last4
  * One field for "where does the money come from": it shows the choice, and tapping it opens a bottom sheet with
  * the person's wallets and (for an expense) the loans they can spend borrowed money from.
  */
-export function PayFromField({ wallets, loans, walletId, loanId, onWallet, onLoan }: Props) {
+export function PayFromField({ wallets, loans, walletId, loanId, onWallet, onLoan, allowNone, placeholder }: Props) {
   const theme = useAppTheme();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -48,7 +52,7 @@ export function PayFromField({ wallets, loans, walletId, loanId, onWallet, onLoa
     ? { tile: loanTile, title: loan.person, sub: left(loan) }
     : wallet
       ? { tile: walletTile(wallet), title: wallet.name, sub: walletSub(wallet) }
-      : { tile: <Tile icon="block" color={theme.textMuted} bg={theme.inputBg} />, title: t('add.noWallet'), sub: undefined };
+      : { tile: <Tile icon="block" color={theme.textMuted} bg={theme.inputBg} />, title: placeholder && wallets.length > 0 ? placeholder : t('add.noWallet'), sub: undefined, empty: !!placeholder && wallets.length > 0 };
 
   return (
     <>
@@ -56,7 +60,7 @@ export function PayFromField({ wallets, loans, walletId, loanId, onWallet, onLoa
                         style={[s.field, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
         {shown.tile}
         <View style={{ flex: 1 }}>
-          <Text style={[s.value, { color: theme.text }]} numberOfLines={1}>{shown.title}</Text>
+          <Text testID="pay-from-value" style={[s.value, { color: (shown as { empty?: boolean }).empty ? theme.textMuted : theme.text }]} numberOfLines={1}>{shown.title}</Text>
           {shown.sub ? <Text style={[s.sub, { color: theme.textSecondary }]} numberOfLines={1}>{shown.sub}</Text> : null}
         </View>
         <MaterialIcons name="expand-more" size={22} color={theme.textMuted} />
@@ -64,8 +68,8 @@ export function PayFromField({ wallets, loans, walletId, loanId, onWallet, onLoa
 
       <OptionSheet visible={open} title={t(loans.length ? 'paysrc.title' : 'add.wallet')} onClose={() => setOpen(false)}>
         <SectionLabel text={t('paysrc.wallets')} />
-        {wallets.length === 0 && (
-          <OptionRow tile={<Tile icon="block" color={theme.textMuted} bg={theme.inputBg} />} title={t('add.noWallet')} selected={!loan}
+        {(wallets.length === 0 || allowNone) && (
+          <OptionRow tile={<Tile icon="block" color={theme.textMuted} bg={theme.inputBg} />} title={t('add.noWallet')} selected={!loan && !walletId}
                      onPress={() => { onWallet(null); setOpen(false); }} />
         )}
         {wallets.map(w => (

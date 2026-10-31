@@ -129,7 +129,8 @@ export default function AddTransactionScreen() {
       setReceiptReportUrl(params.receiptReportUrl || null);
       setReceiptMime(null);
       setReceiptName(null);
-      const pre = usable.find(w => w.id === params.walletId) ?? (params.currency ? usable.find(w => w.currency === params.currency && w.isDefault) ?? usable.find(w => w.currency === params.currency) : undefined) ?? usable.find(w => w.isDefault) ?? usable[0];
+      // The person chooses the wallet. Only one a link asked for (a wallet's own Add button) is filled in.
+      const pre = usable.find(w => w.id === params.walletId);
       setWalletId(pre?.id ?? null);
     }).catch(() => { setWalletsReady(true); });
   }, [reloadMine, inFamily, params.time, params.currency, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl, params.subCategory, params.repeat]));
@@ -245,6 +246,7 @@ export default function AddTransactionScreen() {
     const value = parseFloat(amount.replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) return Alert.alert(t('add.amount'), t('add.errAmount'));
     if (inFamily && !scheduled && date.getTime() > Date.now() + 5 * 60_000) return Alert.alert(t('add.date'), t('family.add.noFuture'));
+    if (wallets.length > 0 && !walletId && !potId) return Alert.alert(t('add.wallet'), t('add.errWallet'));
 
     if (scheduled) {
       if (scheduleStartError(date, rule)) return Alert.alert(t('sched.repeat'), t('sched.errPast'));
@@ -381,16 +383,16 @@ export default function AddTransactionScreen() {
           </TouchableOpacity>
           {/* Description */}
           <Label text={t('add.description')} />
-          <View style={[s.input, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
-            <MaterialIcons name="notes" size={16} color={theme.textMuted} />
-            <TextInput value={description} onChangeText={setDescription} placeholder={t('add.descriptionPh')}
-                       placeholderTextColor={theme.textMuted} style={[s.inputText, { color: theme.text, flex: 1 }]} />
+          <View style={[s.input, { backgroundColor: theme.inputBg, borderColor: theme.border, alignItems: 'flex-start', minHeight: 96, paddingTop: 12 }]}>
+            <MaterialIcons name="notes" size={16} color={theme.textMuted} style={{ marginTop: 2 }} />
+            <TextInput testID="add-description" value={description} onChangeText={setDescription} placeholder={t('add.descriptionPh')} multiline maxLength={200}
+                       placeholderTextColor={theme.textMuted} style={[s.inputText, { color: theme.text, flex: 1, minHeight: 72, textAlignVertical: 'top' as any }]} />
           </View>
 
           {/* Wallet: one field; its sheet lists the wallets and, for an expense, the loans to spend borrowed money from */}
           <Label text={t('add.wallet')} />
           <PayFromField wallets={wallets} loans={kind === 'EXPENSE' && !scheduled && !inFamily ? pots : []} walletId={walletId} loanId={potId}
-                        onWallet={id => { setPotId(null); setWalletId(id); }} onLoan={id => setPotId(id)} />
+                        onWallet={id => { setPotId(null); setWalletId(id); }} onLoan={id => setPotId(id)} placeholder={t('add.chooseWallet')} />
           {params.currency && wallet && wallet.currency !== params.currency ? <FamilyNote tone="warn" testID="receipt-currency-warning" text={t('scan.currencyMismatch', { receipt: params.currency, wallet: wallet.currency })} /> : null}
           {inFamily && walletsReady && wallets.length === 0 ? <FamilyNote tone="warn" testID="family-no-wallet" text={t('family.add.noWallet')} /> : null}
 

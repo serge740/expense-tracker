@@ -72,7 +72,13 @@ export interface CreateTransactionDto {
   receiptUrl?: string;
   receiptReportUrl?: string;
   fundedByDebtId?: string;
+  /** Tags (a list or comma separated) and a private note. */
+  tags?: string[] | string;
+  note?: string;
 }
+
+/** What an edit may send: any of the fields, a wallet of null (take it off its wallet), and the version that was on screen. */
+export type UpdateTransactionDto = Partial<Omit<CreateTransactionDto, 'walletId'>> & { walletId?: string | null; expectedUpdatedAt?: string };
 
 export const getTransactions = (params?: Record<string, any>): Promise<PaginatedTransactions> =>
   api.get('/transactions', { params }).then(r => r.data);
@@ -89,8 +95,12 @@ export const getTransactionHistory = (params?: Record<string, any>): Promise<Tra
 export const createTransaction = (data: CreateTransactionDto): Promise<Transaction> =>
   api.post('/transactions', data).then(r => r.data);
 
-export const updateTransaction = (id: string, data: Partial<CreateTransactionDto>): Promise<Transaction> =>
+export const updateTransaction = (id: string, data: UpdateTransactionDto): Promise<Transaction> =>
   api.patch(`/transactions/${id}`, data).then(r => r.data);
+
+/** One transaction with everything the edit sheet needs (its wallet, tags, note, version and what may be edited). */
+export const getTransaction = (id: string): Promise<import('@/components/transaction/edit-transaction-sheet').EditableTx> =>
+  api.get(`/transactions/${id}`).then(r => r.data);
 
 export const deleteTransaction = (id: string): Promise<{ success: boolean; trashId?: string }> =>
   api.delete(`/transactions/${id}`).then(r => r.data);

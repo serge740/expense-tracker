@@ -53,7 +53,7 @@ export class FamilyInvitesService {
     private readonly families: FamilyService,
   ) {}
 
-  private baseUrl() { return (process.env.PUBLIC_APP_URL || process.env.APP_URL || 'https://aby-expense.onrender.com').replace(/\/$/, ''); }
+  private baseUrl() { return (process.env.PUBLIC_APP_URL || process.env.APP_URL || 'https://aby-ex.onrender.com').replace(/\/$/, ''); }
 
   async create(actorId: string, familyId: string, input: CreateInviteInput) {
     const m = await this.access.requireMember(actorId, familyId);

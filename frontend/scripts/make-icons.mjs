@@ -3,7 +3,7 @@
 //   public/icons/icon-512-maskable.png               a full square background + the logo inside the safe zone (round / squircle masks)
 //   public/icons/apple-touch-icon.png                180x180 for iPhone and iPad home screens
 //   public/icons/badge-96.png                        the small one-colour icon shown in the notification bar
-// Run:  node scripts/make-icons.mjs            the AbyExpense logo (white background), made by make-brand.mjs
+// Run:  node scripts/make-icons.mjs            the AbyEx logo (white background), made by make-brand.mjs
 //       node scripts/make-icons.mjs --brand rabbit   the old rabbit set (teal background), to go back
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

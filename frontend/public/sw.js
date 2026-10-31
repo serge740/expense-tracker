@@ -1,4 +1,4 @@
-// AbyExpense service worker. It only handles notifications: it shows a push when one arrives (even if the
+// AbyEx service worker. It only handles notifications: it shows a push when one arrives (even if the
 // app is closed) and routes the click. It never caches app files, so an update to the app is always seen at once.
 
 self.addEventListener('install', () => {
@@ -14,7 +14,7 @@ function readPayload(event) {
   try {
     return event.data.json();
   } catch {
-    return { title: 'AbyExpense', body: event.data.text() };
+    return { title: 'AbyEx', body: event.data.text() };
   }
 }
 
@@ -22,7 +22,7 @@ self.addEventListener('push', (event) => {
   const p = readPayload(event);
   event.waitUntil(
     (async () => {
-      await self.registration.showNotification(p.title || 'AbyExpense', {
+      await self.registration.showNotification(p.title || 'AbyEx', {
         body: p.body || '',
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-96.png',

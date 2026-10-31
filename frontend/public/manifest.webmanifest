@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "AbyExpense",
-  "short_name": "AbyExpense",
+  "name": "AbyEx",
+  "short_name": "AbyEx",
   "description": "Track expenses, wallets, debts and budgets, with reminders that find you.",
   "start_url": "/app",
   "scope": "/",

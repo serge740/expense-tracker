@@ -233,6 +233,8 @@ export class FamilyFakePrisma {
   familyAllowance = this.model('familyAllowance');
   familyApproval = this.model('familyApproval');
   reminder = this.model('reminder');
+  /** The sub-category memory is not what these tests are about: it accepts and forgets. */
+  userSubCategory = { upsert: async () => ({}) };
   debt = this.model('debt');
   debtPayment = this.model('debtPayment');
   debtInstallment = this.model('debtInstallment');

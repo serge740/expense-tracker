@@ -206,7 +206,7 @@ export default function DataExportPage() {
       const data = await dataExportService.importPreview(f, strategy);
       setPreview(data); setPreviewStrategy(strategy);
     } catch (err: any) {
-      setPreviewError(err.response?.data?.message || 'Could not read file. Make sure it is a valid AbyExpense self-backup.');
+      setPreviewError(err.response?.data?.message || 'Could not read file. Make sure it is a valid AbyEx self-backup.');
     } finally {
       setPreviewLoading(false);
     }
@@ -528,7 +528,7 @@ export default function DataExportPage() {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-[24px] font-bold text-fg">Data Export &amp; Import</h1>
-          <p className="mt-1 text-[13px] text-fg-3">Self-backup AbyExpense's own data — accounts, finances, debts, family portal and more.</p>
+          <p className="mt-1 text-[13px] text-fg-3">Self-backup AbyEx's own data — accounts, finances, debts, family portal and more.</p>
         </div>
         <div className="flex rounded-xl border border-border bg-panel-2 p-1">
           <button type="button" onClick={() => setTab('export')} className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12.5px] font-bold transition ${tab === 'export' ? 'bg-panel text-fg shadow-sm' : 'text-fg-4 hover:text-fg'}`}>

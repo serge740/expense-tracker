@@ -289,7 +289,7 @@ function sheetHtml(){
     ${['MEMBER','VIEWER','ADMIN'].map(r=>{const dis=r==='ADMIN'&&!can('invite.admin');return `<button class="opt ${S.inviteRole===r?'on':''}" data-a="invRole" data-r="${r}" ${dis?'disabled style="opacity:.45;cursor:not-allowed"':''}><div><b>${r}</b>${dis?' <small>(owner only)</small>':''}<br><small style="color:var(--mut)">${{ADMIN:'Manages wallets and invites',MEMBER:'Adds their own transactions',VIEWER:'Looks only'}[r]}</small></div></button>`}).join('')}
     <button class="btn f" data-a="makeInvite">Create invite</button>`
     :`<p class="s">Single-use · expires in 7 days · role ${created.role}</p><div class="code">${created.code}</div>
-    <div class="note" style="word-break:break-all">https://aby-expense.onrender.com/join/${created.token}</div>
+    <div class="note" style="word-break:break-all">https://aby-ex.onrender.com/join/${created.token}</div>
     <button class="btn f" data-a="share">Share (WhatsApp, SMS, copy)</button>`}
     <button class="btn g" data-a="closeSheet">Close</button></div>`;
   }

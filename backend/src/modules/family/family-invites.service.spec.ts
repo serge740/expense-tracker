@@ -21,7 +21,7 @@ describe('creating invites', () => {
     const { w, id } = await setup();
     const inv = await w.invites.create('aline', id, { role: 'MEMBER' });
     expect(inv.code).toMatch(new RegExp(`^[${CODE_ALPHABET}]{6}$`));
-    expect(inv.link).toBe(`https://aby-expense.onrender.com/join/${inv.token}`);
+    expect(inv.link).toBe(`https://aby-ex.onrender.com/join/${inv.token}`);
     const stored = row(w, inv.id);
     expect(stored.tokenHash).toBe(hashToken(inv.token));
     expect(JSON.stringify(stored)).not.toContain(inv.token);

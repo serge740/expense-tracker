@@ -59,7 +59,7 @@ describe('push', () => {
     const { shown, run } = load();
     await run('push', { data: { json: () => { throw new Error('not json'); }, text: () => 'hello' } });
     await run('push', pushEvent(null));
-    expect(shown.map(s => [s.title, s.options.body])).toEqual([['AbyExpense', 'hello'], ['AbyExpense', '']]);
+    expect(shown.map(s => [s.title, s.options.body])).toEqual([['AbyEx', 'hello'], ['AbyEx', '']]);
   });
 
   test('tells every open tab, so its unread count refreshes', async () => {

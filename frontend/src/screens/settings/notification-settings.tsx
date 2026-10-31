@@ -59,7 +59,7 @@ export default function NotificationSettingsScreen() {
     }
     try {
       await scheduleLocalNotification({
-        title: 'AbyExpense',
+        title: 'AbyEx',
         body: seconds > 3
           ? t('notif.testBodyLater', { n: seconds, name: soundLabel })
           : t('notif.testBody', { name: soundLabel }),
@@ -77,7 +77,7 @@ export default function NotificationSettingsScreen() {
 
   const testPush = async () => {
     try {
-      await sendTestPush('Test notification', 'Push notifications from AbyExpense are working.');
+      await sendTestPush('Test notification', 'Push notifications from AbyEx are working.');
       Alert.alert(t('notif.sentTitle'), t('notif.sentMsg'));
     } catch (e: any) {
       Alert.alert(t('common.error'), e?.response?.data?.message || t('common.error'));

@@ -188,6 +188,12 @@ export class TransactionController {
     }
   }
 
+  /** One transaction for the edit sheet (declared after the fixed words above so "feed", "tags"… are never read as an id). */
+  @Get(':id')
+  async one(@ReqScope() scope: Scope, @Param('id') id: string) {
+    try { return await this.transactionService.findOne(scope, id); } catch (e: any) { throw bad(e, 'Not found'); }
+  }
+
   @Post()
   async create(@ReqScope() scope: Scope, @Body() dto: CreateTransactionDto) {
     try {
@@ -212,7 +218,7 @@ export class TransactionController {
   async update(
     @ReqScope() scope: Scope,
     @Param('id') id: string,
-    @Body() dto: Partial<CreateTransactionDto>,
+    @Body() dto: Partial<CreateTransactionDto> & { expectedUpdatedAt?: string },
   ) {
     try {
       return await this.transactionService.update(scope, id, dto);

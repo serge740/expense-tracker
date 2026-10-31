@@ -11,10 +11,48 @@ const walletTag = (w?: Wallet) => (w ? { name: w.name, color: w.color, currency:
 /** Tags and notes the person set during this session (the sample data starts with one tag). */
 export const annotations: Record<string, { tags: string[]; note: string | null }> = { t4: { tags: ['trip'], note: null } };
 const dupKept = new Set<string>();
+/** Edits made during this session, laid over the sample rows. */
+const edits: Record<string, Partial<FeedRow> & { updatedAt: string }> = {};
+const FIXED_WORDS = new Set(['feed', 'summary', 'facets', 'groups', 'suggest', 'statement', 'export', 'tags', 'duplicates', 'trash', 'views', 'bulk', 'recent', 'history']);
 
 /** Annotations, the tag list, the duplicate groups and the export file, as the server answers them. */
-export function toolsAnswer(method: string, path: string, body: any, rows: () => FeedRow[]): unknown | undefined {
+export function toolsAnswer(method: string, path: string, body: any, rows: () => FeedRow[], wallets: Array<{ id: string; name: string; color: string; currency: string; archived?: boolean }> = []): unknown | undefined {
   if (!path.startsWith('/transactions/')) return undefined;
+  // One transaction for the edit sheet, and saving an edit.
+  const one = path.match(/^\/transactions\/([^/]+)$/);
+  if (one && !FIXED_WORDS.has(one[1]) && (method === 'get' || method === 'patch')) {
+    const row = rows().find(r => r.id === one[1]);
+    if (!row) return { __error: { status: 404, data: { message: 'Not found' } } };
+    if (method === 'patch') {
+      if (body.expectedUpdatedAt && edits[row.id] && body.expectedUpdatedAt !== edits[row.id].updatedAt) return { __error: { status: 409, data: { message: 'changed' } } };
+      const type = body.type ?? row.type;
+      const abs = body.amount !== undefined ? Math.abs(Number(body.amount)) : Math.abs(row.amount);
+      if (!(abs > 0)) return { __error: { status: 400, data: { message: 'Enter an amount greater than zero' } } };
+      const walletId = body.walletId !== undefined ? body.walletId || null : row.walletId;
+      const w = wallets.find(x => x.id === walletId);
+      edits[row.id] = {
+        ...(edits[row.id] ?? {}),
+        type, amount: type === 'INCOME' ? abs : -abs,
+        ...(body.category !== undefined ? { category: body.category, subCategory: body.subCategory || null } : {}),
+        ...(body.title !== undefined ? { title: body.title, description: body.description ?? body.title } : {}),
+        ...(body.date !== undefined ? { date: body.date } : {}),
+        walletId, wallet: w ? { name: w.name, color: w.color, currency: w.currency, archived: !!w.archived } : null, currency: w?.currency ?? null,
+        updatedAt: new Date(Date.now() + (Object.keys(edits).length + 1)).toISOString(),
+      };
+      if (body.tags !== undefined || body.note !== undefined) {
+        const cur = annotations[row.id] ?? { tags: [], note: null };
+        annotations[row.id] = { tags: body.tags !== undefined ? [...new Set<string>((body.tags as string[]).map(x => String(x).trim()).filter(Boolean))] : cur.tags, note: body.note !== undefined ? (String(body.note).trim() || null) : cur.note };
+      }
+    }
+    const now = rows().find(r => r.id === one[1])!;
+    const w = wallets.find(x => x.id === now.walletId);
+    return {
+      ...now, tags: annotations[now.id]?.tags ?? [], note: annotations[now.id]?.note ?? null,
+      updatedAt: edits[now.id]?.updatedAt ?? '2026-10-01T00:00:00.000Z', fundedByDebtId: null,
+      wallet: w ? { name: w.name, currency: w.currency, archived: !!w.archived } : null,
+      edit: { allowed: now.type === 'INCOME' || now.type === 'EXPENSE', typeLocked: !!now.debtRole, categoryLocked: !!now.debtRole, walletLocked: false },
+    };
+  }
   if (path === '/transactions/tags') {
     const counts = new Map<string, number>();
     for (const a of Object.values(annotations)) for (const t of a.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
@@ -75,7 +113,7 @@ export function personalFeedRows(transactions: BaseTx[], wallets: Wallet[], iso:
   const filler: FeedRow[] = many
     ? Array.from({ length: 150 }, (_, i) => row({ id: `f${i}`, type: 'EXPENSE', category: ['food', 'transport', 'bills', 'shopping'][i % 4], title: `Sample purchase ${i + 1}`, subCategory: null, description: null, amount: -(1000 + i * 37), date: iso(-14 - Math.floor(i / 3), 8 + (i % 10)), walletId: i % 2 ? 'w2' : 'w1', receiptUrl: null, receiptReportUrl: null, debtId: null, debtRole: null }))
     : [];
-  return [...base, ...extras, ...filler].map(r => ({ ...r, tags: annotations[r.id]?.tags ?? [], note: annotations[r.id]?.note ?? null })).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
+  return [...base, ...extras, ...filler].map(r => ({ ...r, ...(edits[r.id] ?? {}), tags: annotations[r.id]?.tags ?? [], note: annotations[r.id]?.note ?? null })).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1));
 }
 
 const KIND: Record<string, (r: FeedRow) => boolean> = {

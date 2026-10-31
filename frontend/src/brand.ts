@@ -1,5 +1,5 @@
 /**
- * Which logo the web app shows. 'aby' is the AbyExpense logo (white background); 'rabbit' is the original rabbit,
+ * Which logo the web app shows. 'aby' is the AbyEx logo (white background); 'rabbit' is the original rabbit,
  * whose files are all still in public/images/logo. To go back: set BRAND to 'rabbit', run
  * `node scripts/make-icons.mjs --brand rabbit`, and point the favicon in index.html and the manifest's background_color back.
  */

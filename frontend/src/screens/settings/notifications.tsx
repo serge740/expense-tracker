@@ -127,7 +127,7 @@ export default function NotificationsScreen() {
 
   const handleTestPush = async () => {
     try {
-      await sendTestPush('Test Notification', 'This is a test push notification from AbyExpense.');
+      await sendTestPush('Test Notification', 'This is a test push notification from AbyEx.');
       Alert.alert('Sent', 'A test push notification has been sent to your devices.');
     } catch (e: any) {
       Alert.alert('Error', e?.response?.data?.message || 'Could not send test notification.');

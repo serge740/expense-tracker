@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Period, dateFilter } from '../../common/utils/period';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
@@ -13,13 +13,10 @@ import { Scope, assertCanEditTransaction, assertScopeCan, isFamily, personalScop
 import { displayName } from '../family/family.service';
 import { diffFields, recordActivity } from '../activity/activity';
 import { errors } from '../family/family-errors';
-import { cleanNote, cleanTags, packTags } from './annotations';
+import { cleanNote, cleanTags, packTags, unpackTags } from './annotations';
 
 /** Who wrote each row of a family list, and which one is the person asking (so the app can show "you" and know what they may edit). */
 interface Authors { names: Map<string, string>; me: string }
-
-/** The only fields an edit can change. */
-const EDITABLE = ['type', 'category', 'title', 'subCategory', 'description', 'amount', 'date', 'walletId', 'receiptUrl', 'receiptReportUrl'] as const;
 
 /** MySQL can still abort one of several writers that touch the same wallet at the same moment; the right answer is to run it again. */
 export async function retryOnConflict<T>(run: () => Promise<T>, tries = 4): Promise<T> {
@@ -339,67 +336,152 @@ export class TransactionService {
     }
   }
 
-  async update(scope: Scope, id: string, dto: Partial<CreateTransactionDto>) {
+  /** What an edit may send. `expectedUpdatedAt` is the version the person was looking at: if the row has changed since, the edit is refused instead of overwriting. */
+  async update(scope: Scope, id: string, dto: Partial<CreateTransactionDto> & { expectedUpdatedAt?: string }) {
     const existing = await this.assertInScope(scope, id);
     assertCanEditTransaction(scope, existing.clientId);
-    if (existing.fundedByDebtId || dto.fundedByDebtId) throw new BadRequestException('This was paid from borrowed money — delete it and add it again to change it.');
-    if (existing.type === 'TRANSFER' || (dto.type as string) === 'TRANSFER') {
+    if (existing.type === 'TRANSFER' || existing.type === 'DEBT' || (dto.type as string) === 'TRANSFER') {
       throw new BadRequestException('Transfers cannot be edited. Delete it and make a new transfer.');
     }
-    const amount = dto.amount !== undefined ? Math.abs(dto.amount) : undefined;
-    const date = dto.date ? new Date(dto.date) : undefined;
-    // Only these can change. The request body is never spread into the update: it could name clientId, familyId or debtId.
-    const picked: Record<string, unknown> = {};
-    for (const k of EDITABLE) if ((dto as Record<string, unknown>)[k] !== undefined) picked[k] = (dto as Record<string, unknown>)[k];
+    if (dto.fundedByDebtId !== undefined) throw new BadRequestException('Which loan paid for this cannot be changed. Delete it and add it again.');
+    if (dto.expectedUpdatedAt) {
+      const seen = new Date(dto.expectedUpdatedAt);
+      if (!Number.isNaN(seen.getTime()) && seen.getTime() !== existing.updatedAt.getTime()) {
+        throw new ConflictException('This transaction was changed by someone else a moment ago. Open it again to see the new version.');
+      }
+    }
 
-    const updated = await this.prisma.$transaction(async (prx) => {
-      if (dto.walletId && dto.walletId !== existing.walletId) await this.assertWalletInScope(prx, scope, dto.walletId);
-      // Reverse old balance effect
-      if (existing.walletId) {
-        const oldDelta = new Prisma.Decimal(Number(existing.amount));
-        await prx.wallet.update({
-          where: { id: existing.walletId },
-          data: {
-            balance: existing.type === 'INCOME'
-              ? { decrement: oldDelta }
-              : { increment: oldDelta },
-          },
-        });
+    // ── What the person asked for, checked field by field ──
+    const funded = !!existing.fundedByDebtId;           // paid out of a borrowed loan's money: no wallet, always an expense
+    const isLoanRow = !!existing.debtRole;               // recorded for a loan or debt: keeps its kind and its category
+    const data: Prisma.TransactionUncheckedUpdateInput = {};
+
+    let newType = existing.type as TransactionType;
+    if (dto.type !== undefined) {
+      if (dto.type !== 'INCOME' && dto.type !== 'EXPENSE') throw new BadRequestException('Choose expense or income');
+      if (dto.type !== existing.type && (funded || isLoanRow)) throw new BadRequestException(funded ? 'A purchase paid from borrowed money stays an expense.' : 'A loan or debt entry keeps its type.');
+      newType = dto.type;
+      data.type = newType;
+    }
+
+    let newAmount = Number(existing.amount);
+    if (dto.amount !== undefined) {
+      const n = Math.abs(Number(dto.amount));
+      if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Enter an amount greater than zero');
+      if (n > 9_999_999_999) throw new BadRequestException('That amount is too large');
+      newAmount = Math.round(n * 100) / 100;
+      data.amount = newAmount;
+    }
+
+    if (dto.title !== undefined) {
+      const title = String(dto.title ?? '').trim();
+      if (!title) throw new BadRequestException('Enter a description');
+      data.title = title.slice(0, 200);
+    }
+    if (dto.description !== undefined) data.description = dto.description === null ? null : String(dto.description).trim().slice(0, 2000) || null;
+
+    let finalCategory = existing.category as CategorySlug;
+    if (dto.category !== undefined) {
+      const canon = canonicalCategory(String(dto.category));
+      if (!(Object.values(CategorySlug) as string[]).includes(canon.category)) throw new BadRequestException('Choose a category');
+      if (isLoanRow && canon.category !== existing.category) throw new BadRequestException('A loan or debt entry keeps its category.');
+      finalCategory = canon.category as CategorySlug;
+      data.category = finalCategory;
+      // A new category forgets the old sub-category unless one is sent with it.
+      data.subCategory = dto.subCategory !== undefined ? normalizeSubCategory(dto.subCategory) : canon.subCategory ?? (finalCategory === existing.category ? existing.subCategory : null);
+    } else if (dto.subCategory !== undefined) {
+      data.subCategory = normalizeSubCategory(dto.subCategory);
+    }
+
+    let newDate = existing.date;
+    if (dto.date !== undefined && dto.date !== null && dto.date !== '') {
+      const d = new Date(dto.date);
+      if (Number.isNaN(d.getTime())) throw new BadRequestException('Choose a valid date');
+      // The balance moves now, so a future date belongs in a schedule, not here.
+      if (d.getTime() > Date.now() + 5 * 60_000) throw new BadRequestException('Choose a date that is not in the future. Use a schedule for payments that are still to come.');
+      newDate = d;
+      data.date = d;
+    }
+
+    // The wallet: not sent = unchanged, null or "" = take it off the wallet, an id = move it there.
+    const walletSent = dto.walletId !== undefined;
+    const newWalletId: string | null = walletSent ? (dto.walletId || null) : existing.walletId;
+    if (funded && newWalletId) throw new BadRequestException('A purchase paid from borrowed money has no wallet.');
+    if (walletSent) data.walletId = newWalletId;
+
+    if (dto.receiptUrl !== undefined) data.receiptUrl = dto.receiptUrl || null;
+    if (dto.receiptReportUrl !== undefined) data.receiptReportUrl = dto.receiptReportUrl || null;
+    if (dto.tags !== undefined) data.tags = packTags(cleanTags(dto.tags));
+    if (dto.note !== undefined) data.note = cleanNote(dto.note);
+
+    // A member's expense that was small enough to skip approval cannot be edited into one that needs it.
+    if (isFamily(scope) && scope.role === 'MEMBER' && newType === 'EXPENSE' && (newAmount > Number(existing.amount) || existing.type !== 'EXPENSE')) {
+      const fam = await this.prisma.family.findUnique({ where: { id: scope.familyId }, select: { approvalThreshold: true } });
+      if (fam?.approvalThreshold != null && newAmount > Number(fam.approvalThreshold)) {
+        throw new BadRequestException('This amount needs approval from an owner or an admin. Ask one of them to change it, or delete it and send it for approval.');
+      }
+    }
+
+    // Money a wallet gains (+) or loses (-) from this row.
+    const effect = (type: string, amount: number) => (type === 'INCOME' ? amount : -amount);
+    const oldEffect = effect(existing.type, Number(existing.amount));
+    const newEffect = effect(newType, newAmount);
+
+    const updated = await retryOnConflict(() => this.prisma.$transaction(async (prx) => {
+      if (newWalletId && newWalletId !== existing.walletId) {
+        await this.assertWalletInScope(prx, scope, newWalletId);
+        const w = await prx.wallet.findUnique({ where: { id: newWalletId }, select: { archived: true } });
+        if (w?.archived) throw new BadRequestException('That wallet is archived and cannot receive new entries.');
       }
 
-      const data: Prisma.TransactionUncheckedUpdateInput = { ...picked, amount, date } as Prisma.TransactionUncheckedUpdateInput;
-      let finalCategory = existing.category as CategorySlug;
-      if (dto.category !== undefined) {
-        const canon = canonicalCategory(dto.category);
-        finalCategory = canon.category as CategorySlug;
-        data.category = finalCategory;
-        if (dto.subCategory === undefined && canon.subCategory) data.subCategory = canon.subCategory;
+      // One net change per wallet, in id order, so two edits at once can never wait on each other in a circle.
+      const changes = new Map<string, number>();
+      const add = (walletId: string | null, delta: number) => { if (walletId && delta) changes.set(walletId, Math.round(((changes.get(walletId) ?? 0) + delta) * 100) / 100); };
+      add(existing.walletId, -oldEffect);
+      add(newWalletId, newEffect);
+      for (const [walletId, delta] of [...changes.entries()].sort((x, y) => x[0].localeCompare(y[0]))) {
+        if (delta) await prx.wallet.updateMany({ where: { id: walletId }, data: { balance: { increment: new Prisma.Decimal(delta) } } });
       }
-      if (dto.subCategory !== undefined) data.subCategory = normalizeSubCategory(dto.subCategory);
+
+      // Money spent from a loan: the loan's "spent" follows the amount.
+      if (funded && newAmount !== Number(existing.amount)) {
+        const delta = Math.round((newAmount - Number(existing.amount)) * 100) / 100;
+        const debt = await prx.debt.findUnique({ where: { id: existing.fundedByDebtId! } });
+        if (!debt) throw new BadRequestException('The loan this was paid from no longer exists.');
+        const unspent = Number(debt.amount) - Number(debt.spent);
+        if (delta > unspent + 0.001) throw new BadRequestException(`Only ${unspent} ${debt.currency} of that loan is unspent.`);
+        await prx.debt.update({ where: { id: debt.id }, data: { spent: { increment: new Prisma.Decimal(delta) } } });
+      }
+
       const result = await prx.transaction.update({ where: { id }, data });
-      if (typeof data.subCategory === 'string') await rememberSubCategory(prx, scope.clientId, (dto.type ?? existing.type) as TransactionType, finalCategory, data.subCategory);
-
-      // Apply new balance effect
-      const newWalletId = dto.walletId ?? existing.walletId;
-      if (newWalletId) {
-        const newType = dto.type ?? existing.type;
-        const newAmount = new Prisma.Decimal(amount ?? Number(existing.amount));
-        await prx.wallet.update({
-          where: { id: newWalletId },
-          data: {
-            balance: newType === 'INCOME'
-              ? { increment: newAmount }
-              : { decrement: newAmount },
-          },
-        });
+      if (typeof data.subCategory === 'string') await rememberSubCategory(prx, scope.clientId, newType, finalCategory, data.subCategory);
+      const changed = diffFields(existing, result, ['title', 'amount', 'category', 'subCategory', 'description', 'walletId', 'date', 'type']);
+      if (changed.length || dto.tags !== undefined || dto.note !== undefined) {
+        await recordActivity(prx, scope, { kind: 'transaction.edited', entity: 'transaction', entityId: id, title: result.title, amount: Number(result.amount), changes: changed });
       }
-
-      await recordActivity(prx, scope, { kind: 'transaction.edited', entity: 'transaction', entityId: id, title: result.title, amount: Number(result.amount), changes: diffFields(existing, result, ['title', 'amount', 'category', 'subCategory', 'description', 'walletId', 'date']) });
       return result;
-    });
+    }));
+    void newDate;
 
     const authors = await this.authorsOf(scope, [updated]);
     return this.mapTx(updated, authors);
+  }
+
+  /** One transaction as the edit sheet needs it: everything editable, the wallet, the tags and note, and the version (updatedAt) to send back. */
+  async findOne(scope: Scope, id: string) {
+    const t = await this.assertInScope(scope, id);
+    const wallet = t.walletId ? await this.prisma.wallet.findFirst({ where: { id: t.walletId, ...scopeWhere(scope) }, select: { name: true, currency: true, archived: true } }) : null;
+    const authors = await this.authorsOf(scope, [t]);
+    const mayEdit = (() => { try { assertCanEditTransaction(scope, t.clientId); return true; } catch { return false; } })();
+    return {
+      ...this.mapTx(t, authors),
+      tags: unpackTags(t.tags), note: t.note ?? null,
+      updatedAt: t.updatedAt,
+      fundedByDebtId: t.fundedByDebtId ?? null,
+      wallet: wallet ? { name: wallet.name, currency: wallet.currency, archived: wallet.archived } : null,
+      // What the edit sheet may offer for this row.
+      edit: { allowed: mayEdit && t.type !== 'TRANSFER' && t.type !== 'DEBT', typeLocked: !!t.debtRole || !!t.fundedByDebtId, categoryLocked: !!t.debtRole, walletLocked: !!t.fundedByDebtId },
+    };
   }
 
   /** Keeps a copy of the row for 30 days so Undo and Recently deleted can put it back exactly as it was. */
@@ -479,6 +561,7 @@ export class TransactionService {
       receiptReportUrl: t.receiptReportUrl ?? null,
       debtId: t.debtId ?? null,
       debtRole: t.debtRole ?? null,
+      ...((t as { updatedAt?: Date }).updatedAt ? { updatedAt: (t as { updatedAt?: Date }).updatedAt } : {}),
     };
   }
 

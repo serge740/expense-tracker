@@ -52,7 +52,7 @@ export default function AboutScreen() {
         <FadeInView delay={60} slideFrom="bottom" distance={20}>
           <View style={[s.brandCard, { backgroundColor: theme.buttonBg }]}>
             {BRAND === 'aby' ? (
-              // The AbyExpense mark has a white background, so it sits on a white tile on the teal card.
+              // The AbyEx mark has a white background, so it sits on a white tile on the teal card.
               <View style={[s.logoTile]}>
                 <Image source={LOGO_ICON} style={{ width: 84, height: 84 }} resizeMode="contain" />
               </View>
@@ -63,7 +63,7 @@ export default function AboutScreen() {
                 resizeMode="contain"
               />
             )}
-            <Text style={s.appName}>AbyExpense</Text>
+            <Text style={s.appName}>AbyEx</Text>
             <Text style={s.tagline}>Smart Money Management</Text>
             <View style={[s.versionBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
               <Text style={s.versionText}>v{APP_VERSION} · Build {BUILD_NUMBER}</Text>
@@ -74,10 +74,10 @@ export default function AboutScreen() {
         {/* Description */}
         <FadeInView delay={140} slideFrom="bottom" distance={14}>
           <View style={[s.section, { backgroundColor: theme.surface }]}>
-            <Text style={[s.sectionTitle, { color: theme.text }]}>About AbyExpense</Text>
+            <Text style={[s.sectionTitle, { color: theme.text }]}>About AbyEx</Text>
             <Text style={[s.body, { color: theme.textSecondary }]}>
-              AbyExpense is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits.{'\n\n'}
-              Built with privacy-first principles, AbyExpense never connects to your bank accounts. You stay in full control of your data.
+              AbyEx is a modern personal finance app designed to help you track spending, manage wallets, and gain insights into your financial habits.{'\n\n'}
+              Built with privacy-first principles, AbyEx never connects to your bank accounts. You stay in full control of your data.
             </Text>
           </View>
         </FadeInView>

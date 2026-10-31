@@ -1,13 +1,14 @@
 // Ported from expo_app/app/(dashboard)/transaction-detail.tsx
 import { setPendingUndo } from '@/utils/pending-undo';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, Alert, ActivityIndicator } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { MaterialIcons } from '@/rn';
-import { router, useLocalSearchParams } from '@/router/router';
+import { router, useFocusEffect, useLocalSearchParams } from '@/router/router';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Text } from '@/components/text';
-import { deleteTransaction, CATEGORY_ICON, CATEGORY_LABEL, CategorySlug } from '@/services/transaction.service';
+import { deleteTransaction, getTransaction, CATEGORY_ICON, CATEGORY_LABEL, CategorySlug } from '@/services/transaction.service';
+import { EditTransactionSheet, type EditableTx } from '@/components/transaction/edit-transaction-sheet';
 import { useScope } from '@/context/scope-context';
 import { Comments } from '@/components/family/comments';
 import { useI18n } from '@/context/language-context';
@@ -40,14 +41,25 @@ export default function TransactionDetailScreen() {
   const [downloading, setDownloading] = useState(false);
   const [downloadingReport, setDownloadingReport] = useState(false);
 
-  const params = useLocalSearchParams<{
+  const [server, setServer] = useState<EditableTx | null>(null);
+  const [editing, setEditing] = useState(false);
+  const urlParams = useLocalSearchParams<{
     id: string; type: string; category: string; title: string;
     subCategory: string; description: string; amount: string; date: string;
     walletId: string; receiptUrl: string; receiptReportUrl: string;
     authorId?: string; authorName?: string; authorIsYou?: string;
   }>();
 
+  // What is on screen follows the server once it has answered (the address only gives the first picture, and goes stale after an edit).
+  const params = server ? {
+    ...urlParams,
+    type: server.type, category: server.category, title: server.title, subCategory: server.subCategory ?? '', description: server.description ?? '',
+    amount: String(server.amount), date: String(server.date), walletId: server.walletId ?? '',
+    receiptUrl: (server as any).receiptUrl ?? urlParams.receiptUrl, receiptReportUrl: (server as any).receiptReportUrl ?? urlParams.receiptReportUrl,
+  } : urlParams;
   const { id, type, category, title, subCategory, description, walletId, receiptUrl, receiptReportUrl } = params;
+  const loadServer = useCallback(() => { if (urlParams.id) getTransaction(urlParams.id).then(setServer).catch(() => undefined); }, [urlParams.id]);
+  useFocusEffect(useCallback(() => { loadServer(); }, [loadServer]));
   const amount   = parseFloat(params.amount ?? '0');
   const date     = new Date(params.date ?? Date.now());
   const isIncome = type === 'INCOME';
@@ -123,7 +135,11 @@ export default function TransactionDetailScreen() {
             <MaterialIcons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
           <Text style={s.headerTitle}>Transaction Details</Text>
-          <View style={{ width: 38 }} />
+          {server?.edit.allowed ? (
+            <TouchableOpacity testID="detail-edit" style={s.backBtn} onPress={() => setEditing(true)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={tr('edt.edit')}>
+              <MaterialIcons name="edit" size={19} color="#fff" />
+            </TouchableOpacity>
+          ) : <View style={{ width: 38 }} />}
         </View>
 
         {/* Hero: icon + amount */}
@@ -233,9 +249,21 @@ export default function TransactionDetailScreen() {
           {!!walletId && (
             <>
               <View style={[s.sep, { backgroundColor: theme.border }]} />
-              <DetailRow icon="credit-card" label="Wallet" value="Linked wallet" color={theme.primary} theme={theme} />
+              <DetailRow icon="credit-card" label="Wallet" value={server?.wallet?.name ?? 'Linked wallet'} color={theme.primary} theme={theme} />
             </>
           )}
+          {server?.tags?.length ? (
+            <>
+              <View style={[s.sep, { backgroundColor: theme.border }]} />
+              <DetailRow icon="sell" label="Tags" value={server.tags.map(x => `#${x}`).join(' ')} color={theme.primary} theme={theme} />
+            </>
+          ) : null}
+          {server?.note ? (
+            <>
+              <View style={[s.sep, { backgroundColor: theme.border }]} />
+              <DetailRow icon="lock" label="Private note" value={server.note} color={theme.primary} theme={theme} />
+            </>
+          ) : null}
         </View>
 
         {scope.isFamily && id ? <Comments transactionId={id} /> : null}
@@ -268,6 +296,8 @@ export default function TransactionDetailScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+      <EditTransactionSheet tx={server} visible={editing} onClose={() => setEditing(false)} onReload={loadServer}
+                            onSaved={() => { loadServer(); }} />
     </View>
   );
 }

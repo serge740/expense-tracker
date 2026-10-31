@@ -153,6 +153,29 @@ try {
   // ── History, phase 2: filters, categories, sort, period quick choices, search words, Upcoming, jump ──
   await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
   await seen('Net ·');
+  // ── Editing a transaction from its detail page ──
+  check('the detail page has an Edit button once the transaction has loaded', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/transaction-detail?mock=1&id=t2&type=EXPENSE&category=transport&title=Moto+to+town&amount=-2500&date=2026-10-30T06%3A15%3A00.000Z&walletId=w2` });
+    return until("!!document.querySelector('[data-testid=detail-edit]')");
+  })(), await path());
+  check('Edit opens a bottom sheet filled with what the transaction is now', (await byId('detail-edit')) && (await until("!!document.querySelector('[data-testid=edit-sheet]') && document.querySelector('[data-testid=edit-amount]').value === '2500'"))
+    && (await ev("document.querySelector('[data-testid=edit-title]').value")) === 'Moto to town' && (await ev("document.querySelector('[data-testid=edit-title]').tagName")) === 'TEXTAREA', await path());
+  check('nothing changed yet, so Save says so and is off', await seen('No changes yet'), await path());
+  check('a new amount shows what changes in the wallets before saving', (await ev("(() => { const n = document.querySelector('[data-testid=edit-amount]'); const set = Object.getOwnPropertyDescriptor(n.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set; set.call(n, '4000'); n.dispatchEvent(new Event('input', { bubbles: true })); return true; })()")) && (await until("document.querySelectorAll('[data-testid=edit-effect]').length === 1")), await path());
+  check('changing the description and saving closes the sheet and the page shows the new values', (await ev("(() => { const n = document.querySelector('[data-testid=edit-title]'); const set = Object.getOwnPropertyDescriptor(n.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype, 'value').set; set.call(n, 'Moto and lunch'); n.dispatchEvent(new Event('input', { bubbles: true })); return true; })()")) && (await byId('edit-save')) && (await until("!document.querySelector('[data-testid=edit-sheet]')")) && (await seen('Moto and lunch')) && await seen('4,000.00'), await path());
+  check('a loan entry cannot change its type', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/transaction-detail?mock=1&id=t9&type=INCOME&category=loan&title=Borrowed&amount=200000&date=2026-10-30T06%3A15%3A00.000Z&walletId=w1` });
+    if (!(await until("!!document.querySelector('[data-testid=detail-edit]')"))) return false;
+    await byId('detail-edit');
+    return (await until("!!document.querySelector('[data-testid=edit-loan-note]')")) && (await ev("document.querySelector('[data-testid=edit-kind-EXPENSE]').disabled === true || document.querySelector('[data-testid=edit-kind-EXPENSE]').getAttribute('aria-disabled') === 'true'"));
+  })(), await path());
+  check('the Add form has a text area for the description and makes the person choose the wallet', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/add?mock=1` });
+    if (!(await until("!!document.querySelector('[data-testid=add-description]')"))) return false;
+    return (await ev("document.querySelector('[data-testid=add-description]').tagName")) === 'TEXTAREA' && await seen('Choose a wallet');
+  })(), await path());
+  await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
+  await seen('Net ·');
   // ── H6: calendar, chart, export, saved views, tags and note, advanced filter, duplicates ──
   check('Calendar mode shows the month with a total on days that have activity', (await byId('view-calendar')) && (await until("!!document.querySelector('[data-testid=history-calendar]') && [...document.querySelectorAll('[data-testid^=cal-day-]')].some(n => n.innerText.includes(String.fromCharCode(10)))")), await path());
   check('tapping a day opens just that day in the list', (await ev("(() => { const n = [...document.querySelectorAll('[data-testid^=cal-day-]')].find(x => x.innerText.includes(String.fromCharCode(10))); n && n.click(); return !!n; })()")) && (await until("!document.querySelector('[data-testid=history-calendar]') && document.querySelectorAll('[data-testid=history-row]').length > 0")), await path());
@@ -280,7 +303,7 @@ try {
   check('Repeat every month sends a monthly rule and a date next month', (await ev("document.querySelectorAll('[data-testid=row-peek]')[0].click(); true")) && (await byId('peek-recurring')) && (await until("location.search.includes('repeat=')")), await ev('location.search'));
   await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
   await seen('Net ·');
-  check('a loan row says why it cannot be changed here', (await ev("(() => { const rows = [...document.querySelectorAll('[data-testid=history-row]')]; const i = rows.findIndex(r => r.innerText.includes('John') || r.innerText.includes('Eric')); if (i < 0) return false; rows[i].querySelector('[data-testid=row-peek]').click(); return true; })()")) && await seen('Debts and loans') && !(await ev("!!document.querySelector('[data-testid=peek-duplicate]')")), await path());
+  check('a loan row can be changed and deleted like any other', (await ev("(() => { const rows = [...document.querySelectorAll('[data-testid=history-row]')]; const i = rows.findIndex(r => r.innerText.includes('John') || r.innerText.includes('Eric')); if (i < 0) return false; rows[i].querySelector('[data-testid=row-peek]').click(); return true; })()")) && await seen('Change category') && !(await seen('Recorded by Debts')), await path());
   await ev("document.querySelector('[aria-label=Close]')?.click()");
   await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
   await seen('Net ·');

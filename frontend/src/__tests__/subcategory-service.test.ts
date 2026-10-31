@@ -15,7 +15,7 @@ describe('getMySubCategories', () => {
   });
 
   test('a web page where the list should be (a path the dev server did not forward) is an empty list, not a crash', async () => {
-    get.mockResolvedValue({ data: '<!doctype html><html><body>AbyExpense</body></html>' });
+    get.mockResolvedValue({ data: '<!doctype html><html><body>AbyEx</body></html>' });
     expect(await getMySubCategories()).toEqual([]);
   });
 });

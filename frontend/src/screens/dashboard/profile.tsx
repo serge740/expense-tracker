@@ -277,7 +277,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
 
             <Text style={[s.footer, { color: theme.textMuted }]}>
-              AbyExpense v1.0.0
+              AbyEx v1.0.0
             </Text>
           </FadeInView>
         </View>
