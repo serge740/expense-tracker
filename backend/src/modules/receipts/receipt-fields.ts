@@ -87,3 +87,25 @@ export function cleanCurrency(v: unknown): string | null {
   const s = typeof v === 'string' ? v.trim().toUpperCase() : '';
   return /^[A-Z]{3}$/.test(s) ? s : null;
 }
+
+/**
+ * The time of day as HH:MM (24 hour), from what the model read or the text printed next to the date
+ * ("16:24:37", "4:24 PM", "16h24", "2026-09-18 16:24"). A time that is not real is nothing; midnight on its own
+ * (00:00) usually means no time was printed, so it is nothing too.
+ */
+export function cleanTime(...sources: unknown[]): string | null {
+  for (const src of sources) {
+    if (typeof src !== 'string') continue;
+    const m = /(\d{1,2})\s*[:h.]\s*(\d{2})(?:\s*[:.]\s*\d{2})?\s*([ap]\.?m\.?)?/i.exec(src);
+    if (!m) continue;
+    let h = +m[1];
+    const min = +m[2];
+    const ampm = m[3]?.toLowerCase().replace(/\./g, '');
+    if (ampm === 'pm' && h < 12) h += 12;
+    if (ampm === 'am' && h === 12) h = 0;
+    if (h > 23 || min > 59) continue;
+    if (h === 0 && min === 0 && !ampm) continue;
+    return `${pad(h)}:${pad(min)}`;
+  }
+  return null;
+}

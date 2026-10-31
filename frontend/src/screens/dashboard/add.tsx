@@ -48,11 +48,15 @@ function startRule(raw?: string): RepeatRule | null {
  * The date a link asks for. A plain day (a scanned receipt says 2026-10-28) is that day on the person's own calendar at the current
  * time of day; reading it as UTC midnight shows the day before in some time zones. A full moment (duplicate, repeat) is used as it is.
  */
-export function dateFromParam(raw?: string | null, now = new Date()): Date {
+export function dateFromParam(raw?: string | null, now = new Date(), time?: string | null): Date {
   if (!raw) return now;
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
   if (day) {
-    const d = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), now.getHours(), now.getMinutes());
+    // The time printed on the receipt (HH:MM) when there is one, otherwise the time of day it is now.
+    const t = time ? /^(\d{1,2}):(\d{2})$/.exec(time) : null;
+    const hh = t && +t[1] < 24 && +t[2] < 60 ? +t[1] : now.getHours();
+    const mm = t && +t[1] < 24 && +t[2] < 60 ? +t[2] : now.getMinutes();
+    const d = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), hh, mm);
     // A day that does not exist (2026-02-30) or lies ahead of today is not trusted.
     if (d.getMonth() !== Number(day[2]) - 1) return now;
     return d.getTime() > now.getTime() ? now : d;
@@ -69,7 +73,7 @@ export default function AddTransactionScreen() {
   const inFamily = scope.isFamily;
   const params = useLocalSearchParams<{
     type?: string; walletId?: string; amount?: string; category?: string;
-    description?: string; merchant?: string; date?: string; currency?: string; receiptUrl?: string; receiptReportUrl?: string;
+    description?: string; merchant?: string; date?: string; time?: string; currency?: string; receiptUrl?: string; receiptReportUrl?: string;
     // From the "Plan a schedule" starters on Home: a subcategory and a repeat rule (JSON) to start from.
     subCategory?: string; repeat?: string;
   }>();
@@ -120,7 +124,7 @@ export default function AddTransactionScreen() {
       setSubCategory(params.subCategory ? params.subCategory.slice(0, 40) : presetCat?.sub ?? null);
       setRule(startRule(params.repeat));
       setDescription(params.description || params.merchant || '');
-      setDate(dateFromParam(params.date));
+      setDate(dateFromParam(params.date, new Date(), params.time));
       setReceiptUrl(params.receiptUrl || null);
       setReceiptReportUrl(params.receiptReportUrl || null);
       setReceiptMime(null);
@@ -128,7 +132,7 @@ export default function AddTransactionScreen() {
       const pre = usable.find(w => w.id === params.walletId) ?? (params.currency ? usable.find(w => w.currency === params.currency && w.isDefault) ?? usable.find(w => w.currency === params.currency) : undefined) ?? usable.find(w => w.isDefault) ?? usable[0];
       setWalletId(pre?.id ?? null);
     }).catch(() => { setWalletsReady(true); });
-  }, [reloadMine, inFamily, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl, params.subCategory, params.repeat]));
+  }, [reloadMine, inFamily, params.time, params.currency, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl, params.subCategory, params.repeat]));
 
   const wallet = wallets.find(w => w.id === walletId) ?? null;
   const currency = wallet?.currency ?? mainCurrency.code;
@@ -387,6 +391,7 @@ export default function AddTransactionScreen() {
           <Label text={t('add.wallet')} />
           <PayFromField wallets={wallets} loans={kind === 'EXPENSE' && !scheduled && !inFamily ? pots : []} walletId={walletId} loanId={potId}
                         onWallet={id => { setPotId(null); setWalletId(id); }} onLoan={id => setPotId(id)} />
+          {params.currency && wallet && wallet.currency !== params.currency ? <FamilyNote tone="warn" testID="receipt-currency-warning" text={t('scan.currencyMismatch', { receipt: params.currency, wallet: wallet.currency })} /> : null}
           {inFamily && walletsReady && wallets.length === 0 ? <FamilyNote tone="warn" testID="family-no-wallet" text={t('family.add.noWallet')} /> : null}
 
           {/* Date */}

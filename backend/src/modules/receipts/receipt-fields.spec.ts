@@ -1,4 +1,4 @@
-import { chooseDate, cleanAmount, cleanCurrency, parsePrintedDate } from './receipt-fields';
+import { chooseDate, cleanAmount, cleanCurrency, cleanTime, parsePrintedDate } from './receipt-fields';
 
 const now = new Date('2026-10-30T12:00:00Z');
 
@@ -45,5 +45,16 @@ describe('amounts and currency', () => {
   test('currency codes', () => {
     expect(cleanCurrency(' rwf ')).toBe('RWF');
     expect(cleanCurrency('Francs')).toBeNull();
+  });
+});
+
+describe('time of day', () => {
+  test.each([
+    ['16:24:37', '16:24'], ['2026-09-18 16:24:37', '16:24'], ['4:24 PM', '16:24'], ['12:05 AM', '00:05'], ['12:30 pm', '12:30'], ['16h24', '16:24'], ['09.05', '09:05'], ['7:00', '07:00'],
+  ])('%s', (text, t) => expect(cleanTime(text)).toBe(t));
+  test('nothing printed, impossible times and a lone midnight are nothing; the first readable source wins', () => {
+    for (const bad of [null, undefined, '', 'no time', '25:10', '10:75', '00:00', 5]) expect(cleanTime(bad)).toBeNull();
+    expect(cleanTime(null, '2026-09-18 16:24:37')).toBe('16:24');
+    expect(cleanTime('08:15', '2026-09-18 16:24:37')).toBe('08:15');
   });
 });

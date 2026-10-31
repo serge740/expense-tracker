@@ -9,6 +9,10 @@ export interface ProcessedReceipt {
   date: string | null;
   /** The currency printed on the receipt, when it says. */
   currency?: string | null;
+  /** The time printed on the receipt, HH:MM (24 hour). */
+  time?: string | null;
+  type?: 'EXPENSE' | 'INCOME';
+  subCategory?: string | null;
   /** The date was corrected or could not be read: ask the person to check it. */
   dateUncertain?: boolean;
   category: string | null;

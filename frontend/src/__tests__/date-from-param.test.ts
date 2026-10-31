@@ -18,3 +18,13 @@ describe('the date a scanned receipt puts in the form', () => {
     expect(dateFromParam('2026-10-01T08:00:00.000Z', now).toISOString()).toBe('2026-10-01T08:00:00.000Z');
   });
 });
+
+describe('the time printed on a receipt', () => {
+  test('is used with the day; without it the time of day is now', () => {
+    const d = dateFromParam('2026-09-18', now, '16:24');
+    expect([d.getDate(), d.getHours(), d.getMinutes()]).toEqual([18, 16, 24]);
+    const e = dateFromParam('2026-09-18', now, 'abc');
+    expect([e.getHours(), e.getMinutes()]).toEqual([15, 20]);
+    expect(dateFromParam('2026-10-30', now, '23:59')).toEqual(now);   // later today than now: not in the future
+  });
+});

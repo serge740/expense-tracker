@@ -210,7 +210,9 @@ export default function ScanScreen() {
         merchant:    ocrResult.merchant ?? '',
         date:        ocrResult.date ?? '',
         currency:    ocrResult.currency ?? '',
-        type:        'EXPENSE',
+        time:        ocrResult.time ?? '',
+        subCategory: ocrResult.subCategory ?? '',
+        type:        ocrResult.type ?? 'EXPENSE',
         category:    ocrResult.category ?? '',
         description: ocrResult.description ?? '',
         receiptUrl:  ocrResult.receiptUrl ?? '',
@@ -406,7 +408,7 @@ export default function ScanScreen() {
               <View style={s.detailRow}>
                 <MaterialIcons name="event" size={16} color="rgba(255,255,255,0.45)" />
                 <Text style={s.detailLabel}>Date</Text>
-                <Text style={s.detailValue}>{fmtDate(ocrResult.date)}</Text>
+                <Text style={s.detailValue}>{fmtDate(ocrResult.date)}{ocrResult.date && ocrResult.time ? ` · ${ocrResult.time}` : ''}</Text>
               </View>
               {ocrResult.dateUncertain || !ocrResult.date ? (
                 <Text testID="scan-date-warning" style={{ color: '#F5B94A', fontSize: 12, marginBottom: 6 }}>

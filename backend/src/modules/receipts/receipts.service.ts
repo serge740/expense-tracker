@@ -5,7 +5,8 @@ import { PDFParse } from 'pdf-parse';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { buildReceiptReportPdf } from './receipt-report-pdf';
 import { LEGACY_CATEGORY, canonicalCategory } from '../../common/utils/categories';
-import { chooseDate, cleanAmount, cleanCurrency, todayText } from './receipt-fields';
+import { chooseDate, cleanAmount, cleanCurrency, cleanTime, todayText } from './receipt-fields';
+import { normalizeSubCategory } from '../../common/utils/categories';
 
 export interface ExtractedInfo {
   amount: number | null;
@@ -13,6 +14,11 @@ export interface ExtractedInfo {
   date: string | null;
   /** The currency printed on it (RWF, USD…), when it says. */
   currency?: string | null;
+  /** The time printed on it, HH:MM (24 hour), when there is one. */
+  time?: string | null;
+  /** EXPENSE (money paid out, the usual case) or INCOME (money the person received). */
+  type?: 'EXPENSE' | 'INCOME';
+  subCategory?: string | null;
   /** True when the date was corrected or could not be trusted and was left empty. */
   dateUncertain?: boolean;
   category: string | null;
@@ -34,60 +40,44 @@ const VALID_CATEGORIES = new Set([
   ...Object.keys(LEGACY_CATEGORY),
 ]);
 
-const visionPrompt = () => `You are a receipt and expense image analyzer.
+/** What every kind of document asks for, so a card slip, a shop till roll, a mobile-money message and an invoice are read the same way. */
+const INSTRUCTIONS = () => `TODAY'S DATE: ${todayText(new Date())}
 
-Look at this image carefully. It may be a receipt, invoice, bill, or any expense-related image.
-
-TODAY'S DATE: ${todayText(new Date())}
+You read proof of payment of every kind: shop till receipts, restaurant bills, card-machine slips (POS), bank or mobile-money transfer confirmations and SMS screenshots (MTN MoMo, Airtel Money, M-Pesa, bank apps), invoices, utility, airtime, fuel, school-fee and rent receipts, tickets, and handwritten receipts. The text may be in English, French, Kinyarwanda or Swahili.
 
 Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with these fields:
 {
-  "amount": <the final total the customer paid (after tax, discount and tips; NOT a subtotal, a change due, a cash tendered figure or a single item) as a plain number with no thousands separators, or null if not visible>,
-  "currency": <the 3-letter currency code printed or clearly implied (RWF, USD, EUR, KES…), or null>,
-  "merchant": <the business or store name as printed, or null>,
-  "date_as_printed": <the purchase date exactly as it is printed, character for character, or null>,
-  "date": <that same date as YYYY-MM-DD, or null>,
-  "category": <one of exactly: food (groceries, eating out, drinks), transport (fuel, taxis, flights, hotels), bills (rent, electricity, water, internet, airtime, subscriptions), shopping, health (medical, school fees, gym, haircut), entertainment, gifts (gifts, donations, family support), business, insurance (insurance, bank fees, taxes), salary, other>,
-  "description": <a single sentence describing what was purchased, or null>
+  "amount": <the final amount actually paid (after tax, discount and tips) as a plain number with no thousands separators. NOT a subtotal, balance, change, cash tendered, fee-less amount or one item. For a transfer it is the amount sent. null if not visible>,
+  "currency": <3-letter code printed or clearly implied (RWF, USD, EUR, KES, UGX, TZS…), or null>,
+  "merchant": <who was paid: the shop, restaurant, company, school, landlord or person. On a card-machine slip the printed bank name is only the acquirer: prefer the shop name if one is printed, otherwise use that name. For a transfer use the receiver. null if not visible>,
+  "date_as_printed": <the purchase or payment date exactly as printed, character for character, or null>,
+  "date": <that date as YYYY-MM-DD, or null>,
+  "time": <the time printed with it as HH:MM in 24-hour form (4:24 PM becomes 16:24), or null if no time is printed>,
+  "type": <"EXPENSE" if the document shows money paid out (almost always), "INCOME" only if it clearly shows the account holder RECEIVED money (a salary slip, "you have received", a credit alert)>,
+  "category": <the category that best fits WHAT WAS BOUGHT or paid for, judged from the items, the merchant and the document, never from the payment method or the bank. One of exactly: food (groceries, supermarket, bakery, water and drinks, restaurants, cafes, takeaway), transport (fuel, taxi, moto, bus, flights, parking, car repairs, hotels and lodging), bills (rent, electricity, water bill, internet, airtime and data bundles, TV, subscriptions), shopping (clothes, shoes, electronics, household items, furniture, cosmetics, stationery), health (pharmacy, clinic, hospital, school fees, tuition, gym, haircut and salon), entertainment (cinema, events, games, bars and nightlife, streaming), gifts (gifts, donations, tithes, family support, money sent to a person), business (business supplies, services, equipment, fees for work), insurance (insurance, bank charges, taxes, government fees), salary (money received as pay), other (only if nothing above fits)>,
+  "subcategory": <a short, specific label of 1 to 3 words for what it was, such as Groceries, Restaurant, Fuel, Taxi, Airtime, Electricity, Pharmacy, School fees, Rent, Clothes; or null>,
+  "description": <one short sentence saying what was paid for, based on the items (for example "Bottled water 500ml"), not on the bank or the shop's address; or null>
 }
 
-Rules for the date:
-- Use the date of the purchase or payment (labelled Date, Issued, Paid, Transaction date), never a due date, an expiry date, a print/reprint time or a date inside a product name.
-- Numeric dates such as 03/04/2026 are DAY/MONTH/YEAR unless a number above 12 shows it is MONTH/DAY.
-- Never guess a missing day, month or year. If it is not readable, use null for both date fields.
-- The year is a four-digit number; expand two digits (26) to 20xx.
+Rules:
+- Dates: use the date of the purchase or payment (labelled Date, Date/Time, Issued, Paid, Transaction date), never a due date, expiry date, a reprint time or a date inside a product name. Numeric dates such as 03/04/2026 are DAY/MONTH/YEAR unless a number above 12 shows it is MONTH/DAY. Expand two-digit years (26) to 20xx.
+- Never guess. If something is not readable, use null for it. Do not fill the time with 00:00.
+- Amounts: read the digits carefully; "RWF 700.00" is 700, "1,250" is 1250, "1.250,50" is 1250.5.`;
 
-Never invent values: use null for anything you cannot read.`;
+const visionPrompt = () => `You are an expert at reading receipts and proofs of payment from photos and screenshots.
+
+Look at the image carefully, including small print, stamps and the bottom of the slip.
+
+${INSTRUCTIONS()}`;
 
 function textPrompt(text: string): string {
-  return `You are a receipt and expense document analyzer.
-
-Below is text extracted from a document (PDF or Word file). It may be a receipt, invoice, bill, or any expense-related document.
+  return `You are an expert at reading receipts and proofs of payment from text taken out of a PDF or Word file.
 
 ---
 ${text.slice(0, 6000)}
 ---
 
-TODAY'S DATE: ${todayText(new Date())}
-
-Return ONLY a raw JSON object (no markdown, no code fences, no explanation) with these fields:
-{
-  "amount": <the final total the customer paid (after tax, discount and tips; NOT a subtotal, a change due, a cash tendered figure or a single item) as a plain number with no thousands separators, or null if not visible>,
-  "currency": <the 3-letter currency code printed or clearly implied (RWF, USD, EUR, KES…), or null>,
-  "merchant": <the business or store name as printed, or null>,
-  "date_as_printed": <the purchase date exactly as it is printed, character for character, or null>,
-  "date": <that same date as YYYY-MM-DD, or null>,
-  "category": <one of exactly: food (groceries, eating out, drinks), transport (fuel, taxis, flights, hotels), bills (rent, electricity, water, internet, airtime, subscriptions), shopping, health (medical, school fees, gym, haircut), entertainment, gifts (gifts, donations, family support), business, insurance (insurance, bank fees, taxes), salary, other>,
-  "description": <a single sentence describing what was purchased, or null>
-}
-
-Rules for the date:
-- Use the date of the purchase or payment (labelled Date, Issued, Paid, Transaction date), never a due date, an expiry date, a print/reprint time or a date inside a product name.
-- Numeric dates such as 03/04/2026 are DAY/MONTH/YEAR unless a number above 12 shows it is MONTH/DAY.
-- Never guess a missing day, month or year. If it is not readable, use null for both date fields.
-- The year is a four-digit number; expand two digits (26) to 20xx.
-
-If the text is empty or unreadable, return nulls.`;
+${INSTRUCTIONS()}`;
 }
 
 function parseJsonFromLlm(raw: string): any {
@@ -222,6 +212,9 @@ export class ReceiptsService {
     return {
       amount,
       currency:    cleanCurrency(parsed.currency),
+      time:        when.date ? cleanTime(parsed.time, parsed.date_as_printed) : null,
+      type:        parsed.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
+      subCategory: normalizeSubCategory(parsed.subcategory),
       merchant:    typeof parsed.merchant    === 'string' && parsed.merchant.trim() ? parsed.merchant.trim().slice(0, 80) : null,
       date:        when.date,
       dateUncertain: when.adjusted || (when.date === null && !!(parsed.date || parsed.date_as_printed)),
