@@ -25,7 +25,8 @@ function setStaticHeaders(res: express.Response, path: string) {
 const WEB_PAGES = new Set(['/', '/login', '/register', '/forgot-password']);
 
 export function isWebAppPath(path: string): boolean {
-  return WEB_PAGES.has(path) || /^\/app(\/|$)/.test(path) || isJoinPath(path);
+  // /it-support/* is the IT support portal's own pages (its API lives under /it-support-auth and /it-support-api, which are different prefixes).
+  return WEB_PAGES.has(path) || /^\/app(\/|$)/.test(path) || /^\/it-support(\/|$)/.test(path) || isJoinPath(path);
 }
 
 /**

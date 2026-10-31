@@ -2,7 +2,7 @@ import { isJoinPath, isWebAppPath, joinPageHeaders } from './web-app';
 
 describe('isWebAppPath', () => {
   it('claims the web app\'s own pages', () => {
-    for (const p of ['/', '/login', '/register', '/forgot-password', '/app', '/app/', '/app/wallets', '/app/debts/abc']) {
+    for (const p of ['/', '/login', '/register', '/forgot-password', '/app', '/app/', '/app/wallets', '/app/debts/abc', '/it-support', '/it-support/login', '/it-support/data-export']) {
       expect(isWebAppPath(p)).toBe(true);
     }
   });
