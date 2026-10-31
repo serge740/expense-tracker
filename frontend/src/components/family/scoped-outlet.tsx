@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef } from 'react';
+import { Fragment, Suspense, useEffect, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { ActivityIndicator, Alert, View } from '@/rn';
 import { router } from '@/router/router';
@@ -6,6 +6,7 @@ import { useAppTheme } from '@/theme/theme-context';
 import { useI18n } from '@/context/language-context';
 import { useScope } from '@/context/scope-context';
 import { loadPendingInvite } from '@/utils/pending-invite';
+import { ScreenFallback } from '@/lib/lazy';
 
 /**
  * The screen area of the dashboard. It is keyed by the scope, so switching between Personal and a family rebuilds the
@@ -36,5 +37,5 @@ export function ScopedOutlet() {
   if (!ready) {
     return <View testID="scope-loading" style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}><ActivityIndicator color={theme.primary} /></View>;
   }
-  return <Fragment key={`${scopeKey}:${epoch}`}><Outlet /></Fragment>;
+  return <Fragment key={`${scopeKey}:${epoch}`}><Suspense fallback={<ScreenFallback />}><Outlet /></Suspense></Fragment>;
 }

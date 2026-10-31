@@ -1,0 +1,1 @@
+import{m as e,r as t}from"./env-DsecaK8U.js";import{t as n}from"./datetime-sheet-C6T17X-j.js";e();var r=t();function i({showTime:e=!0,calendar:t,...i}){return(0,r.jsx)(n,{...i,mode:e?`datetime`:`date`,defaultView:t?`calendar`:`strip`})}export{i as t};

@@ -1,0 +1,1 @@
+var e={CHECKING:`account-balance`,SAVINGS:`savings`,CREDIT:`credit-card`,CASH:`payments`,MOBILE_MONEY:`phone-iphone`};function t(e,t){let n=parseInt(e.replace(`#`,``),16);if(Number.isNaN(n))return e;let r=e=>Math.round(e+(255-e)*t),i=r(n>>16&255),a=r(n>>8&255),o=r(n&255);return`#${(1<<24|i<<16|a<<8|o).toString(16).slice(1)}`}export{t as n,e as t};

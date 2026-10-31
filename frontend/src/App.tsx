@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import ITSupportApp from '@/it-support/ITSupportApp';
+import { lazyScreen, ScreenFallback } from '@/lib/lazy';
+
+// The IT support portal is a separate part of the site: its code is only fetched when someone opens /it-support.
+const ITSupportApp = lazyScreen(() => import('@/it-support/ITSupportApp'));
 import { ThemePreferenceProvider, useAppTheme } from '@/theme/theme-context';
 import { AlertHost } from '@/rn';
 import { watchFrame } from '@/rn/platform';
@@ -39,7 +42,7 @@ function Shell() {
     <>
       <NavigationBridge />
       <div id="phone" ref={frame} style={{ background: theme.background }}>
-        <AppRoutes />
+        <Suspense fallback={<ScreenFallback />}><AppRoutes /></Suspense>
         <AlertHost />
         {!splashDone && <AppSplash onComplete={onSplashDone} />}
       </div>
@@ -77,7 +80,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/it-support/*" element={<ITSupportApp />} />
+        <Route path="/it-support/*" element={<Suspense fallback={null}><ITSupportApp /></Suspense>} />
         <Route path="*" element={<ConsumerApp />} />
       </Routes>
     </BrowserRouter>

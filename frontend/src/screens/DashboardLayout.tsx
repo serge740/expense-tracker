@@ -14,6 +14,7 @@ import { ReminderModalHost } from '@/components/reminders/reminder-host';
 import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
 import { registerDevice } from '@/services/device.service';
 import { pushSoundConfig } from '@/services/local-notifications';
+import { preloadMainScreens } from '@/routes';
 
 /** Everything after sign-in: the screen on top, the tab bar underneath, and the things that run while signed in. */
 export default function DashboardLayout() {
@@ -23,6 +24,9 @@ export default function DashboardLayout() {
 
   // Time zone + language (and the one-time quiet-hours copy) go to the server so reminders use them.
   useReminderPrefsSync();
+
+  // The screens people open most load quietly in the background.
+  useEffect(() => { preloadMainScreens(); }, []);
 
   // Tell the server this browser is signed in, and which sound it uses.
   useEffect(() => { void registerDevice(pushSoundConfig(notificationSound, notificationVibrate)); }, [notificationSound, notificationVibrate]);

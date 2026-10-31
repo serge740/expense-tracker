@@ -1,0 +1,1 @@
+import{_ as e,m as t}from"./env-DsecaK8U.js";import{n}from"./router-a4shNEhl.js";var r=e(t(),1);function i(){n.canGoBack()?n.back():n.navigate(`/(dashboard)/profile`)}function a(){return(0,r.useCallback)(()=>i(),[])}export{a as t};

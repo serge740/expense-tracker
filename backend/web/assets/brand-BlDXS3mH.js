@@ -1,0 +1,1 @@
+var e=`/images/logo/aby-logo.png`,t=`/images/logo/aby-icon.png`;export{t as n,e as t};
