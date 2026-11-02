@@ -496,7 +496,6 @@ try {
     await send('Page.navigate', { url: `${origin}/app/profile?mock=1` });
     for (let n = 0; n < 4 && !(await seen('Install app')); n++) { /* the Settings screen loads on first visit */ }
     if (!(await clickContaining('install app'))) return false;
-    const g = await until("!!document.querySelector('[data-testid=ios-guide]')"); console.log('DBG guide', g, await ev("!!document.querySelector('[data-testid=ios-guide-safari-ok]')"), await ev('navigator.userAgent.slice(-50)'));
     return (await until("!!document.querySelector('[data-testid=ios-guide-safari-bad]')")) && await seen('Open this page in Safari first') && await seen('Copy link');
   })(), await path());
   await send('Emulation.setUserAgentOverride', { userAgent: '' });
