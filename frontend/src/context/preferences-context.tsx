@@ -37,7 +37,7 @@ export interface Preferences {
   includeLoans: boolean;
   homeView: 'all' | 'income' | 'expense' | 'debt' | 'credit' | 'scheduled';
   // The stretch of time Home opens on (the pill on Home can change it for the visit).
-  homePeriod: 'month' | 'year' | 'all';
+  homePeriod: import('@/utils/period').DefaultPeriod;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {

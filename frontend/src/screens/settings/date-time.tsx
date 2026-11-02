@@ -45,13 +45,6 @@ export default function DateTimeScreen() {
         </OptionBlock>
       </Section>
 
-      <Section title="HOME">
-        <OptionBlock icon="date-range" title={t('period.setting')} sub={t('period.settingSub')}>
-          <Chips value={prefs.homePeriod} onChange={v => setPref('homePeriod', v)}
-                 options={[{ label: t('period.optMonth'), value: 'month' }, { label: t('period.optYear'), value: 'year' }, { label: t('period.optAll'), value: 'all' }]} />
-        </OptionBlock>
-      </Section>
-
       <Section title="TIME ZONE">
         <Row icon="public" title="Time zone" sub="Set automatically from your device" value={timeZone.replace(/_/g, ' ')} />
       </Section>

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import {
-  canGoNext, defaultPeriod, fromDay, includesToday, matchPreset, presetPeriod, historyParams, isThisMonth, lastMonth, monthsOf, parseStoredPeriod, periodDays, periodKey, periodLabel, periodParams, rangeOf, shiftPeriod, thisMonth, toDay, yearChoices, type LabelEnv,
+  canGoNext, defaultPeriod, homeChoiceOf, fromDay, includesToday, matchPreset, presetPeriod, historyParams, isThisMonth, lastMonth, monthsOf, parseStoredPeriod, periodDays, periodKey, periodLabel, periodParams, rangeOf, shiftPeriod, thisMonth, toDay, yearChoices, type LabelEnv,
 } from '@/utils/period';
 
 const NOW = new Date(2026, 9, 29, 10, 0, 0); // 29 Oct 2026
@@ -166,4 +166,24 @@ describe('does a period include today', () => {
     [{ kind: 'year', year: 2026 }, true], [{ kind: 'year', year: 2025 }, false],
     [{ kind: 'range', from: '2026-10-23', to: '2026-10-29' }, true], [{ kind: 'range', from: '2026-10-01', to: '2026-10-28' }, false], [{ kind: 'range', from: '2026-10-29', to: '2026-10-29' }, true],
   ])('%j is %s', (p, yes) => { expect(includesToday(p as never, N)).toBe(yes); });
+});
+
+describe('what Home opens on', () => {
+  const now = new Date(2026, 9, 28);
+  test('the old three still mean what they did', () => {
+    expect(defaultPeriod('month', now)).toEqual({ kind: 'month', month: 10, year: 2026 });
+    expect(defaultPeriod('year', now)).toEqual({ kind: 'year', year: 2026 });
+    expect(defaultPeriod('all', now)).toEqual({ kind: 'all' });
+    expect(defaultPeriod(undefined, now)).toEqual({ kind: 'month', month: 10, year: 2026 });
+  });
+  test('any quick choice works, and the week follows the first day chosen', () => {
+    expect(defaultPeriod('last30', now)).toEqual({ kind: 'range', from: '2025-09-29'.replace('2025', '2026'), to: '2026-10-28' });
+    expect(defaultPeriod('lastMonth', now)).toEqual({ kind: 'month', month: 9, year: 2026 });
+    expect(defaultPeriod('thisWeek', now, 'monday')).toEqual({ kind: 'range', from: '2026-10-26', to: '2026-11-01' });
+    expect(defaultPeriod('thisWeek', now, 'sunday')).toEqual({ kind: 'range', from: '2026-10-25', to: '2026-10-31' });
+  });
+  test('nonsense falls back to this month, and the page shows the old values as their new names', () => {
+    expect(defaultPeriod('nope' as never, now)).toEqual({ kind: 'month', month: 10, year: 2026 });
+    expect([homeChoiceOf('month'), homeChoiceOf('year'), homeChoiceOf('all'), homeChoiceOf('last7'), homeChoiceOf('today' as never)]).toEqual(['thisMonth', 'thisYear', 'allTime', 'last7', 'thisMonth']);
+  });
 });

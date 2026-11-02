@@ -58,7 +58,7 @@ export default function HomeScreen() {
   // A family has no loans, debts or schedules: loans are always "included" (there are none) and only three chips make sense.
   const [familyView, setFamilyView] = useState<FeedView>('all');
   // What the figures and the feed cover: the setting decides where Home starts, the pill changes it for this visit.
-  const [period, setPeriod] = useState<Period>(() => defaultPeriod(prefs.homePeriod));
+  const [period, setPeriod] = useState<Period>(() => defaultPeriod(prefs.homePeriod, new Date(), prefs.weekStart));
   const [periodOpen, setPeriodOpen] = useState(false);
   const periodName = usePeriodLabel()(period);
   const pKey = periodKey(period);

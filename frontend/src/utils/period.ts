@@ -8,7 +8,11 @@ export type Period =
   | { kind: 'all' }
   | { kind: 'range'; from: string; to: string };
 
-export type DefaultPeriod = 'month' | 'year' | 'all';
+/** What Home opens on: the three the setting used to have, or any of the quick choices. */
+export type DefaultPeriod = 'month' | 'year' | 'all' | PresetId;
+
+/** The quick choices offered as the default for Home, in the order they are shown. */
+export const HOME_DEFAULTS: PresetId[] = ['thisWeek', 'last7', 'last30', 'thisMonth', 'lastMonth', 'thisQuarter', 'thisYear', 'allTime'];
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -31,11 +35,16 @@ export function lastMonth(now = new Date()): Period {
 }
 
 /** What Home starts on, from the setting. */
-export function defaultPeriod(pref: DefaultPeriod | undefined, now = new Date()): Period {
+export function defaultPeriod(pref: DefaultPeriod | undefined, now = new Date(), weekStart: 'monday' | 'sunday' = 'monday'): Period {
   if (pref === 'year') return { kind: 'year', year: now.getFullYear() };
   if (pref === 'all') return { kind: 'all' };
+  if (pref && pref !== 'month' && (PRESET_IDS as string[]).includes(pref)) return presetPeriod(pref as PresetId, now, weekStart);
   return thisMonth(now);
 }
+
+/** The setting as one of the choices on the page ('month' is this month, 'year' this year, 'all' all time). */
+export const homeChoiceOf = (pref: DefaultPeriod | undefined): PresetId =>
+  pref === 'year' ? 'thisYear' : pref === 'all' ? 'allTime' : pref && (HOME_DEFAULTS as string[]).includes(pref) ? (pref as PresetId) : 'thisMonth';
 
 /** A custom range, with the two days put in the right order. */
 export function rangeOf(a: Date, b: Date): Period {

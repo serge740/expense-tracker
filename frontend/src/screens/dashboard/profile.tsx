@@ -18,6 +18,7 @@ import { FadeInView } from '@/components/fade-in-view';
 import { useThemePreference } from '@/context/theme-context';
 import { useCurrencySetting as useCurrency } from '@/context/currency-context';
 import { usePreferences } from '@/context/preferences-context';
+import { homeChoiceOf } from '@/utils/period';
 import { useI18n } from '@/context/language-context';
 import { usePwaInstall } from '@/context/pwa-install-context';
 import { openIosInstallGuide } from '@/components/pwa/ios-install-guide';
@@ -243,6 +244,7 @@ export default function ProfileScreen() {
                    sub={prefs.quietHours ? t('row.quiet', { from: formatTime(prefs.quietStart), to: formatTime(prefs.quietEnd) }) : t('row.notificationsSub')}
                    badge={unread > 0 ? { label: t('badge.new', { n: unread }), tone: 'info' } : undefined}
                    onPress={go('/(dashboard)/(settings)/notification-settings')} />
+              <Row icon="dashboard" title={t('hset.title')} value={t(`preset.${homeChoiceOf(prefs.homePeriod)}` as any)} onPress={go('/(dashboard)/(settings)/home-settings')} />
               <Row icon="palette" title={t('row.appearance')} value={themeLabel} onPress={go('/(dashboard)/(settings)/appearance')} />
               <Row icon="translate" title={t('row.language')}
                    value={languageLabel ? `${languageLabel.flag} ${languageLabel.native}` : ''}

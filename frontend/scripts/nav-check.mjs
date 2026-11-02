@@ -153,6 +153,17 @@ try {
   // ── History, phase 2: filters, categories, sort, period quick choices, search words, Upcoming, jump ──
   await send('Page.navigate', { url: `${origin}/app/history?mock=1` });
   await seen('Net ·');
+  check('Settings has a Home screen row that opens the choices, and choosing one sticks', await (async () => {
+    await send('Page.navigate', { url: origin + '/app/profile?mock=1' });
+    for (let n = 0; n < 4 && !(await seen('Home screen')); n++) { /* first visit loads the screen */ }
+    if (!(await clickContaining('home screen'))) return false;
+    if (!(await until("!!document.querySelector('[data-testid=home-default-last30]')"))) return false;
+    if (!(await byId('home-default-last30'))) return false;
+    await send('Page.navigate', { url: origin + '/app/profile?mock=1' });
+    for (let n = 0; n < 4 && !(await seen('Last 30 days')); n++) { /* the row shows the choice */ }
+    return await seen('Last 30 days');
+  })(), await path());
+  await ev("localStorage.removeItem('app_preferences_v1')");
   // ── Editing a transaction from its detail page ──
   check('the detail page has an Edit button once the transaction has loaded', await (async () => {
     await send('Page.navigate', { url: `${origin}/app/transaction-detail?mock=1&id=t2&type=EXPENSE&category=transport&title=Moto+to+town&amount=-2500&date=2026-10-30T06%3A15%3A00.000Z&walletId=w2` });
