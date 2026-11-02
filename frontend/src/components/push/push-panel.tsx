@@ -4,6 +4,7 @@ import { useAppTheme } from '@/theme/theme-context';
 import { useI18n } from '@/context/language-context';
 import { usePush } from '@/context/push-context';
 import { usePwaInstall } from '@/context/pwa-install-context';
+import { openIosInstallGuide } from '@/components/pwa/ios-install-guide';
 import type { PushDevice } from '@/lib/push';
 import { isIosDevice } from '@/lib/platform';
 
@@ -202,7 +203,7 @@ export function InstallPanel() {
       </Panel>
     );
   }
-  if (isIos()) return <Panel>{text(t('pwa.iosTitle'), true)}<View style={{ marginTop: 4 }}>{text(t(isInAppBrowser() ? 'pwa.iosInApp' : 'pwa.iosText'))}</View></Panel>;
+  if (isIos()) return <Panel>{text(t('pwa.iosTitle'), true)}<View style={{ marginTop: 4 }}>{text(t(isInAppBrowser() ? 'pwa.iosInApp' : 'pwa.iosText'))}</View><View style={s.row}><Btn busy={false} label={t('pwa.ios.show')} onPress={openIosInstallGuide} /></View></Panel>;
   return <Panel>{text(t('pwa.notYet'))}</Panel>;
 }
 

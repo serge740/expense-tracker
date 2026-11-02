@@ -6,6 +6,7 @@ import { NotificationProvider } from '@/context/notification-context';
 import { PushProvider } from '@/context/push-context';
 import { SoundProvider } from '@/context/sound-context';
 import { InstallPrompt, NotificationToaster } from '@/components/push/prompts';
+import { IosInstallGuideHost } from '@/components/pwa/ios-install-guide';
 import { CustomTabBar } from '@/components/custom-tab-bar';
 import { ScopeProvider } from '@/context/scope-context';
 import { ScopedOutlet } from '@/components/family/scoped-outlet';
@@ -46,6 +47,7 @@ export default function DashboardLayout() {
           </ScopeProvider>
           <NotificationToaster />
           <InstallPrompt />
+          <IosInstallGuideHost />
           <UpdateBanner />
         </SoundProvider>
       </NotificationProvider>

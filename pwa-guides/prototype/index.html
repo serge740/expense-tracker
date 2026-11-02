@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AbyEx · iPhone install guide (prototype)</title>
+  <style>
+    :root {
+      --bg: #071b24; --surface: #0d2b38; --surface2: #123646; --border: #1f4658;
+      --ink: #eaf5f9; --muted: #8fb0be; --brand: #4cc3e3; --brand-deep: #00627f; --ok: #3ddc97;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; min-height: 100%; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #02090d; color: var(--ink); display: flex; flex-direction: column; align-items: center; padding: 18px 12px 40px; gap: 14px; }
+
+    /* ── controls for looking at the prototype (not part of the app) ── */
+    .lab { width: min(100%, 430px); display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+    .lab b { color: var(--ink); font-weight: 600; margin-right: 2px; }
+    .seg { display: inline-flex; background: #0a222d; border-radius: 99px; padding: 3px; gap: 2px; }
+    .seg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 99px; cursor: pointer; }
+    .seg button[aria-pressed="true"] { background: var(--brand); color: #04222d; }
+
+    /* ── the phone and the page behind the sheet ── */
+    .phone { position: relative; width: min(100%, 390px); height: 760px; border-radius: 38px; background: var(--bg); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 30px 80px -20px rgba(0,0,0,.8); }
+    .behind { position: absolute; inset: 0; padding: 52px 18px 0; filter: saturate(.9); }
+    .behind h2 { font-size: 11px; letter-spacing: .12em; color: var(--muted); margin: 14px 4px 8px; font-weight: 600; }
+    .row { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 18px; padding: 12px 14px; margin-bottom: 8px; }
+    .i { width: 20px; height: 20px; fill: currentColor; flex: none; }
+    .row .tile { width: 38px; height: 38px; border-radius: 12px; background: var(--surface2); display: grid; place-items: center; color: var(--brand); }
+    .row b { display: block; font-size: 14.5px; } .row small { color: var(--muted); font-size: 12px; }
+    .row.hot { outline: 2px solid var(--brand); }
+    .scrim { position: absolute; inset: 0; background: rgba(2, 9, 13, .62); }
+
+    /* ── the sheet itself ── */
+    .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 92%; background: var(--surface); border-radius: 28px 28px 0 0; display: flex; flex-direction: column; animation: up .45s cubic-bezier(.2, .8, .2, 1) both; }
+    @keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--border); margin: 10px auto 0; }
+    .head { display: flex; align-items: center; padding: 6px 8px 0 20px; }
+    .head h1 { flex: 1; margin: 0; font-size: 16px; font-weight: 700; }
+    .x { width: 44px; height: 44px; border: 0; background: transparent; color: var(--ink); cursor: pointer; display: grid; place-items: center; }
+    .x .i { width: 24px; height: 24px; }
+
+    .progress { display: flex; gap: 6px; padding: 4px 20px 0; }
+    .progress i { flex: 1; height: 4px; border-radius: 4px; background: var(--border); position: relative; overflow: hidden; }
+    .progress i::after { content: ""; position: absolute; inset: 0; background: var(--brand); transform: scaleX(0); transform-origin: left; transition: transform .35s ease; }
+    .progress i.done::after { transform: scaleX(1); }
+    .progress i.now::after { transform: scaleX(1); }
+
+    .viewport { flex: 1; overflow: hidden; position: relative; touch-action: pan-y; }
+    .track { display: flex; height: 100%; transition: transform .4s cubic-bezier(.2, .8, .2, 1); will-change: transform; }
+    .slide { flex: 0 0 100%; padding: 14px 20px 8px; overflow-y: auto; display: flex; flex-direction: column; }
+
+    .step-no { display: inline-flex; align-items: center; gap: 8px; color: var(--brand); font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .step-no span { width: 24px; height: 24px; border-radius: 50%; background: var(--brand); color: #04222d; display: grid; place-items: center; font-size: 13px; letter-spacing: 0; }
+    h3 { margin: 8px 0 6px; font-size: 22px; letter-spacing: -.01em; }
+    p { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+    p b { color: var(--ink); }
+
+    .shot { margin: 14px 0 12px; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); background: #000; }
+    .shot img { display: block; width: 100%; height: auto; }
+    .hint { display: flex; gap: 10px; align-items: flex-start; background: rgba(76, 195, 227, .1); border: 1px solid rgba(76, 195, 227, .25); border-radius: 14px; padding: 11px 13px; color: var(--ink); font-size: 13.5px; line-height: 1.4; }
+    .hint .i { color: var(--brand); margin-top: 1px; }
+    .tiny { margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+    /* intro slide */
+    .logo { width: 150px; height: auto; border-radius: 16px; background: #fff; padding: 6px; align-self: center; margin: 8px 0 14px; }
+    .intro-points { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 10px; }
+    .intro-points li { display: flex; gap: 12px; align-items: center; font-size: 14px; color: var(--ink); }
+    .intro-points li .tile { flex: 0 0 34px; height: 34px; border-radius: 11px; background: var(--surface2); display: grid; place-items: center; color: var(--brand); }
+    .browser { margin-top: 16px; border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; font-size: 13.5px; line-height: 1.4; }
+    .browser.ok { background: rgba(61, 220, 151, .1); border: 1px solid rgba(61, 220, 151, .35); }
+    .browser.bad { background: rgba(255, 176, 74, .1); border: 1px solid rgba(255, 176, 74, .4); flex-wrap: wrap; }
+    .browser .i { width: 22px; height: 22px; }
+    .browser.ok .i { color: var(--ok); }
+    .browser.bad .i { color: #ffb04a; }
+    .copy { flex: 1 0 100%; margin-top: 4px; min-height: 44px; border-radius: 22px; border: 1.5px solid var(--brand); background: transparent; color: var(--brand); font: inherit; font-weight: 700; cursor: pointer; }
+    .copy.done { background: var(--ok); border-color: var(--ok); color: #04222d; }
+
+    .browser[hidden] { display: none; }
+
+    /* bottom bar */
+    .bar { display: flex; gap: 10px; padding: 12px 20px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
+    .btn { min-height: 50px; border-radius: 25px; border: 0; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; }
+    .btn.ghost { flex: 0 0 34%; background: transparent; border: 1.5px solid var(--border); color: var(--ink); }
+    .btn.main { flex: 1; background: var(--brand); color: #04222d; }
+    .btn[hidden] { display: none; }
+
+    @media (prefers-reduced-motion: reduce) { .sheet, .track, .progress i::after { animation: none; transition: none; } }
+  </style>
+</head>
+<body>
+  <div class="lab" aria-label="Prototype controls">
+    <span><b>Language</b>
+      <span class="seg" id="langs">
+        <button data-l="en" aria-pressed="true">EN</button><button data-l="fr" aria-pressed="false">FR</button><button data-l="rw" aria-pressed="false">RW</button><button data-l="sw" aria-pressed="false">SW</button>
+      </span>
+    </span>
+    <span><b>Browser</b>
+      <span class="seg" id="browsers">
+        <button data-b="safari" aria-pressed="true">Safari</button><button data-b="other" aria-pressed="false">Chrome / in-app</button>
+      </span>
+    </span>
+    <span><button class="seg" style="border:0;cursor:pointer;color:var(--brand);font-weight:700;padding:7px 12px;display:inline-flex;align-items:center;gap:6px" id="restart"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg> Restart</button></span>
+  </div>
+
+  <div class="phone">
+    <div class="behind" aria-hidden="true">
+      <h2>APP</h2>
+      <div class="row"><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span><div><b>Notifications</b><small>Channels, alerts and quiet hours</small></div></div>
+      <div class="row"><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg></span><div><b>Language</b><small>English</small></div></div>
+      <div class="row"><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14zm-1-6h-3V8h-2v5H8l4 4 4-4z"/></svg></span><div><b>App updates</b><small>Check for a new version</small></div></div>
+      <div class="row hot"><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14zm-1-6h-3V8h-2v5H8l4 4 4-4z"/></svg></span><div><b>Install app</b><small>Adds it to your home screen or taskbar…</small></div></div>
+    </div>
+    <div class="scrim"></div>
+
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="title">
+      <div class="grab"></div>
+      <div class="head"><h1 id="title"></h1><button class="x" id="close" aria-label="Close"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button></div>
+      <div class="progress" id="progress" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+      <div class="viewport" id="viewport">
+        <div class="track" id="track">
+
+          <article class="slide" data-i="0">
+            <img class="logo" src="img/logo.png" alt="AbyEx" />
+            <h3 data-t="introTitle"></h3>
+            <p data-t="introText"></p>
+            <div class="browser ok" id="bOk"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><span data-t="browserOk"></span></div>
+            <div class="browser bad" id="bBad" hidden>
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg><span data-t="browserBad"></span>
+              <button class="copy" id="copy" data-t="copy"></button>
+            </div>
+            <ul class="intro-points">
+              <li><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></span><span data-t="pt1"></span></li>
+              <li><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg></span><span data-t="pt2"></span></li>
+              <li><span class="tile"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg></span><span data-t="pt3"></span></li>
+            </ul>
+          </article>
+
+          <article class="slide" data-i="1">
+            <div class="step-no"><span>1</span><em data-t="of1" style="font-style:normal"></em></div>
+            <h3 data-t="s1Title"></h3>
+            <p data-t="s1Text"></p>
+            <div class="shot"><img src="img/step-1.png" alt="" /></div>
+            <div class="hint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span data-t="s1Hint"></span></div>
+          </article>
+
+          <article class="slide" data-i="2">
+            <div class="step-no"><span>2</span><em data-t="of2" style="font-style:normal"></em></div>
+            <h3 data-t="s2Title"></h3>
+            <p data-t="s2Text"></p>
+            <div class="shot"><img src="img/step-2.png" alt="" /></div>
+            <div class="hint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span data-t="s2Hint"></span></div>
+          </article>
+
+          <article class="slide" data-i="3">
+            <div class="step-no"><span>3</span><em data-t="of3" style="font-style:normal"></em></div>
+            <h3 data-t="s3Title"></h3>
+            <p data-t="s3Text"></p>
+            <div class="shot"><img src="img/step-3.png" alt="" /></div>
+            <div class="hint"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span data-t="s3Hint"></span></div>
+            <p class="tiny" data-t="note"></p>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="bar">
+        <button class="btn ghost" id="back" hidden data-t="back"></button>
+        <button class="btn main" id="next"></button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    var T = {
+      en: {
+        title: "Install AbyEx on iPhone",
+        introTitle: "Put AbyEx on your Home Screen", introText: "It takes three taps. Then AbyEx opens like any other app on your iPhone.",
+        pt1: "Opens full screen, with no browser bars", pt2: "The only way to get notifications on iPhone", pt3: "About 30 seconds",
+        browserOk: "You are in Safari. Perfect, you can start.", browserBad: "Open this page in Safari first. Other browsers on iPhone cannot add apps to the Home Screen.", copy: "Copy link", copied: "Link copied. Paste it in Safari.",
+        of1: "Step 1 of 3", of2: "Step 2 of 3", of3: "Step 3 of 3",
+        s1Title: "Tap Share", s1Text: "In Safari, tap the three dots at the bottom right. In the menu that opens, tap <b>Share</b>.", s1Hint: "Look for the square with an arrow pointing up.",
+        s2Title: "Add to Home Screen", s2Text: "Scroll the list and tap <b>Add to Home Screen</b>. On the next screen, tap <b>Add</b> in the top right corner.", s2Hint: "Look for a square with a plus inside it.",
+        s3Title: "Open AbyEx", s3Text: "AbyEx is now on your Home Screen. Tap it to open the app full screen. When asked, allow notifications.", s3Hint: "Look for the AbyEx icon, with the teal A.", note: "Always open AbyEx from this icon, not from Safari.",
+        start: "Start", back: "Back", next: "Next", done: "Done"
+      },
+      fr: {
+        title: "Installer AbyEx sur iPhone",
+        introTitle: "Mettez AbyEx sur votre écran d'accueil", introText: "Trois appuis suffisent. Ensuite AbyEx s'ouvre comme n'importe quelle autre application de votre iPhone.",
+        pt1: "S'ouvre en plein écran, sans barres du navigateur", pt2: "La seule façon d'avoir des notifications sur iPhone", pt3: "Environ 30 secondes",
+        browserOk: "Vous êtes dans Safari. Parfait, vous pouvez commencer.", browserBad: "Ouvrez d'abord cette page dans Safari. Les autres navigateurs sur iPhone ne peuvent pas ajouter d'applications à l'écran d'accueil.", copy: "Copier le lien", copied: "Lien copié. Collez-le dans Safari.",
+        of1: "Étape 1 sur 3", of2: "Étape 2 sur 3", of3: "Étape 3 sur 3",
+        s1Title: "Touchez Partager", s1Text: "Dans Safari, touchez les trois points en bas à droite. Dans le menu qui s'ouvre, touchez <b>Partager</b>.", s1Hint: "Cherchez le carré avec une flèche vers le haut.",
+        s2Title: "Sur l'écran d'accueil", s2Text: "Faites défiler la liste et touchez <b>Sur l'écran d'accueil</b>. Sur l'écran suivant, touchez <b>Ajouter</b> en haut à droite.", s2Hint: "Cherchez un carré avec un plus à l'intérieur.",
+        s3Title: "Ouvrez AbyEx", s3Text: "AbyEx est maintenant sur votre écran d'accueil. Touchez-le pour ouvrir l'application en plein écran. Quand on vous le demande, autorisez les notifications.", s3Hint: "Cherchez l'icône AbyEx, avec le A turquoise.", note: "Ouvrez toujours AbyEx depuis cette icône, pas depuis Safari.",
+        start: "Commencer", back: "Retour", next: "Suivant", done: "Terminé"
+      },
+      rw: {
+        title: "Shyira AbyEx kuri iPhone",
+        introTitle: "Shyira AbyEx kuri Home Screen", introText: "Bisaba gukanda gatatu. Hanyuma AbyEx ifunguka nk'izindi porogaramu zose za iPhone yawe.",
+        pt1: "Ifunguka yuzuye mu ecran, nta bari za mushakisha", pt2: "Ni yo nzira yonyine yo kubona amatangazo kuri iPhone", pt3: "Hafi amasegonda 30",
+        browserOk: "Uri muri Safari. Ni byiza, ushobora gutangira.", browserBad: "Banza ufungure uru rupapuro muri Safari. Izindi mushakisha kuri iPhone ntizishobora kongera porogaramu kuri Home Screen.", copy: "Gukoporora link", copied: "Link yakoporowe. Yishyire muri Safari.",
+        of1: "Intambwe ya 1 kuri 3", of2: "Intambwe ya 2 kuri 3", of3: "Intambwe ya 3 kuri 3",
+        s1Title: "Kanda Share", s1Text: "Muri Safari, kanda utudomo dutatu hepfo iburyo. Muri menu ifunguka, kanda <b>Share</b>.", s1Hint: "Shaka kare kariho umwambi werekeza hejuru.",
+        s2Title: "Add to Home Screen", s2Text: "Manura urutonde, ukande <b>Add to Home Screen</b>. Ku rupapuro rukurikira, kanda <b>Add</b> hejuru iburyo.", s2Hint: "Shaka kare kariho akaranga ka plus imbere.",
+        s3Title: "Fungura AbyEx", s3Text: "AbyEx ubu iri kuri Home Screen yawe. Yikande kugira ngo ifungurwe yuzuye mu ecran. Bakubajije, emera amatangazo.", s3Hint: "Shaka akamenyetso ka AbyEx, karimo A y'ibara ry'icyatsi-ubururu.", note: "Buri gihe fungura AbyEx ukoresheje aka kamenyetso, si Safari.",
+        start: "Tangira", back: "Subira inyuma", next: "Komeza", done: "Birangiye"
+      },
+      sw: {
+        title: "Sakinisha AbyEx kwenye iPhone",
+        introTitle: "Weka AbyEx kwenye Skrini ya Nyumbani", introText: "Inahitaji kugusa mara tatu. Kisha AbyEx inafunguka kama programu nyingine yoyote kwenye iPhone yako.",
+        pt1: "Inafunguka skrini nzima, bila pau za kivinjari", pt2: "Njia pekee ya kupata arifa kwenye iPhone", pt3: "Takriban sekunde 30",
+        browserOk: "Uko kwenye Safari. Vizuri, unaweza kuanza.", browserBad: "Fungua ukurasa huu kwenye Safari kwanza. Vivinjari vingine kwenye iPhone haviwezi kuongeza programu kwenye Skrini ya Nyumbani.", copy: "Nakili kiungo", copied: "Kiungo kimenakiliwa. Kibandike kwenye Safari.",
+        of1: "Hatua ya 1 kati ya 3", of2: "Hatua ya 2 kati ya 3", of3: "Hatua ya 3 kati ya 3",
+        s1Title: "Gusa Share", s1Text: "Kwenye Safari, gusa nukta tatu chini kulia. Kwenye menyu inayofunguka, gusa <b>Share</b>.", s1Hint: "Tafuta mraba wenye mshale unaoelekea juu.",
+        s2Title: "Add to Home Screen", s2Text: "Sogeza orodha na ugushe <b>Add to Home Screen</b>. Kwenye skrini inayofuata, gusa <b>Add</b> juu kulia.", s2Hint: "Tafuta mraba wenye alama ya kujumlisha ndani yake.",
+        s3Title: "Fungua AbyEx", s3Text: "AbyEx sasa iko kwenye Skrini yako ya Nyumbani. Igushe ili kuifungua skrini nzima. Utakapoulizwa, ruhusu arifa.", s3Hint: "Tafuta aikoni ya AbyEx, yenye A ya rangi ya bluu-kijani.", note: "Fungua AbyEx kila mara kutoka aikoni hii, si kutoka Safari.",
+        start: "Anza", back: "Rudi", next: "Endelea", done: "Imekamilika"
+      }
+    };
+
+    var lang = "en", browser = "safari", i = 0, LAST = 3;
+    var $ = function (s) { return document.querySelector(s); };
+
+    function render() {
+      var t = T[lang];
+      document.documentElement.lang = lang;
+      $("#title").textContent = t.title;
+      document.querySelectorAll("[data-t]").forEach(function (el) { var k = el.getAttribute("data-t"); if (t[k] != null) el.innerHTML = t[k]; });
+      $("#bOk").hidden = browser !== "safari";
+      $("#bBad").hidden = browser === "safari";
+      $("#copy").classList.remove("done"); $("#copy").textContent = t.copy;
+      $("#track").style.transform = "translateX(" + (-i * 100) + "%)";
+      document.querySelectorAll("#progress i").forEach(function (b, n) { b.className = n < i ? "done" : n === i ? "now" : ""; });
+      $("#back").hidden = i === 0;
+      var wrong = i === 0 && browser !== "safari";
+      $("#next").textContent = wrong ? t.copy : i === 0 ? t.start : i === LAST ? t.done : t.next;
+      // on the first screen of the wrong browser, the main button waits for Safari
+      $("#next").disabled = false;
+      document.querySelectorAll(".slide").forEach(function (s, n) { s.setAttribute("aria-hidden", n === i ? "false" : "true"); s.scrollTop = 0; });
+    }
+    function go(n) { i = Math.max(0, Math.min(LAST, n)); render(); }
+
+    $("#next").onclick = function () { if (i === 0 && browser !== "safari") { $("#copy").click(); return; } if (i === LAST) { i = 0; render(); alert("Prototype: this closes the sheet in the app."); } else go(i + 1); };
+    $("#back").onclick = function () { go(i - 1); };
+    $("#close").onclick = function () { alert("Prototype: this closes the sheet."); };
+    $("#restart").onclick = function () { go(0); };
+    document.querySelectorAll("#langs button").forEach(function (b) { b.onclick = function () { lang = b.dataset.l; document.querySelectorAll("#langs button").forEach(function (x) { x.setAttribute("aria-pressed", x === b); }); render(); }; });
+    document.querySelectorAll("#browsers button").forEach(function (b) { b.onclick = function () { browser = b.dataset.b; document.querySelectorAll("#browsers button").forEach(function (x) { x.setAttribute("aria-pressed", x === b); }); go(0); }; });
+    $("#copy").onclick = function () {
+      var btn = $("#copy");
+      (navigator.clipboard ? navigator.clipboard.writeText("https://aby-ex.onrender.com") : Promise.reject()).catch(function () {}).then(function () { btn.classList.add("done"); btn.textContent = T[lang].copied; });
+    };
+
+    // swipe and arrow keys
+    var x0 = null;
+    var vp = $("#viewport");
+    vp.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    vp.addEventListener("touchend", function (e) { if (x0 == null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 50) go(i + (dx < 0 ? 1 : -1)); });
+    document.addEventListener("keydown", function (e) { if (e.key === "ArrowRight") go(i + 1); if (e.key === "ArrowLeft") go(i - 1); });
+
+    render();
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { isInAppBrowser, isIosDevice } from './platform';
+import { isInAppBrowser, isIosDevice, isIosSafari } from './platform';
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
 const IPAD_AS_MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15';
@@ -24,4 +24,12 @@ describe('isInAppBrowser', () => {
     expect(isInAppBrowser(IPHONE)).toBe(false);
     expect(isInAppBrowser(ANDROID)).toBe(false);
   });
+});
+
+describe('isIosSafari', () => {
+  const CHROME_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.153 Mobile/15E148 Safari/604.1';
+  const FIREFOX_IOS = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/127.0 Mobile/15E148 Safari/605.1.15';
+  test('Safari on an iPhone, and on an iPad that says it is a Mac, is Safari', () => { expect(isIosSafari(IPHONE, 5)).toBe(true); expect(isIosSafari(IPAD_AS_MAC, 5)).toBe(true); });
+  test('Chrome, Firefox and the browsers inside other apps are not', () => { for (const ua of [CHROME_IOS, FIREFOX_IOS, INSTAGRAM, FACEBOOK]) expect(isIosSafari(ua, 5)).toBe(false); });
+  test('a Mac or an Android phone is not', () => { expect(isIosSafari(MAC, 0)).toBe(false); expect(isIosSafari(ANDROID, 5)).toBe(false); });
 });

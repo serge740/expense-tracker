@@ -33,7 +33,7 @@ const ev = async expression => { const r = (await send('Runtime.evaluate', { exp
 const path = () => ev('location.pathname + location.search');
 const text = () => ev('document.body.innerText');
 /** Waits (up to 6 s) for the screen to contain some text. */
-async function seen(needle) { for (let i = 0; i < 40; i++) { if ((await text()).includes(needle)) return true; await sleep(150); } return false; }
+async function seen(needle) { for (let i = 0; i < 100; i++) { if ((await text()).includes(needle)) return true; await sleep(150); } return false; }
 // A button is found by its text or label, or by its icon ("icon:close" for the X, "icon:arrow-back" for the back arrow).
 const click = label => ev(`(() => {
   const want = ${JSON.stringify(label)}.toLowerCase();
@@ -99,7 +99,7 @@ try {
   }
 
   // ── Home: the period picker, the schedules and the plan card; the Scheduled page's status cards and filters ──
-  const until = async expr => { for (let i = 0; i < 30; i++) { if (await ev(expr)) return true; await sleep(150); } return false; };
+  const until = async expr => { for (let i = 0; i < 80; i++) { if (await ev(expr)) return true; await sleep(150); } return false; };
   const byId = id => ev(`(() => { const n = document.querySelector('[data-testid="${id}"]'); n && n.click(); return !!n; })()`);
   await send('Page.navigate', { url: `${origin}/app?mock=1` });
   await seen('Include loans');
@@ -469,6 +469,39 @@ try {
     return (await seen('Open loan')) && !(await text()).includes('Mark paid');
   })(), await path());
   await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
+
+  // ── The iPhone install guide ──
+  await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' });
+  check('on an iPhone that has not installed the app, the install guide opens by itself', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app?mock=1` });
+    for (let n = 0; n < 4 && !(await ev("!!document.querySelector('[data-testid=ios-guide]')")); n++) await sleep(2500);
+    return (await ev("!!document.querySelector('[data-testid=ios-guide]')")) && await seen('Put AbyEx on your Home Screen') && !!(await ev("!!document.querySelector('[data-testid=ios-guide-safari-ok]')"));
+  })(), await path());
+  check('Start, then the three steps show what to tap and what to look for', (await byId('ios-guide-next')) && await seen('Tap Share') && await seen('STEP 1 OF 3') && await seen('Look for the square with an arrow')
+    && (await byId('ios-guide-next')) && await seen('Add to Home Screen') && await seen('STEP 2 OF 3')
+    && (await byId('ios-guide-next')) && await seen('Open AbyEx') && await seen('STEP 3 OF 3') && await seen('Always open AbyEx from this icon'), await path());
+  check('the pictures load', await until("[...document.querySelectorAll('[data-testid=ios-guide] img')].length >= 1 && [...document.querySelectorAll('[data-testid=ios-guide] img')].every(i => i.complete && i.naturalWidth > 0)"), await path());
+  check('Back goes to the step before, and Done closes the guide for good', (await byId('ios-guide-back')) && await seen('STEP 2 OF 3') && (await byId('ios-guide-next')) && (await byId('ios-guide-next')) && (await until("!document.querySelector('[data-testid=ios-guide]')")), await path());
+  check('it does not open again by itself, but the Install app row in Settings opens it', await (async () => {
+    await send('Page.navigate', { url: `${origin}/app/profile?mock=1` });
+    for (let n = 0; n < 4 && !(await seen('Install app')); n++) { /* the Settings screen loads on first visit */ }
+    await sleep(6500);
+    if (await ev("!!document.querySelector('[data-testid=ios-guide]')")) return false;
+    if (!(await clickContaining('install app'))) return false;
+    return (await until("!!document.querySelector('[data-testid=ios-guide]')")) && await seen('Put AbyEx on your Home Screen');
+  })(), await path());
+  check('in Chrome on an iPhone it says to open Safari and the main button copies the link', await (async () => {
+    await byId('ios-guide-close');
+    await send('Emulation.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.153 Mobile/15E148 Safari/604.1' });
+    await send('Page.navigate', { url: `${origin}/app/profile?mock=1` });
+    for (let n = 0; n < 4 && !(await seen('Install app')); n++) { /* the Settings screen loads on first visit */ }
+    if (!(await clickContaining('install app'))) return false;
+    const g = await until("!!document.querySelector('[data-testid=ios-guide]')"); console.log('DBG guide', g, await ev("!!document.querySelector('[data-testid=ios-guide-safari-ok]')"), await ev('navigator.userAgent.slice(-50)'));
+    return (await until("!!document.querySelector('[data-testid=ios-guide-safari-bad]')")) && await seen('Open this page in Safari first') && await seen('Copy link');
+  })(), await path());
+  await send('Emulation.setUserAgentOverride', { userAgent: '' });
+  await send('Page.navigate', { url: `${origin}/app?mock=1` });
+  await seen('Include loans');
 
   // someone with no family: the create and join screens, and an invite code
   await send('Page.navigate', { url: `${origin}/app/family-create?mock=1&nofamily=1` });

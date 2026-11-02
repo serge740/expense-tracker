@@ -15,3 +15,8 @@ export function isIosDevice(ua: string = navigator.userAgent, touchPoints: numbe
 export function isInAppBrowser(ua: string = navigator.userAgent): boolean {
   return /FBAN|FBAV|FB_IAB|Instagram|TikTok|musical_ly|BytedanceWebview|LinkedInApp|Snapchat|Line\/|MicroMessenger|GSA\/|Twitter/i.test(ua);
 }
+
+/** Safari itself on an iPhone or iPad (the only browser there that can add a web app to the Home Screen): not Chrome, Firefox, Edge or another app's browser. */
+export function isIosSafari(ua: string = navigator.userAgent, touchPoints: number = navigator.maxTouchPoints ?? 0): boolean {
+  return isIosDevice(ua, touchPoints) && !isInAppBrowser(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|YaBrowser|SamsungBrowser/i.test(ua);
+}

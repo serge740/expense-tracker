@@ -20,6 +20,7 @@ import { useCurrencySetting as useCurrency } from '@/context/currency-context';
 import { usePreferences } from '@/context/preferences-context';
 import { useI18n } from '@/context/language-context';
 import { usePwaInstall } from '@/context/pwa-install-context';
+import { openIosInstallGuide } from '@/components/pwa/ios-install-guide';
 import { useAppUpdate } from '@/context/app-update-context';
 import { LANGUAGES } from '@/i18n/strings';
 import { Section, Row, toneColors } from '@/components/settings/ui';
@@ -255,7 +256,7 @@ export default function ProfileScreen() {
                      onPress={() => {
                        // One tap where the browser offers it; otherwise say where to find it (iPhone has no one-tap install).
                        if (canInstall) void install();
-                       else if (isIos()) Alert.alert(t('pwa.iosTitle'), t(isInAppBrowser() ? 'pwa.iosInApp' : 'pwa.iosText'));
+                       else if (isIos()) openIosInstallGuide();
                        else Alert.alert(t('pwa.title'), t('pwa.notYet'));
                      }} />
               )}
