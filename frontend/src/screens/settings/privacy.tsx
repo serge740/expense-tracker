@@ -29,7 +29,7 @@ const SECTIONS = [
   {
     icon: 'share' as const,
     title: '4. Third-Party Services',
-    body: 'AbyEx uses the following trusted third-party services:\n• Google Sign-In for authentication\n• Expo Notifications for push notifications\n\nThese services have their own privacy policies. We only share the minimum data necessary for them to function.',
+    body: 'AX uses the following trusted third-party services:\n• Google Sign-In for authentication\n• Expo Notifications for push notifications\n\nThese services have their own privacy policies. We only share the minimum data necessary for them to function.',
   },
   {
     icon: 'notifications-none' as const,
@@ -44,12 +44,12 @@ const SECTIONS = [
   {
     icon: 'child-care' as const,
     title: '7. Children\'s Privacy',
-    body: 'AbyEx is not intended for users under the age of 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us immediately.',
+    body: 'AX is not intended for users under the age of 13. We do not knowingly collect personal information from children. If you believe a child has provided us with personal information, please contact us immediately.',
   },
   {
     icon: 'update' as const,
     title: '8. Changes to This Policy',
-    body: 'We may update this Privacy Policy from time to time. We will notify you of significant changes through the app or via email. Your continued use of AbyEx after changes constitutes acceptance of the updated policy.',
+    body: 'We may update this Privacy Policy from time to time. We will notify you of significant changes through the app or via email. Your continued use of AX after changes constitutes acceptance of the updated policy.',
   },
   {
     icon: 'mail-outline' as const,
@@ -93,7 +93,7 @@ export default function PrivacyScreen() {
         <FadeInView delay={100} slideFrom="bottom" distance={14}>
           <View style={s.intro}>
             <Text style={[s.introText, { color: theme.textSecondary }]}>
-              AbyEx ("we", "our", "us") is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information when you use our mobile application.
+              AX ("we", "our", "us") is committed to protecting your privacy. This policy explains how we collect, use, and safeguard your information when you use our mobile application.
             </Text>
           </View>
         </FadeInView>

@@ -125,7 +125,7 @@ Add-Arrow $c.G 760 540 760 574 8
 Add-Pill $c.G 'Then tap "Add" at the top right' 58 704 28 $false
 $c.Bmp.Save((Join-Path $out 'step-2-marked.png'), [System.Drawing.Imaging.ImageFormat]::Png); $c.G.Dispose(); $c.Bmp.Dispose()
 
-# ── Step 3: the AbyEx icon; the other apps are blurred (they are not ours to show) ──
+# ── Step 3: the AX icon; the other apps are blurred (they are not ours to show) ──
 $src = [System.Drawing.Image]::FromFile((Join-Path $dir 'step-3.jpeg'))
 $W = $src.Width; $H = $src.Height
 $bmp = New-Object System.Drawing.Bitmap $W, $H
@@ -149,7 +149,7 @@ $src.Dispose()
 Add-Spotlight $g $bmp 372 76 102 122 22 70
 Add-Badge $g 372 80 '3' $true 22
 Add-Tap $g 423 128 14
-Add-Pill $g 'Look for the AbyEx icon' 488 236 21 $true
+Add-Pill $g 'Look for the AX icon' 488 236 21 $true
 Add-Arrow $g 410 232 424 204 6
 Add-Pill $g 'Tap it to open the app' 488 290 17 $true
 $bmp.Save((Join-Path $out 'step-3-marked.png'), [System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()

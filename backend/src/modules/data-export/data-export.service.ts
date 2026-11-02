@@ -212,7 +212,7 @@ export class DataExportService {
       const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-      doc.fillColor('#00627F').fontSize(26).font('Helvetica-Bold').text('AbyExpense', { align: 'center' });
+      doc.fillColor('#00627F').fontSize(26).font('Helvetica-Bold').text('AX', { align: 'center' });
       doc.fontSize(14).font('Helvetica').fillColor('#000').text('Self-Backup Export Report', { align: 'center' });
       doc.moveDown(0.5);
       doc.fontSize(10).fillColor('#666').text(`Generated: ${dateStr}`, { align: 'center' });

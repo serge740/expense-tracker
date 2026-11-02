@@ -31,9 +31,9 @@ class DataExportService {
     const dateStr = new Date().toISOString().split('T')[0];
     const format = options.format ?? 'json';
     const filenames: Record<string, string> = {
-      json: `abyex-self-backup-${dateStr}.json`,
-      excel: `abyex-export-${dateStr}.xlsx`,
-      pdf: `abyex-report-${dateStr}.pdf`,
+      json: `ax-self-backup-${dateStr}.json`,
+      excel: `ax-export-${dateStr}.xlsx`,
+      pdf: `ax-report-${dateStr}.pdf`,
     };
 
     const { data } = await api.post('/it-support-api/data-export/export', options, {
@@ -42,7 +42,7 @@ class DataExportService {
     });
 
     const blob = new Blob([data], { type: CONTENT_TYPES[format] ?? CONTENT_TYPES.json });
-    triggerDownload(blob, filenames[format] ?? `abyex-export-${dateStr}.${EXTENSIONS[format] ?? 'json'}`);
+    triggerDownload(blob, filenames[format] ?? `ax-export-${dateStr}.${EXTENSIONS[format] ?? 'json'}`);
   }
 
   async importPreview(file: File, conflictStrategy = 'SKIP'): Promise<any> {

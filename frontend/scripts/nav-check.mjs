@@ -475,11 +475,11 @@ try {
   check('on an iPhone that has not installed the app, the install guide opens by itself', await (async () => {
     await send('Page.navigate', { url: `${origin}/app?mock=1` });
     for (let n = 0; n < 4 && !(await ev("!!document.querySelector('[data-testid=ios-guide]')")); n++) await sleep(2500);
-    return (await ev("!!document.querySelector('[data-testid=ios-guide]')")) && await seen('Put AbyEx on your Home Screen') && !!(await ev("!!document.querySelector('[data-testid=ios-guide-safari-ok]')"));
+    return (await ev("!!document.querySelector('[data-testid=ios-guide]')")) && await seen('Put AX on your Home Screen') && !!(await ev("!!document.querySelector('[data-testid=ios-guide-safari-ok]')"));
   })(), await path());
   check('Start, then the three steps show what to tap and what to look for', (await byId('ios-guide-next')) && await seen('Tap Share') && await seen('STEP 1 OF 3') && await seen('Look for the square with an arrow')
     && (await byId('ios-guide-next')) && await seen('Add to Home Screen') && await seen('STEP 2 OF 3')
-    && (await byId('ios-guide-next')) && await seen('Open AbyEx') && await seen('STEP 3 OF 3') && await seen('Always open AbyEx from this icon'), await path());
+    && (await byId('ios-guide-next')) && await seen('Open AX') && await seen('STEP 3 OF 3') && await seen('Always open AX from this icon'), await path());
   check('the pictures load', await until("[...document.querySelectorAll('[data-testid=ios-guide] img')].length >= 1 && [...document.querySelectorAll('[data-testid=ios-guide] img')].every(i => i.complete && i.naturalWidth > 0)"), await path());
   check('Back goes to the step before, and Done closes the guide for good', (await byId('ios-guide-back')) && await seen('STEP 2 OF 3') && (await byId('ios-guide-next')) && (await byId('ios-guide-next')) && (await until("!document.querySelector('[data-testid=ios-guide]')")), await path());
   check('it does not open again by itself, but the Install app row in Settings opens it', await (async () => {
@@ -488,7 +488,7 @@ try {
     await sleep(6500);
     if (await ev("!!document.querySelector('[data-testid=ios-guide]')")) return false;
     if (!(await clickContaining('install app'))) return false;
-    return (await until("!!document.querySelector('[data-testid=ios-guide]')")) && await seen('Put AbyEx on your Home Screen');
+    return (await until("!!document.querySelector('[data-testid=ios-guide]')")) && await seen('Put AX on your Home Screen');
   })(), await path());
   check('in Chrome on an iPhone it says to open Safari and the main button copies the link', await (async () => {
     await byId('ios-guide-close');

@@ -988,7 +988,7 @@ export class DataImportService {
 
   private validate(payload: any) {
     if (!payload || !payload.exportVersion || !payload.data) {
-      throw new BadRequestException('Invalid backup file. Expected an AbyExpense self-backup export.');
+      throw new BadRequestException('Invalid backup file. Expected an AX self-backup export.');
     }
   }
 

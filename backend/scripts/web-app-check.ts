@@ -70,7 +70,7 @@ async function main() {
   check('the service worker is JavaScript', (sw.r.headers.get('content-type') ?? '').includes('javascript'));
   const mf = await get('/manifest.webmanifest');
   check('the manifest is served and never cached', mf.r.status === 200 && mf.r.headers.get('cache-control') === 'no-cache');
-  check('the manifest is valid JSON with the app name', JSON.parse(mf.text).name === 'AbyExpense');
+  check('the manifest is valid JSON with the app name', JSON.parse(mf.text).name === 'AX');
   const ver = await get('/version.json');
   check('version.json (how the app learns of an update) is served and never cached', ver.r.status === 200 && ver.r.headers.get('cache-control') === 'no-cache' && typeof JSON.parse(ver.text).buildId === 'string');
   for (const icon of ['icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png', 'badge-96.png']) {

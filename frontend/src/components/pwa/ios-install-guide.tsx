@@ -82,7 +82,7 @@ export function IosInstallGuide({ onClose }: { onClose: () => void }) {
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
             {i === 0 ? (
               <View testID="ios-guide-intro">
-                <Image source={LOGO_FULL} style={s.logo} resizeMode="contain" accessibilityLabel="AbyEx" />
+                <Image source={LOGO_FULL} style={s.logo} resizeMode="contain" accessibilityLabel="AX" />
                 <Text style={[s.h, { color: theme.text }]}>{k('introTitle')}</Text>
                 <Text style={[s.p, { color: theme.textSecondary }]}>{k('introText')}</Text>
                 <View testID={safari ? 'ios-guide-safari-ok' : 'ios-guide-safari-bad'} style={[s.box, { backgroundColor: safari ? 'rgba(61,220,151,0.1)' : 'rgba(255,176,74,0.1)', borderColor: safari ? 'rgba(61,220,151,0.35)' : 'rgba(255,176,74,0.4)' }]}>

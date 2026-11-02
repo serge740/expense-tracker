@@ -57,7 +57,7 @@ export class DataExportController {
       const payload = await this.exportService.buildJsonExport(options, actor);
       const json = JSON.stringify(payload, null, 2);
       this.logger.log(`${actor.name} exported self-backup as JSON (${Object.keys(payload.meta.counts).length} tables)`);
-      res.setHeader('Content-Disposition', `attachment; filename="abyexpense-self-backup-${dateStr}.json"`);
+      res.setHeader('Content-Disposition', `attachment; filename="ax-self-backup-${dateStr}.json"`);
       res.setHeader('Content-Type', 'application/json');
       return res.send(json);
     }
@@ -65,7 +65,7 @@ export class DataExportController {
     if (format === 'excel') {
       const buffer = await this.exportService.buildExcelExport(options);
       this.logger.log(`${actor.name} exported self-backup as Excel`);
-      res.setHeader('Content-Disposition', `attachment; filename="abyexpense-export-${dateStr}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="ax-export-${dateStr}.xlsx"`);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       return res.send(buffer);
     }
@@ -73,7 +73,7 @@ export class DataExportController {
     if (format === 'pdf') {
       const buffer = await this.exportService.buildPdfExport(options);
       this.logger.log(`${actor.name} exported self-backup as PDF`);
-      res.setHeader('Content-Disposition', `attachment; filename="abyexpense-report-${dateStr}.pdf"`);
+      res.setHeader('Content-Disposition', `attachment; filename="ax-report-${dateStr}.pdf"`);
       res.setHeader('Content-Type', 'application/pdf');
       return res.send(buffer);
     }
