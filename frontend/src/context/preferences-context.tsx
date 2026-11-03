@@ -68,7 +68,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   hideBalances: false,
   includeLoans: true,
   homeView: 'all',
-  homePeriod: 'month',
+  homePeriod: 'all',
 };
 
 export const STORAGE_KEY = 'app_preferences_v1'; // same key as the phone app
