@@ -132,7 +132,7 @@ export class DebtsService {
 
   /** Move money for a debt event and return the transaction id. */
   private async move(prx: Tx, scope: Scope, opts: {
-    debtId: string; walletId: string | null; amount: number; direction: 'in' | 'out'; role: DebtRole; title: string; date: Date; note?: string | null; receiptUrl?: string | null; receiptReportUrl?: string | null;
+    debtId: string; walletId: string | null; amount: number; direction: 'in' | 'out'; role: DebtRole; title: string; date: Date; fundedByDebtId?: string | null; note?: string | null; receiptUrl?: string | null; receiptReportUrl?: string | null;
   }) {
     const tx = await prx.transaction.create({
       data: {
@@ -146,6 +146,7 @@ export class DebtsService {
         debtId: opts.debtId,
         debtRole: opts.role,
         walletId: opts.walletId,
+        fundedByDebtId: opts.fundedByDebtId ?? null,
         receiptUrl: opts.receiptUrl ?? null,
         receiptReportUrl: opts.receiptReportUrl ?? null,
       },
@@ -489,10 +490,23 @@ export class DebtsService {
     if (d.status !== 'OPEN' || remaining <= 0) throw new BadRequestException(`This ${nounOf(d.kind)} is already closed`);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Enter an amount greater than zero');
     if (amount > remaining) throw new BadRequestException(`Only ${remaining} ${d.currency} is left to pay`);
-    // Paying a debt never touches my wallets; a credit repaid to me goes into the wallet I chose (or none).
-    const walletId = d.kind === 'LENT' ? dto.walletId || undefined : undefined;
+    // The money comes from (a debt I repay) or goes into (a credit repaid to me) the wallet chosen, or none. A debt I repay may
+    // also be paid out of another loan's borrowed money; that never reaches a wallet.
+    const potId = d.kind === 'BORROWED' && dto.fundedByDebtId ? String(dto.fundedByDebtId) : null;
+    const walletId = potId ? undefined : dto.walletId || undefined;
     if (walletId) await this.wallet(scope, walletId, d.currency);
+    if (potId) {
+      if (isFamily(scope)) throw new BadRequestException('Borrowed money is personal: it cannot pay a family debt.');
+      if (potId === d.id) throw new BadRequestException('A loan cannot be repaid with its own money.');
+      const pot = await this.prisma.debt.findFirst({ where: { id: potId, ...scopeWhere(scope), kind: 'BORROWED', status: 'OPEN', archivedAt: null } });
+      if (!pot) throw new BadRequestException('Choose a loan you borrowed that is still open.');
+      if (pot.currency !== d.currency) throw new BadRequestException(`That loan is in ${pot.currency}, this debt is in ${d.currency}.`);
+      const unspent = round2(Number(pot.amount) - Number(pot.spent));
+      if (amount > unspent + 0.001) throw new BadRequestException(`Only ${unspent} ${pot.currency} of that loan is unspent.`);
+    }
     const date = dto.date ? new Date(dto.date) : new Date();
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Choose a valid date');
+    if (date.getTime() > Date.now() + 5 * 60_000) throw new BadRequestException('Choose a date that is not in the future.');
     // Optional proof of payment: a short text address only, nothing else is accepted.
     const clean = (v: unknown) => (typeof v === 'string' && v.trim() && v.length <= 191 ? v.trim() : null);
     const receiptUrl = clean(dto.receiptUrl);
@@ -501,7 +515,7 @@ export class DebtsService {
     const result = await this.prisma.$transaction(async prx => {
       // Always recorded: repaying what I borrowed is money out, being repaid is money in.
       const transactionId = await this.move(prx, scope, {
-        debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note, receiptUrl, receiptReportUrl,
+        debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note, receiptUrl, receiptReportUrl, fundedByDebtId: potId,
         direction: directionFor(d.kind, 'payment'),
         role: roleFor(d.kind, 'payment'),
         title: d.kind === 'BORROWED' ? `Repaid ${d.person}` : `Repayment from ${d.person}`,
@@ -509,6 +523,8 @@ export class DebtsService {
       await prx.debtPayment.create({
         data: { debtId: d.id, amount, date, walletId: walletId ?? null, transactionId, note: dto.note?.trim() || null, receiptUrl, receiptReportUrl },
       });
+      // Money taken from a loan's pot counts as spent from it.
+      if (potId) await prx.debt.update({ where: { id: potId }, data: { spent: { increment: amount } } });
       return this.recompute(prx, d.id);
     });
 

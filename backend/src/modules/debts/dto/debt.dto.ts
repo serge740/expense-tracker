@@ -44,6 +44,8 @@ export class DebtPaymentDto {
   /** Optional proof of payment, already uploaded through the receipts endpoint. */
   receiptUrl?: string;
   receiptReportUrl?: string;
+  /** Pay a debt out of another loan's borrowed money (its unspent part) instead of a wallet. */
+  fundedByDebtId?: string;
 }
 
 export class InstallmentDto {

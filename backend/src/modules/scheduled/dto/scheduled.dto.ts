@@ -36,4 +36,11 @@ export class ConfirmOccurrenceDto {
   /** Only for this one date. */
   amount?: number;
   walletId?: string | null;
+  /** The day it was really paid (the planned day when left out). Not in the future. */
+  date?: string;
+  /** Proof of payment, already uploaded through the receipts endpoint. */
+  receiptUrl?: string;
+  receiptReportUrl?: string;
+  /** Pay a scheduled expense out of a borrowed loan's unspent money instead of a wallet. */
+  fundedByDebtId?: string;
 }

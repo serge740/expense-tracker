@@ -98,4 +98,32 @@ describe('Family debts', () => {
     await w.transactions.remove(owner, principal.id);       // the original loan row can go too
     expect(((await svc.findOne(owner, d.id)) as any).amount).toBe(20000);
   });
+
+  test('a debt I owe can be paid from a wallet (it takes the money out) or from borrowed money of another loan (no wallet moves)', async () => {
+    const { svc, personal, mine, bal, w } = await setup();
+    const debt: any = await svc.create(personal, { kind: 'BORROWED', person: 'Bank', amount: 10000, currency: 'RWF' } as any);
+    await svc.addPayment(personal, debt.id, { amount: 2000, walletId: mine.id } as any);
+    expect(bal(mine.id)).toBe(48000);
+    expect(w.db.tables.transaction.find(t => t.debtRole === 'REPAY_OUT')).toMatchObject({ walletId: mine.id, familyId: null });
+    const pot: any = await svc.create(personal, { kind: 'BORROWED', person: 'Mum', amount: 5000, currency: 'RWF' } as any);
+    await svc.addPayment(personal, debt.id, { amount: 3000, fundedByDebtId: pot.id } as any);
+    expect(bal(mine.id)).toBe(48000);                                  // the wallet was not touched
+    expect(Number(w.db.tables.debt.find(d => d.id === pot.id)!.spent)).toBe(3000);
+    expect(w.db.tables.transaction.filter(t => t.fundedByDebtId === pot.id)).toHaveLength(1);
+    await expect(svc.addPayment(personal, debt.id, { amount: 3000, fundedByDebtId: pot.id } as any)).rejects.toThrow(/unspent/);
+    await expect(svc.addPayment(personal, debt.id, { amount: 10, fundedByDebtId: debt.id } as any)).rejects.toThrow(/own money/);
+    await expect(svc.addPayment(personal, debt.id, { amount: 10, walletId: 'nope' } as any)).rejects.toThrow();
+    await expect(svc.addPayment(personal, debt.id, { amount: 10, date: new Date(Date.now() + 86_400_000).toISOString() } as any)).rejects.toThrow(/future/);
+    const paidOn = '2026-10-01T09:30:00.000Z';
+    await svc.addPayment(personal, debt.id, { amount: 100, walletId: mine.id, date: paidOn, receiptUrl: 'https://x/r.jpg' } as any);
+    expect(w.db.tables.debtPayment.at(-1)).toMatchObject({ receiptUrl: 'https://x/r.jpg' });
+    expect(new Date(w.db.tables.transaction.at(-1)!.date as any).toISOString()).toBe(paidOn);
+  });
+
+  test('borrowed money cannot pay a family debt', async () => {
+    const { svc, owner, personal } = await setup();
+    const fam: any = await svc.create(owner, { kind: 'BORROWED', person: 'Bank', amount: 5000, currency: 'RWF' } as any);
+    const pot: any = await svc.create(personal, { kind: 'BORROWED', person: 'Mum', amount: 5000, currency: 'RWF' } as any);
+    await expect(svc.addPayment(owner, fam.id, { amount: 100, fundedByDebtId: pot.id } as any)).rejects.toThrow(/personal/);
+  });
 });

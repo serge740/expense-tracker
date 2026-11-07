@@ -92,4 +92,32 @@ describe('Family schedules', () => {
     expect(bal(home.id)).toBe(70000);
     await expect(svc.skip(kevin, mine[0].id, later)).rejects.toThrow();   // already handled
   });
+
+  test('confirming takes the day it was paid, a receipt and a different wallet', async () => {
+    const { svc, personal, mine, home, bal, w, startAt } = await setup();
+    await svc.create(personal, { type: 'EXPENSE', category: 'bills', title: 'Internet', amount: 8000, walletId: mine.id, startAt: startAt.toISOString(), mode: 'REMIND_CONFIRM' } as any);
+    const later = new Date(startAt.getTime() + 60_000);
+    await svc.processDue(later);
+    const [due]: any[] = await svc.waiting(personal, later);
+    const paidOn = new Date(startAt.getTime() - 3 * 3_600_000).toISOString();
+    await svc.confirm(personal, due.id, { date: paidOn, receiptUrl: 'https://x/r.jpg', receiptReportUrl: 'https://x/r.pdf', amount: 7500 } as any, later);
+    const tx = w.db.tables.transaction.find(t => t.title === 'Internet')!;
+    expect([new Date(tx.date as any).toISOString(), tx.receiptUrl, tx.receiptReportUrl, Number(tx.amount), tx.walletId]).toEqual([paidOn, 'https://x/r.jpg', 'https://x/r.pdf', 7500, mine.id]);
+    expect(bal(mine.id)).toBe(42500);
+    void home;
+  });
+
+  test('a scheduled expense can be paid from borrowed money, and a future paid-on date is refused', async () => {
+    const { svc, personal, mine, bal, w, startAt } = await setup();
+    w.db.tables.debt.push({ id: 'pot', clientId: 'aline', familyId: null, kind: 'BORROWED', person: 'Bank', amount: 20000, spent: 0, currency: 'RWF', status: 'OPEN', paid: 0, writtenOffAmount: 0, archivedAt: null });
+    await svc.create(personal, { type: 'EXPENSE', category: 'bills', title: 'Rent', amount: 12000, walletId: mine.id, startAt: startAt.toISOString(), mode: 'REMIND_CONFIRM' } as any);
+    const later = new Date(startAt.getTime() + 60_000);
+    await svc.processDue(later);
+    const [due]: any[] = await svc.waiting(personal, later);
+    await expect(svc.confirm(personal, due.id, { date: new Date(later.getTime() + 86_400_000).toISOString() } as any, later)).rejects.toThrow(/future/);
+    await svc.confirm(personal, due.id, { fundedByDebtId: 'pot' } as any, later);
+    expect(bal(mine.id)).toBe(50000);                                  // no wallet was touched
+    expect(Number(w.db.tables.debt[0].spent)).toBe(12000);
+    expect(w.db.tables.transaction.find(t => t.title === 'Rent')).toMatchObject({ fundedByDebtId: 'pot', walletId: null });
+  });
 });

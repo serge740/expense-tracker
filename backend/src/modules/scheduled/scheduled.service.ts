@@ -392,7 +392,7 @@ export class ScheduledService implements OnModuleInit {
     occ: { id: string; dueAt: Date; scheduleId: string },
     sch: ScheduledTransaction,
     now: Date,
-    over: { amount?: number; walletId?: string | null } = {},
+    over: { amount?: number; walletId?: string | null; date?: Date; receiptUrl?: string; receiptReportUrl?: string; fundedByDebtId?: string } = {},
   ) {
     // A family schedule posts as the person who made it, and only while they are still in the family and may add transactions.
     let scope: Scope;
@@ -400,11 +400,14 @@ export class ScheduledService implements OnModuleInit {
       try { scope = await this.scopes.resolve(sch.clientId, sch.familyId); } catch { throw new Failure('The person who set this up is no longer in the family'); }
       if (isFamily(scope) && !can(scope.role, 'tx.add')) throw new Failure('The person who set this up can no longer add transactions');
     } else scope = personalScope(sch.clientId);
-    const walletId = over.walletId !== undefined ? over.walletId : sch.walletId;
-    const date = occ.dueAt.getTime() > now.getTime() ? now : occ.dueAt;
+    // Paid out of a loan's borrowed money: no wallet is touched.
+    const walletId = over.fundedByDebtId ? null : over.walletId !== undefined ? over.walletId : sch.walletId;
+    const date = over.date ?? (occ.dueAt.getTime() > now.getTime() ? now : occ.dueAt);
     const dto: CreateTransactionDto = {
       type: sch.type, category: sch.category, title: sch.title, subCategory: sch.subCategory ?? undefined,
       description: sch.description ?? undefined, amount: over.amount ?? Number(sch.amount), date: date.toISOString(), walletId: walletId ?? undefined,
+      ...(over.receiptUrl ? { receiptUrl: over.receiptUrl, ...(over.receiptReportUrl ? { receiptReportUrl: over.receiptReportUrl } : {}) } : {}),
+      ...(over.fundedByDebtId ? { fundedByDebtId: over.fundedByDebtId } : {}),
     };
 
     let tx;
@@ -467,9 +470,21 @@ export class ScheduledService implements OnModuleInit {
   async confirm(who: string | Scope, occurrenceId: string, dto: ConfirmOccurrenceDto = {}, now = new Date()) {
     const scope = scopeOf(who);
     const occ = await this.waitingOwned(scope, occurrenceId);
-    const over: { amount?: number; walletId?: string | null } = {};
+    const over: { amount?: number; walletId?: string | null; date?: Date; receiptUrl?: string; receiptReportUrl?: string; fundedByDebtId?: string } = {};
     if (dto.amount !== undefined) over.amount = this.amountOf(dto.amount);
-    if (dto.walletId !== undefined) { await this.checkWallet(scope, dto.walletId); over.walletId = dto.walletId; }
+    if (dto.date !== undefined && dto.date !== null && dto.date !== '') {
+      const d = this.validDate(dto.date, 'date');
+      if (d.getTime() > now.getTime() + 5 * MIN) throw new BadRequestException('Choose a date that is not in the future');
+      over.date = d;
+    }
+    // A short text address only: nothing else is accepted as proof.
+    const clean = (v: unknown) => (typeof v === 'string' && v.trim() && v.length <= 191 ? v.trim() : undefined);
+    over.receiptUrl = clean(dto.receiptUrl);
+    over.receiptReportUrl = over.receiptUrl ? clean(dto.receiptReportUrl) : undefined;
+    if (dto.fundedByDebtId) {
+      if (occ.schedule.type !== 'EXPENSE') throw new BadRequestException('Only an expense can be paid from borrowed money');
+      over.fundedByDebtId = String(dto.fundedByDebtId);
+    } else if (dto.walletId !== undefined) { await this.checkWallet(scope, dto.walletId); over.walletId = dto.walletId; }
     try {
       const tx = await this.post(occ, occ.schedule, now, over);
       return { occurrenceId, status: 'POSTED', transactionId: tx.id };
