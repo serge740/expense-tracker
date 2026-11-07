@@ -319,7 +319,7 @@ const s = StyleSheet.create({
   netRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, marginTop: 4 },
   small: { fontSize: 12, lineHeight: 16 },
   netLine: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
-  net: { fontSize: 28, fontWeight: '700', lineHeight: 36, flexShrink: 1 },
+  net: { fontSize: 24, fontWeight: '700', lineHeight: 30, flexShrink: 1 },
   code: { fontSize: 14, fontWeight: '600' },
   delta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   note: { fontSize: 11.5, lineHeight: 16, marginTop: 8 },
@@ -341,7 +341,7 @@ const s = StyleSheet.create({
   walletName: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
   walletLine: { fontSize: 11.5, marginTop: 2 },
 
-  day: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8, position: 'sticky' as any, top: 0, zIndex: 2 },
+  day: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8, position: 'sticky' as any, top: 0, zIndex: 2 },
   dayLabel: { fontSize: 13, fontWeight: '600' },
   dayNet: { fontSize: 12, flexShrink: 1, textAlign: 'right' },
 
@@ -387,7 +387,7 @@ export function StatementCard({ statement, loading, error, hidden, onAdd, onTran
       </View>
       <View>
         <Text style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12 }}>{t('stmt.balance')}</Text>
-        <Text testID="stmt-balance" style={{ color: '#FFFFFF', fontSize: 26, fontWeight: '800' }} numberOfLines={1}>{money(w.balance)} <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.8)' }}>{w.currency}</Text></Text>
+        <Text testID="stmt-balance" style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '800' }} numberOfLines={1}>{money(w.balance)} <Text style={{ fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.8)' }}>{w.currency}</Text></Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
         {cell(t('stmt.opening'), money(statement.opening))}

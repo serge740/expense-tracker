@@ -52,7 +52,7 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
   round: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '800' },
+  title: { fontSize: 18, fontWeight: '800' },
   subtitle: { fontSize: 12, marginTop: 1 },
   body: { paddingHorizontal: 20, paddingBottom: 140 },
   section: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginTop: 18, marginBottom: 8 },

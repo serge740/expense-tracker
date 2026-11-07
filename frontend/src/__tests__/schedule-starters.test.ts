@@ -36,7 +36,7 @@ describe('starters', () => {
   test('rent is monthly on the 1st; salary on the 28th; airtime weekly; a one-time payment does not repeat', () => {
     const rent = starterParams(STARTERS.find(s => s.id === 'rent')!, NOW);
     expect(JSON.parse(rent.repeat).monthDays).toEqual([1]);
-    expect(rent).toMatchObject({ type: 'EXPENSE', category: 'bills', subCategory: 'Rent' });
+    expect(rent).toMatchObject({ type: 'EXPENSE', category: 'bills', subCategory: 'Rent', pickSub: '1' });
     const salary = starterParams(STARTERS.find(s => s.id === 'salary')!, NOW);
     expect(salary.type).toBe('INCOME');
     expect(JSON.parse(salary.repeat).monthDays).toEqual([28]);

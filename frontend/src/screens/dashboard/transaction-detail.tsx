@@ -323,7 +323,7 @@ const s = StyleSheet.create({
 
   hero:       { alignItems: 'center', paddingVertical: 24, gap: 8 },
   iconCircle: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
-  amountText: { fontSize: 42, fontWeight: '800', color: '#fff' },
+  amountText: { fontSize: 34, fontWeight: '800', color: '#fff' },
   titleText:  { fontSize: 16, fontWeight: '600', color: 'rgba(255,255,255,0.85)', textAlign: 'center', paddingHorizontal: 32 },
   typeBadge:     { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5 },
   typeBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },

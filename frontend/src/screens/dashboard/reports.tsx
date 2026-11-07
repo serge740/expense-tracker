@@ -415,9 +415,9 @@ const s = StyleSheet.create({
   decB:   { position: 'absolute', width: 180, height: 180, borderRadius: 90,  backgroundColor: 'rgba(255,255,255,0.04)', bottom: -40, left: -30 },
 
   topBar:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 12 },
-  title:   { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
+  title:   { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
 
-  filterRow: { paddingHorizontal: 20, paddingBottom: 16, gap: 8 },
+  filterRow: { paddingHorizontal: 16, paddingBottom: 16, gap: 8 },
   chip:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 22, borderWidth: 1.5 },
   chipText:  { fontSize: 13, fontWeight: '600' },
 
@@ -426,14 +426,14 @@ const s = StyleSheet.create({
   donutMid:      { width: 110, height: 110, borderRadius: 55, borderWidth: 13, borderColor: 'rgba(255,255,255,0.30)', alignItems: 'center', justifyContent: 'center' },
   donutHole:     { width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center' },
   donutLabel:    { fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.55)', letterSpacing: 1, marginBottom: 3 },
-  donutTotal:    { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+  donutTotal:    { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
   donutStats:    { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 0, alignSelf: 'stretch' },
   donutStat:     { flex: 1, minWidth: 0, alignItems: 'center', gap: 3, paddingHorizontal: 6 },
   donutStatDiv:  { width: 1, height: 32 },
   donutStatLabel:{ fontSize: 10, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
   donutStatVal:  { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
 
-  card:      { marginHorizontal: 20, borderRadius: 20, padding: 20, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
+  card:      { marginHorizontal: 16, borderRadius: 20, padding: 20, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 },
   cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 18 },
 
   barChart:  { flexDirection: 'row', alignItems: 'flex-end', height: 100, gap: 6 },
@@ -452,17 +452,17 @@ const s = StyleSheet.create({
 
   emptyText: { fontSize: 14, textAlign: 'center', paddingVertical: 16 },
 
-  aiBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, borderRadius: 16, paddingVertical: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
+  aiBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 16, borderRadius: 16, paddingVertical: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   aiBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
   modalSheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingBottom: 32 },
-  modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+  modalHeader:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 20, paddingBottom: 12 },
   modalTitleRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
   modalTitle:   { fontSize: 18, fontWeight: '700' },
   modalLoading: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 16 },
   modalLoadingText: { fontSize: 14 },
-  modalBody:    { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
+  modalBody:    { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
 
   verdictBadge: { alignSelf: 'flex-start', borderRadius: 20, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 8, marginBottom: 20 },
   verdictText:  { fontSize: 14, fontWeight: '700' },

@@ -197,7 +197,7 @@ const s = StyleSheet.create({
   grabber:  { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, marginBottom: 10 },
   head:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   title:    { fontSize: 18, fontWeight: '800' },
-  amount:   { fontSize: 22, fontWeight: '800', marginTop: 2 },
+  amount:   { fontSize: 19, fontWeight: '800', marginTop: 2 },
   chips:    { flexDirection: 'row', gap: 6, marginTop: 6 },
   sec:      { fontSize: 10.5, fontWeight: '800', letterSpacing: 1, marginTop: 18, marginBottom: 6 },
   rule:     { fontSize: 14, fontWeight: '700', lineHeight: 20 },

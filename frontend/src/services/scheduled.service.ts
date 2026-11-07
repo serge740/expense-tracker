@@ -89,7 +89,7 @@ export const resumeScheduled = (id: string): Promise<ScheduledDetail> => api.pos
 export const endScheduled = (id: string): Promise<ScheduledDetail> => api.delete(`/scheduled/${id}`).then(r => r.data);
 export const getWaitingDates = (): Promise<WaitingItem[]> => api.get('/scheduled/waiting').then(r => r.data);
 
-export const confirmOccurrence = (id: string, data: { amount?: number; walletId?: string | null } = {}): Promise<{ occurrenceId: string; status: string; transactionId: string }> =>
+export const confirmOccurrence = (id: string, data: { amount?: number; walletId?: string | null; date?: string; receiptUrl?: string; receiptReportUrl?: string; fundedByDebtId?: string } = {}): Promise<{ occurrenceId: string; status: string; transactionId: string }> =>
   api.post(`/scheduled/occurrences/${id}/confirm`, data).then(r => r.data);
 export const skipOccurrence = (id: string): Promise<{ occurrenceId: string; status: string }> =>
   api.post(`/scheduled/occurrences/${id}/skip`).then(r => r.data);

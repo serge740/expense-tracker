@@ -8,32 +8,10 @@ import { useI18n } from '@/context/language-context';
 import { formatMoney } from '@/context/currency-context';
 import { OWE, OWED, ToneChip } from '@/components/debt/tone-chip';
 import type { AttentionItem, DebtBucket, HomeSummary, NetWorth } from '@/services/home.service';
-import { currencyEntries, FEED_CHIPS, FeedView, hasLoanMovement, visibleAttention } from '@/utils/home';
+import { currencyEntries, FEED_CHIPS, FeedView, visibleAttention } from '@/utils/home';
 
 const plain = (n: number) => Math.round(n).toLocaleString('en-US');
 
-// ── Include loans (sits inside the teal balance card) ────────────────────────
-
-export function LoansBar({ loans, includeLoans, onToggle }: {
-  loans: HomeSummary['loans']; includeLoans: boolean; onToggle: (v: boolean) => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <View style={s.loanBar}>
-      <View style={{ flex: 1 }}>
-        <Text style={s.loanLabel}>{t('home.includeLoans')}</Text>
-        {hasLoanMovement(loans) && (
-          <>
-            <Text style={s.loanText}>{t(includeLoans ? 'home.loansOn' : 'home.loansOff', { out: plain(loans.out), in: plain(loans.in) })}</Text>
-            {loans.borrowed > 0 && <Text style={[s.loanText, { opacity: 0.7 }]}>{t('home.borrowedNote', { amount: plain(loans.borrowed) })}</Text>}
-          </>
-        )}
-      </View>
-      <Switch value={includeLoans} onValueChange={onToggle} trackColor={{ true: '#4ADE80', false: 'rgba(255,255,255,0.3)' }}
-              thumbColor="#FFFFFF" accessibilityLabel={t('home.includeLoans')} />
-    </View>
-  );
-}
 
 // ── Debts, credits and scheduled ─────────────────────────────────────────────
 
@@ -188,32 +166,32 @@ const s = StyleSheet.create({
   loanText:  { color: '#FFFFFF', fontSize: 11, lineHeight: 15, opacity: 0.7, marginTop: 2 },
   loanLabel: { color: '#FFFFFF', fontSize: 13, fontWeight: '500' },
 
-  grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 18 },
-  card:      { width: '48%', flexGrow: 1, borderRadius: 24, borderWidth: 1, padding: 16 },
+  grid:      { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 14 },
+  card:      { width: '48%', flexGrow: 1, borderRadius: 20, borderWidth: 1, padding: 12 },
   cardLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   dot:       { width: 8, height: 8, borderRadius: 4 },
-  cardLabel: { fontSize: 12 },
-  cardValue: { fontSize: 23, fontWeight: '700', marginTop: 10, letterSpacing: -0.5 },
-  cardSub:   { fontSize: 11, marginTop: 8 },
+  cardLabel: { fontSize: 11 },
+  cardValue: { fontSize: 19, fontWeight: '700', marginTop: 6, letterSpacing: -0.5 },
+  cardSub:   { fontSize: 10.5, marginTop: 5 },
 
-  sectionRow:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 22, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '600' },
+  sectionRow:   { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 14, marginBottom: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '600' },
   link:         { fontSize: 12, fontWeight: '600' },
-  listCard:     { marginHorizontal: 18, borderRadius: 24, borderWidth: 1, overflow: 'hidden' },
-  attRow:       { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  attIcon:      { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  listCard:     { marginHorizontal: 14, borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  attRow:       { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  attIcon:      { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   attTitle:     { fontSize: 12.5, fontWeight: '700' },
   attSub:       { fontSize: 10.5, marginTop: 1 },
   attAmount:    { fontSize: 13, fontWeight: '800' },
 
-  nwCard:     { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 18, borderRadius: 24, padding: 16 },
+  nwCard:     { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, borderRadius: 20, padding: 12 },
   nwLabel:    { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  nwValue:    { fontSize: 23, fontWeight: '700', marginTop: 6, letterSpacing: -0.5 },
-  nwDetail:   { fontSize: 11, lineHeight: 15, marginTop: 6 },
+  nwValue:    { fontSize: 19, fontWeight: '700', marginTop: 4, letterSpacing: -0.5 },
+  nwDetail:   { fontSize: 10.5, lineHeight: 14, marginTop: 4 },
   nwChip:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
   nwChipText: { fontSize: 10, fontWeight: '700' },
 
-  chips:    { gap: 8, paddingHorizontal: 18, marginBottom: 8 },
-  chip:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 99 },
-  chipText: { fontSize: 13, fontWeight: '600' },
+  chips:    { gap: 6, paddingHorizontal: 14, marginBottom: 6 },
+  chip:     { paddingHorizontal: 13, paddingVertical: 6, borderRadius: 99 },
+  chipText: { fontSize: 12, fontWeight: '600' },
 });

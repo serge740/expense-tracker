@@ -66,7 +66,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   notificationSound: 'chime',
   notificationVibrate: true,
   hideBalances: false,
-  includeLoans: true,
+  includeLoans: false,
   homeView: 'all',
   homePeriod: 'all',
 };

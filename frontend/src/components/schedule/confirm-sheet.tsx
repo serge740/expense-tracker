@@ -5,8 +5,7 @@ import { Text } from '@/components/text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { useI18n } from '@/context/language-context';
 import { formatMoney } from '@/context/currency-context';
-import { WalletChips } from '@/components/wallet/wallet-chips';
-import { getWallets, Wallet } from '@/services/wallet.service';
+import { PayDetailsFields, usePayDetails } from '@/components/schedule/pay-details';
 import { confirmOccurrence } from '@/services/scheduled.service';
 
 export interface ConfirmItem {
@@ -17,6 +16,8 @@ export interface ConfirmItem {
   /** '' when the schedule has no wallet (so the currency is unknown). */
   currency: string;
   walletId: string | null;
+  /** The day it was planned for (ISO). */
+  dueAt?: string;
 }
 
 /**
@@ -28,15 +29,9 @@ export function ConfirmSheet({ item, onClose, onDone }: { item: ConfirmItem; onC
   const { t } = useI18n();
   const income = item.type === 'INCOME';
   const [amount, setAmount] = useState(String(item.amount));
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [walletId, setWalletId] = useState<string | null>(item.walletId);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    getWallets()
-      .then(w => setWallets(w.filter(x => !x.archived && (!item.currency || x.currency === item.currency))))
-      .catch(() => {});
-  }, [item.currency]);
+  // A scanned receipt fills the amount; the day, wallet and receipt are kept by the details.
+  const d = usePayDetails({ plannedAt: item.dueAt ?? null, currency: item.currency, walletId: item.walletId, income, onScanned: r => { if (r.amount) setAmount(String(r.amount)); } });
 
   const save = async () => {
     const value = parseFloat(amount.replace(/,/g, ''));
@@ -45,7 +40,9 @@ export function ConfirmSheet({ item, onClose, onDone }: { item: ConfirmItem; onC
     try {
       await confirmOccurrence(item.occurrenceId, {
         ...(value !== item.amount ? { amount: value } : {}),
-        ...(walletId !== item.walletId ? { walletId } : {}),
+        ...(d.potId ? { fundedByDebtId: d.potId } : d.walletId !== item.walletId ? { walletId: d.walletId } : {}),
+        ...(d.dateTouched ? { date: d.date.toISOString() } : {}),
+        ...(d.receipt ? { receiptUrl: d.receipt.url, receiptReportUrl: d.receipt.reportUrl } : {}),
       });
       onDone();
     } catch (e: any) {
@@ -71,10 +68,7 @@ export function ConfirmSheet({ item, onClose, onDone }: { item: ConfirmItem; onC
                        style={[s.input, { color: theme.text }]} accessibilityLabel={t('add.amount')} />
           </View>
 
-          <Text style={[s.label, { color: theme.textSecondary }]}>
-            {t(income ? 'debts.intoWallet' : 'debts.fromWallet')} ({t('add.optional')})
-          </Text>
-          <WalletChips wallets={wallets} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
+          <PayDetailsFields d={d} income={income} />
           <Text style={[s.hint, { color: theme.textMuted }]}>{t('sched.confirmHint')}</Text>
 
           <View style={s.pair}>

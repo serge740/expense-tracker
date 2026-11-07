@@ -314,7 +314,7 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
 
   header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SIDE, paddingTop: 8, paddingBottom: 10 },
-  title:         { fontSize: 20, fontWeight: '700' },
+  title:         { fontSize: 18, fontWeight: '700' },
   subtitle:      { fontSize: 11, marginTop: 1 },
   headerActions: { flexDirection: 'row', gap: 8 },
   iconBtn:       { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

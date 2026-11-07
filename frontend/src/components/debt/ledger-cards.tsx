@@ -114,7 +114,7 @@ const s = StyleSheet.create({
   lock:     { position: 'absolute', right: 12, top: 12, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 99 },
   lockText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   kicker:   { color: 'rgba(255,255,255,0.88)', fontSize: 11, marginRight: 70 },
-  big:      { fontSize: 24, fontWeight: '800', marginTop: 2, marginBottom: 4 },
+  big:      { fontSize: 20, fontWeight: '800', marginTop: 2, marginBottom: 4 },
   stats:    { flexDirection: 'row', gap: 16, marginTop: 4 },
   statLabel:{ fontSize: 10.5, opacity: 0.85 },
   statValue:{ fontSize: 13, fontWeight: '700' },

@@ -91,7 +91,7 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '700' },
+  title: { fontSize: 18, fontWeight: '700' },
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },
   card: { borderRadius: 20, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },

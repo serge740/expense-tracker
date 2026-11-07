@@ -254,7 +254,7 @@ export function UpcomingSection({ hidden, onChanged, due = [], schedules = [], f
   ]);
   const confirm = (i: AgendaItem) => {
     const w = waiting.find(x => x.id === i.occurrenceId);
-    setConfirming({ occurrenceId: i.occurrenceId!, title: i.title, type: i.direction === 'IN' ? 'INCOME' : 'EXPENSE', amount: i.amount ?? 0, currency: i.currency, walletId: w?.walletId ?? null });
+    setConfirming({ occurrenceId: i.occurrenceId!, title: i.title, type: i.direction === 'IN' ? 'INCOME' : 'EXPENSE', amount: i.amount ?? 0, currency: i.currency, walletId: w?.walletId ?? null, dueAt: i.dueAt });
   };
 
   return (

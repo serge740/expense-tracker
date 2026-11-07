@@ -245,6 +245,7 @@ export default function ProfileScreen() {
                    badge={unread > 0 ? { label: t('badge.new', { n: unread }), tone: 'info' } : undefined}
                    onPress={go('/(dashboard)/(settings)/notification-settings')} />
               <Row icon="dashboard" title={t('hset.title')} value={t(`preset.${homeChoiceOf(prefs.homePeriod)}` as any)} onPress={go('/(dashboard)/(settings)/home-settings')} />
+              <Row icon="apps" title={t('sc.title')} sub={t('sc.rowSub')} onPress={go('/(dashboard)/(settings)/shortcuts')} />
               <Row icon="palette" title={t('row.appearance')} value={themeLabel} onPress={go('/(dashboard)/(settings)/appearance')} />
               <Row icon="translate" title={t('row.language')}
                    value={languageLabel ? `${languageLabel.flag} ${languageLabel.native}` : ''}
@@ -296,7 +297,7 @@ const s = StyleSheet.create({
   decA:   { position: 'absolute', width: 240, height: 240, borderRadius: 120, backgroundColor: 'rgba(255,255,255,0.06)', top: -90, right: -70 },
   decB:   { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.05)', bottom: -50, left: -40 },
 
-  topBar:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 8 },
+  topBar:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingTop: 8 },
   screenTitle: { fontSize: 16, fontWeight: '700', color: '#FFFFFF' },
   bell:        { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   bellDot:     { position: 'absolute', top: 8, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FBBF24', borderWidth: 1.5, borderColor: '#00627F' },

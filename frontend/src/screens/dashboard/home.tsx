@@ -19,10 +19,10 @@ import { getCurrentBudget, BudgetStatus } from '@/services/budget.service';
 import { getHomeSummary, AttentionItem, HomeSummary } from '@/services/home.service';
 import { ToneChip } from '@/components/debt/tone-chip';
 import { PushBanner } from '@/components/push/prompts';
-import { DebtCreditCards, FeedChips, LoansBar, NeedsAttention, NetWorthRows } from '@/components/home/home-sections';
+import { DebtCreditCards, FeedChips, NeedsAttention, NetWorthRows } from '@/components/home/home-sections';
 import { PeriodPill, PeriodSheet, usePeriodLabel } from '@/components/home/period-sheet';
 import { PlanCard, ScheduleCard } from '@/components/home/schedule-cards';
-import { defaultPeriod, historyParams, isThisMonth, periodKey, type Period } from '@/utils/period';
+import { defaultPeriod, historyParams, isThisMonth, periodKey, shiftPeriod, type Period } from '@/utils/period';
 import { useI18n } from '@/context/language-context';
 import { usePreferences } from '@/context/preferences-context';
 import { currencyEntries, needsLoansHint, type FeedView } from '@/utils/home';
@@ -60,7 +60,11 @@ export default function HomeScreen() {
   // What the figures and the feed cover: the setting decides where Home starts, the pill changes it for this visit.
   const [period, setPeriod] = useState<Period>(() => defaultPeriod(prefs.homePeriod, new Date(), prefs.weekStart));
   const [periodOpen, setPeriodOpen] = useState(false);
-  const periodName = usePeriodLabel()(period);
+  const periodLabel = usePeriodLabel();
+  const periodName = periodLabel(period);
+  // The period just before this one, shown beside it (nothing comes before "all time").
+  const prevPeriod = shiftPeriod(period, -1);
+  const prevName = prevPeriod ? periodLabel(prevPeriod) : '';
   const pKey = periodKey(period);
   const includeLoans = isFamily ? true : prefs.includeLoans;
   const view = isFamily ? familyView : prefs.homeView;
@@ -69,6 +73,7 @@ export default function HomeScreen() {
   const [budget,         setBudget]         = useState<BudgetStatus | null>(null);
   const [recent,         setRecent]         = useState<Transaction[]>([]);
   const [summary,        setSummary]        = useState<HomeSummary | null>(null);
+  const [prevSummary,    setPrevSummary]    = useState<HomeSummary | null>(null);
   const ready = useRef(false);
   const [loading,        setLoading]        = useState(true);
   const [refreshing,     setRefreshing]     = useState(false);
@@ -81,7 +86,11 @@ export default function HomeScreen() {
 
   // The month figures and the feed follow the "Include loans" switch; the feed also follows the chip.
   const loadSummary = useCallback(async () => {
+    const before = shiftPeriod(period, -1);
+    // The earlier period is a bonus: if it fails, the one being looked at still shows.
+    const earlier = before ? getHomeSummary({ period: before, includeLoans }).catch(() => null) : Promise.resolve(null);
     try { setSummary(await getHomeSummary({ period, includeLoans })); } catch { /* keep the last one */ }
+    setPrevSummary(await earlier);
   }, [pKey, includeLoans]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadFeed = useCallback(async () => {
     try { setRecent(await getRecentTransactions(5, view, includeLoans, period)); } catch { /* keep the last one */ }
@@ -144,7 +153,9 @@ export default function HomeScreen() {
   const incomeText = money(summary?.totals.income ?? 0);
   const spentText = money(summary?.totals.expense ?? budget?.spent ?? 0);
   // both tiles share one size (the smaller of what each needs) so they look alike
-  const tileFont = Math.min(fitSize(incomeText, (screenW - 36 - 40 - 10) / 2 - 28, 20, 13), fitSize(spentText, (screenW - 36 - 40 - 10) / 2 - 28, 20, 13));
+  const tileFont = Math.min(fitSize(incomeText, (screenW - 28 - 28 - 8) / 2 - 20, 16, 12), fitSize(spentText, (screenW - 28 - 28 - 8) / 2 - 20, 16, 12));
+  // In the two-period view each column holds two figures, so they are a little smaller.
+  const pairFont = (a: string, b: string) => Math.min(fitSize(a, (screenW - 28 - 28 - 8) / 2 - 20, 15, 11), fitSize(b, (screenW - 28 - 28 - 8) / 2 - 20, 15, 11));
   // each tile is half the card, less the card's and the tile's padding
 
   return (
@@ -183,13 +194,13 @@ export default function HomeScreen() {
               <Text style={[s.userName, { color: theme.text }]} numberOfLines={1}>{firstName || 'Welcome'}</Text>
             </View>
             <TouchableOpacity
-              accessibilityLabel="Search" style={[s.roundBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7}
+              accessibilityLabel="Search" style={[s.roundBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7} hitSlop={6}
               onPress={() => router.push({ pathname: '/(dashboard)/history', params: { openSearch: 'true' } } as any)}
             >
               <MaterialIcons name="search" size={20} color={theme.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              accessibilityLabel="Notifications" style={[s.roundBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7}
+              accessibilityLabel="Notifications" style={[s.roundBtn, { backgroundColor: theme.surface }]} activeOpacity={0.7} hitSlop={6}
               onPress={() => router.push('/(dashboard)/(settings)/notifications')}
             >
               <MaterialIcons name="notifications-none" size={20} color={theme.text} />
@@ -200,9 +211,9 @@ export default function HomeScreen() {
 
         {/* ── Hero: this month at a glance ── */}
         <FadeInView delay={60} slideFrom="bottom" distance={20}>
-          <LinearGradient colors={heroColors} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={[s.hero, compact && { padding: 16, paddingBottom: 14, borderRadius: 26 }]}>
+          <LinearGradient colors={heroColors} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={[s.hero, compact && { padding: 12, paddingBottom: 10, borderRadius: 22 }]}>
             <View style={s.heroTop}>
-              <Text numberOfLines={2} style={[s.heroLabel, { color: dim, fontSize: compact ? 10 : 11 }]}>{tr('home.netLabel', { month: periodName }).toUpperCase()}</Text>
+              <Text numberOfLines={2} style={[s.heroLabel, { color: dim, fontSize: compact ? 9.5 : 10 }]}>{tr('home.netLabel', { month: periodName }).toUpperCase()}</Text>
               {status && !loading ? (
                 <View style={[s.statusChip, { backgroundColor: `${status.color}22` }]}>
                   <Text style={[s.statusText, { color: status.color }]}>{status.label}</Text>
@@ -217,7 +228,7 @@ export default function HomeScreen() {
               const decPart = netAbs.split('.')[1];
               const sign    = net >= 0 ? `+${sym}` : `-${sym}`;
               const whole   = `${sign}${parseInt(intPart, 10).toLocaleString()}`;
-              const size    = fitSize(`${whole}.${decPart}`, screenW - 36 - 40, 44, 22);
+              const size    = fitSize(`${whole}.${decPart}`, screenW - 28 - 28, 34, 18);
               return (
                 <Text numberOfLines={1} style={[s.heroAmount, { color: netColor, fontSize: size, lineHeight: Math.round(size * 1.15) }]}>
                   {whole}
@@ -225,23 +236,45 @@ export default function HomeScreen() {
                 </Text>
               );
             })()}
-            <View style={s.tiles}>
-              <View style={[s.tile, compact && s.tileCompact]}>
-                <View style={s.tileHead}>
-                  <View style={[s.tileIcon, { backgroundColor: 'rgba(74,222,128,0.16)' }]}><MaterialIcons name="south-west" size={12} color="#4ADE80" /></View>
-                  <Text style={[s.tileLabel, { color: dim }]}>INCOME</Text>
-                </View>
-                <Text numberOfLines={1} style={[s.tileVal, { fontSize: tileFont }]}>{money(summary?.totals.income ?? 0)}</Text>
+            {prevPeriod ? (
+              <View style={s.tiles} testID="compare-tiles">
+                {([{ id: 'prev', name: prevName, sum: prevSummary }, { id: 'now', name: periodName, sum: summary }] as const).map(col => {
+                  const inc = col.sum ? money(col.sum.totals.income) : '—';
+                  const exp = col.sum ? money(col.sum.totals.expense) : '—';
+                  const fs = pairFont(inc, exp);
+                  return (
+                    <View key={col.id} testID={`compare-${col.id}`} style={[s.tile, s.tilePair, col.id === 'prev' && s.tilePrev]}>
+                      <Text numberOfLines={1} style={[s.pairName, { color: col.id === 'now' ? '#FFFFFF' : dim }]}>{col.name.toUpperCase()}</Text>
+                      <View style={s.pairRow}>
+                        <View style={[s.tileIcon, { backgroundColor: 'rgba(74,222,128,0.16)' }]}><MaterialIcons name="south-west" size={10} color="#4ADE80" /></View>
+                        <Text numberOfLines={1} style={[s.pairVal, { fontSize: fs }]}>{inc}</Text>
+                      </View>
+                      <View style={s.pairRow}>
+                        <View style={[s.tileIcon, { backgroundColor: 'rgba(255,157,154,0.16)' }]}><MaterialIcons name="north-east" size={10} color="#FF9D9A" /></View>
+                        <Text numberOfLines={1} style={[s.pairVal, { fontSize: fs }]}>{exp}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
-              <View style={[s.tile, compact && s.tileCompact]}>
-                <View style={s.tileHead}>
-                  <View style={[s.tileIcon, { backgroundColor: 'rgba(255,157,154,0.16)' }]}><MaterialIcons name="north-east" size={12} color="#FF9D9A" /></View>
-                  <Text style={[s.tileLabel, { color: dim }]}>SPENT</Text>
+            ) : (
+              <View style={s.tiles}>
+                <View style={[s.tile, compact && s.tileCompact]}>
+                  <View style={s.tileHead}>
+                    <View style={[s.tileIcon, { backgroundColor: 'rgba(74,222,128,0.16)' }]}><MaterialIcons name="south-west" size={12} color="#4ADE80" /></View>
+                    <Text style={[s.tileLabel, { color: dim }]}>INCOME</Text>
+                  </View>
+                  <Text numberOfLines={1} style={[s.tileVal, { fontSize: tileFont }]}>{money(summary?.totals.income ?? 0)}</Text>
                 </View>
-                <Text numberOfLines={1} style={[s.tileVal, { fontSize: tileFont }]}>{money(summary?.totals.expense ?? budget?.spent ?? 0)}</Text>
+                <View style={[s.tile, compact && s.tileCompact]}>
+                  <View style={s.tileHead}>
+                    <View style={[s.tileIcon, { backgroundColor: 'rgba(255,157,154,0.16)' }]}><MaterialIcons name="north-east" size={12} color="#FF9D9A" /></View>
+                    <Text style={[s.tileLabel, { color: dim }]}>SPENT</Text>
+                  </View>
+                  <Text numberOfLines={1} style={[s.tileVal, { fontSize: tileFont }]}>{money(summary?.totals.expense ?? budget?.spent ?? 0)}</Text>
+                </View>
               </View>
-            </View>
-            {summary && !isFamily && <LoansBar loans={summary.loans} includeLoans={includeLoans} onToggle={v => setPref('includeLoans', v)} />}
+            )}
             {budgetShown && budget && budget.limit > 0 ? (
               <View style={s.budgetBar} testID="budget-bar">
                 <View style={s.budgetBarTop}>
@@ -260,29 +293,9 @@ export default function HomeScreen() {
           </LinearGradient>
         </FadeInView>
 
-        {/* ── Quick actions ── */}
+        {/* ── Notifications banner (the shortcuts moved to Settings) ── */}
         <FadeInView delay={120} slideFrom="bottom" distance={18}>
           <PushBanner />
-          <View style={s.quickWrap}>
-            {([
-              // Receipt scanning is hidden for now; attach receipt photos from Add instead.
-              { icon: 'currency-exchange' as IconName, label: 'Exchange', route: '/(dashboard)/transfer?mode=exchange', bg: theme.primary,  fg: theme.isDark ? '#08222B' : '#FFFFFF' },
-              { icon: 'add'              as IconName, label: 'Add',      route: '/(dashboard)/add',                     bg: theme.income,   fg: '#08222B' },
-              { icon: 'bar-chart'        as IconName, label: 'Reports',  route: '/(dashboard)/reports',                 bg: theme.primaryBg, fg: theme.primary },
-            ] as const).map(a => (
-              <TouchableOpacity
-                key={a.label}
-                style={[s.quickPill, compact && s.quickPillCompact, { backgroundColor: theme.surface }]}
-                activeOpacity={0.75}
-                onPress={() => router.push(a.route as any)}
-              >
-                <View style={[s.quickIcon, { backgroundColor: a.bg }]}>
-                  <MaterialIcons name={a.icon} size={18} color={a.fg} />
-                </View>
-                <Text numberOfLines={1} style={[s.quickLabel, compact && { fontSize: 12 }, { color: theme.text }]}>{a.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
         </FadeInView>
 
         {isFamily ? <FamilyBalanceCard hidden={prefs.hideBalances} /> : null}
@@ -356,10 +369,10 @@ export default function HomeScreen() {
                   onPress={() => router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(t) } as any)}
                 >
                   {t.author ? (
-                    <MemberAvatar id={t.author.clientId} name={t.author.name} size={44} />
+                    <MemberAvatar id={t.author.clientId} name={t.author.name} size={36} />
                   ) : (
                     <View style={[s.txIcon, { backgroundColor: theme.primaryBg }]}>
-                      <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={20} color={theme.primary} />
+                      <MaterialIcons name={CATEGORY_ICON[t.category] ?? 'receipt'} size={18} color={theme.primary} />
                     </View>
                   )}
                   <View style={s.txText}>
@@ -390,35 +403,40 @@ const s = StyleSheet.create({
   safe:   { flex: 1 },
   scroll: { flexGrow: 1 },
 
-  headerRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 18 },
-  avatar:     { width: 46, height: 46, borderRadius: 23, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 17, fontWeight: '700' },
-  greeting:   { fontSize: 11, fontWeight: '500', letterSpacing: 0.8 },
-  userName:   { fontSize: 19, fontWeight: '700', lineHeight: 23 },
-  roundBtn:   { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  pillRow:    { paddingHorizontal: 18, marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  headerRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 10 },
+  avatar:     { width: 38, height: 38, borderRadius: 19, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700' },
+  greeting:   { fontSize: 10, fontWeight: '500', letterSpacing: 0.8 },
+  userName:   { fontSize: 16, fontWeight: '700', lineHeight: 20 },
+  roundBtn:   { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  pillRow:    { paddingHorizontal: 14, marginTop: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
 
-  hero:       { marginHorizontal: 18, marginTop: 16, borderRadius: 30, padding: 20, paddingBottom: 16, overflow: 'hidden' },
+  hero:       { marginHorizontal: 14, marginTop: 10, borderRadius: 24, padding: 14, paddingBottom: 12, overflow: 'hidden' },
   heroTop:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroLabel:  { flex: 1, paddingRight: 8, fontSize: 11, letterSpacing: 0.8, fontWeight: '600' },
-  statusChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, flexShrink: 0 },
-  statusText: { fontSize: 11, fontWeight: '600' },
-  heroAmount: { fontSize: 44, fontWeight: '800', marginTop: 6, marginBottom: 14 },
-  heroCents:  { fontSize: 24, fontWeight: '500', opacity: 0.8 },
-  tiles:      { flexDirection: 'row', gap: 10 },
-  tile:       { flex: 1, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 14, paddingVertical: 12 },
-  tileCompact:{ paddingHorizontal: 12, paddingVertical: 10 },
+  heroLabel:  { flex: 1, paddingRight: 8, fontSize: 10, letterSpacing: 0.8, fontWeight: '600' },
+  statusChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99, flexShrink: 0 },
+  statusText: { fontSize: 10, fontWeight: '600' },
+  heroAmount: { fontSize: 34, fontWeight: '800', marginTop: 4, marginBottom: 10 },
+  heroCents:  { fontSize: 19, fontWeight: '500', opacity: 0.8 },
+  tiles:      { flexDirection: 'row', gap: 8 },
+  tile:       { flex: 1, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 10, paddingVertical: 8 },
+  tileCompact:{ paddingHorizontal: 9, paddingVertical: 7 },
+  tilePair:   { paddingVertical: 8, gap: 5 },
+  tilePrev:   { backgroundColor: 'rgba(0,0,0,0.14)' },
+  pairName:   { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  pairRow:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pairVal:    { fontWeight: '700', color: '#FFFFFF', flexShrink: 1 },
   tileHead:   { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  tileIcon:   { width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  tileLabel:  { fontSize: 11, letterSpacing: 0.5 },
-  tileVal:    { fontSize: 20, fontWeight: '700', color: '#FFFFFF', marginTop: 4 },
+  tileIcon:   { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  tileLabel:  { fontSize: 10, letterSpacing: 0.5 },
+  tileVal:    { fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginTop: 3 },
 
-  budgetBar:    { marginTop: 10, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 14, paddingVertical: 10 },
+  budgetBar:    { marginTop: 8, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.25)', paddingHorizontal: 10, paddingVertical: 8 },
   budgetBarTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  budgetBarText:{ fontSize: 13, fontWeight: '600' },
-  budgetTrack:  { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.18)', marginVertical: 7 },
-  budgetFill:   { height: 6, borderRadius: 3 },
-  budgetSmall:  { fontSize: 11, color: 'rgba(255,255,255,0.6)' },
+  budgetBarText:{ fontSize: 12, fontWeight: '600' },
+  budgetTrack:  { height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.18)', marginVertical: 5 },
+  budgetFill:   { height: 5, borderRadius: 3 },
+  budgetSmall:  { fontSize: 10, color: 'rgba(255,255,255,0.6)' },
 
   quickWrap:  { flexDirection: 'row', gap: 10, paddingHorizontal: 18, marginTop: 14, marginBottom: 14 },
   quickPill:  { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, paddingRight: 10, borderRadius: 99 },
@@ -441,19 +459,19 @@ const s = StyleSheet.create({
   setBudgetText: { fontSize: 14, fontWeight: '600' },
   setBudgetSub:  { fontSize: 11, marginTop: 1 },
 
-  sectionRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, marginTop: 22, marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '600' },
-  seeAll:       { fontSize: 13, fontWeight: '600' },
+  sectionRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 16, marginTop: 14, marginBottom: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '600' },
+  seeAll:       { fontSize: 12, fontWeight: '600' },
 
-  txGroup: { marginHorizontal: 18, marginTop: 6, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 4 },
-  txRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
-  txIcon:  { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  txGroup: { marginHorizontal: 14, marginTop: 4, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 2 },
+  txRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
+  txIcon:  { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   txText:  { flex: 1 },
-  txTitle: { fontSize: 15, fontWeight: '600' },
-  txSub:   { fontSize: 12, marginTop: 1 },
-  txAmount:{ fontSize: 15, fontWeight: '700' },
+  txTitle: { fontSize: 13.5, fontWeight: '600' },
+  txSub:   { fontSize: 11, marginTop: 1 },
+  txAmount:{ fontSize: 13.5, fontWeight: '700' },
 
-  hint:      { fontSize: 11, lineHeight: 15, marginHorizontal: 20, marginBottom: 8 },
-  emptyCard: { marginHorizontal: 18, borderRadius: 24, padding: 28, alignItems: 'center', gap: 8 },
-  emptyText: { fontSize: 14 },
+  hint:      { fontSize: 10.5, lineHeight: 14, marginHorizontal: 16, marginBottom: 6 },
+  emptyCard: { marginHorizontal: 14, borderRadius: 20, padding: 20, alignItems: 'center', gap: 6 },
+  emptyText: { fontSize: 13 },
 });

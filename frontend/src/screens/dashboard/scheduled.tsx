@@ -149,7 +149,7 @@ function ScheduledScreen() {
                       {manage ? (
                       <View style={s.row}>
                         <TouchableOpacity style={[s.btn, { backgroundColor: theme.buttonBg, flex: 1.3 }]} accessibilityRole="button"
-                                          onPress={() => setConfirming({ occurrenceId: w.id, title: w.title, type: w.type, amount: w.amount, currency: w.currency, walletId: w.walletId })}>
+                                          onPress={() => setConfirming({ occurrenceId: w.id, title: w.title, type: w.type, amount: w.amount, currency: w.currency, walletId: w.walletId, dueAt: w.dueAt })}>
                           <Text style={[s.btnText, { color: '#FFFFFF' }]}>{t(income ? 'sched.receive' : 'sched.pay')}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[s.btn, { backgroundColor: theme.primaryBg }]} onPress={() => skip(w)} accessibilityRole="button">
@@ -253,7 +253,7 @@ const s = StyleSheet.create({
 
   statusGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   statusCard:  { width: '31.5%', flexGrow: 1, borderRadius: 16, borderWidth: 1.5, paddingVertical: 10, paddingHorizontal: 10 },
-  statusNum:   { fontSize: 22, fontWeight: '800' },
+  statusNum:   { fontSize: 18, fontWeight: '800' },
   statusLabel: { fontSize: 11, fontWeight: '700', marginTop: 1 },
   kindRow:     { gap: 8, paddingVertical: 12 },
   kindChip:    { paddingHorizontal: 14, height: 34, borderRadius: 99, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

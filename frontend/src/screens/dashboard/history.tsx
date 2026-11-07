@@ -72,7 +72,8 @@ export default function HistoryScreen() {
     const base: HistoryFilter = {
       ...emptyFilter(periodFromParams(params)),
       kinds: asKind(params.view) === 'all' ? [] : [asKind(params.view)],
-      includeLoans: params.includeLoans ? params.includeLoans !== 'false' : prefs.includeLoans,
+      // History shows every row unless a link says otherwise (Home's "See all" sends its own setting).
+      includeLoans: params.includeLoans ? params.includeLoans !== 'false' : true,
       walletIds: params.walletId ? [params.walletId] : [],
     };
     return hasFilterQuery(params) ? filterFromQuery(params, base) : base;
@@ -404,7 +405,7 @@ export default function HistoryScreen() {
   const startSelecting = (r: FeedRow) => { if (isLocked(r)) return; setSelecting(true); setPicked([r.id]); };
   const openRow = (r: FeedRow) => selecting ? (isLocked(r) ? undefined : toggle(r.id)) : router.push({ pathname: '/(dashboard)/transaction-detail', params: detailParams(r as never) } as any);
   const goTo = (p: Period | null) => { if (p) { patch({ period: p }); scroller.current?.scrollTo({ y: 0, animated: false }); } };
-  const toggleLoans = () => { const next = !core.includeLoans; patch({ includeLoans: next }); setPref('includeLoans', next); };
+  const toggleLoans = () => patch({ includeLoans: !core.includeLoans });
   const tryThis = (id: 'biggest' | 'noReceipt' | 'other') => {
     if (id === 'biggest') patch({ sort: 'largest' });
     else if (id === 'noReceipt') patch({ receipt: 'without' });
@@ -585,7 +586,7 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { flexGrow: 1, paddingTop: 4 },
   header: { flexDirection: 'row', alignItems: 'flex-end', paddingLeft: 16, paddingRight: 8, paddingBottom: 8 },
-  title: { fontSize: 26, fontWeight: '600', lineHeight: 32, marginTop: 2 },
+  title: { fontSize: 22, fontWeight: '600', lineHeight: 28, marginTop: 2 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: 3, right: 2, minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingLeft: 4, paddingRight: 12, paddingBottom: 6 },

@@ -95,7 +95,7 @@ const s = StyleSheet.create({
   providerType: { fontSize: 10, color: 'rgba(255,255,255,0.78)' },
   eye:    { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
   label:  { fontSize: 11, color: 'rgba(255,255,255,0.75)', marginTop: 18 },
-  amount: { fontSize: 30, fontWeight: '700', color: '#FFFFFF', marginTop: 2 },
+  amount: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', marginTop: 2 },
   bottom: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 'auto' },
   smallLabel: { fontSize: 10, color: 'rgba(255,255,255,0.75)' },
   small:      { fontSize: 13, fontWeight: '600', color: '#FFFFFF', marginTop: 1, letterSpacing: 0.5 },

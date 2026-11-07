@@ -10,12 +10,11 @@ import { useRinging } from '@/context/sound-context';
 import { useScope } from '@/context/scope-context';
 import { formatMoney, useCurrency } from '@/context/currency-context';
 import { DateTimeSheet } from '@/components/datetime-sheet';
-import { WalletChips } from '@/components/wallet/wallet-chips';
 import { OWE } from '@/components/debt/tone-chip';
 import { ConfirmSheet } from '@/components/schedule/confirm-sheet';
+import { PayDetailsFields, usePayDetails } from '@/components/schedule/pay-details';
 import { addDebtPayment } from '@/services/debt.service';
 import { skipOccurrence } from '@/services/scheduled.service';
-import { getWallets, Wallet } from '@/services/wallet.service';
 import {
   dismissReminder, getPendingReminders, markReminderOpened, PendingDebtReminder, PendingReminder, snoozeReminder,
 } from '@/services/reminder.service';
@@ -188,7 +187,7 @@ export function ReminderModalHost() {
         )}
         {confirming && (
           <ConfirmSheet
-            item={{ occurrenceId: confirming.occurrenceId, title: confirming.title, type: confirming.txType, amount: confirming.amount, currency: confirming.currency, walletId: confirming.walletId }}
+            item={{ occurrenceId: confirming.occurrenceId, title: confirming.title, type: confirming.txType, amount: confirming.amount, currency: confirming.currency, walletId: confirming.walletId, dueAt: confirming.dueAt }}
             onClose={() => setConfirming(null)} onDone={() => { setConfirming(null); refresh(false); }} />
         )}
       </View>
@@ -269,22 +268,13 @@ export function PaySheet({ reminder, onClose, onDone }: { reminder: PendingDebtR
   const { t } = useI18n();
   const debt = reminder.kind === 'BORROWED';
   const [amount, setAmount] = useState(String(reminder.payment ?? reminder.remaining));
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [walletId, setWalletId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // A debt never uses one of my wallets, so there is nothing to choose. A credit repaid to me goes into a wallet:
-  // start on the credit's own wallet, else the default one ("No wallet" is still one tap away).
-  const usesWallet = reminder.kind === 'LENT';
-  useEffect(() => {
-    if (!usesWallet) return;
-    getWallets().then(all => {
-      const usable = all.filter(x => !x.archived && x.currency === reminder.currency);
-      setWallets(usable);
-      const pre = usable.find(x => x.id === reminder.walletId) ?? usable.find(x => x.isDefault) ?? usable[0];
-      if (pre) setWalletId(cur => cur ?? pre.id);
-    }).catch(() => {});
-  }, [usesWallet, reminder.currency, reminder.walletId]);
+  // A debt I owe is paid from a wallet or from another loan's borrowed money; a credit repaid to me goes into a wallet.
+  // A scanned receipt fills the amount; the day paid starts at the day it was planned for.
+  const d = usePayDetails({
+    plannedAt: reminder.dueAt, currency: reminder.currency, walletId: reminder.walletId ?? null, income: !debt, excludeDebtId: reminder.debtId, defaultWallet: !debt,
+    onScanned: r => { if (r.amount) setAmount(String(Math.min(r.amount, reminder.remaining))); },
+  });
 
   const save = async () => {
     const value = parseFloat(amount.replace(/,/g, ''));
@@ -292,7 +282,12 @@ export function PaySheet({ reminder, onClose, onDone }: { reminder: PendingDebtR
     if (value > reminder.remaining) return Alert.alert(t('rem.payTitle'), t('rem.errMore'));
     setSaving(true);
     try {
-      await addDebtPayment(reminder.debtId, { amount: value, ...(usesWallet && walletId ? { walletId } : {}) });
+      await addDebtPayment(reminder.debtId, {
+        amount: value,
+        ...(d.potId ? { fundedByDebtId: d.potId } : d.walletId ? { walletId: d.walletId } : {}),
+        ...(d.dateTouched ? { date: d.date.toISOString() } : {}),
+        ...(d.receipt ? { receiptUrl: d.receipt.url, receiptReportUrl: d.receipt.reportUrl } : {}),
+      });
       onDone();
     } catch (e) {
       Alert.alert(t('common.error'), errorText(e, t('add.errSave')));
@@ -320,12 +315,7 @@ export function PaySheet({ reminder, onClose, onDone }: { reminder: PendingDebtR
             </TouchableOpacity>
           </View>
 
-          {usesWallet && (
-            <>
-              <Text style={[s.label, { color: theme.textSecondary }]}>{t('debts.intoWallet')} ({t('add.optional')})</Text>
-              <WalletChips wallets={wallets} value={walletId} onChange={setWalletId} noneLabel={t('add.noWallet')} />
-            </>
-          )}
+          <PayDetailsFields d={d} income={!debt} />
           <Text style={[s.hint, { color: theme.textMuted }]}>{t('rem.payHint')}</Text>
 
           <View style={s.pair}>
@@ -353,7 +343,7 @@ const s = StyleSheet.create({
   bell:   { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   kicker: { fontSize: 11, fontWeight: '700' },
   who:    { fontSize: 18, fontWeight: '800', marginTop: 2 },
-  amount: { fontSize: 28, fontWeight: '800', marginVertical: 2 },
+  amount: { fontSize: 24, fontWeight: '800', marginVertical: 2 },
   when:   { fontSize: 11 },
 
   primary:       { height: 46, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 14 },

@@ -94,7 +94,7 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', paddingRight: 12 },
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '600', flex: 1 },
+  title: { fontSize: 18, fontWeight: '600', flex: 1 },
   scroll: { paddingTop: 4 },
   card: { marginHorizontal: 12, marginBottom: 12, borderRadius: 18, padding: 12 },
   col: { flex: 1, minWidth: 0, borderWidth: 1, borderRadius: 14, padding: 10 },

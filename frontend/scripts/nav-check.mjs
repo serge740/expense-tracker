@@ -67,22 +67,22 @@ try {
   await send('Page.enable'); await send('Runtime.enable');
   await send('Emulation.setDeviceMetricsOverride', { width: 430, height: 932, deviceScaleFactor: 1, mobile: false });
   await send('Page.navigate', { url: `${origin}/app?mock=1` });
-  check('Home opens', (await seen('Include loans') || await seen('Include loans') || await seen('Include loans')), await path());
+  check('Home opens', (await seen('SPENT') || await seen('SPENT') || await seen('SPENT')), await path());
 
   // the four tabs, there and back
   await go('Wallets', '/app/wallets', 'My wallets');
   await go('Loans', '/app/debts', 'Loans & debts');
   await go('Settings', '/app/profile', 'Profile');
-  await go('Home', '/app', 'Include loans');
+  await go('Home', '/app', 'SPENT');
 
   // the + button opens a screen, and its close button returns to the one before
   await go('Add', '/app/add', 'New transaction');
-  check('close returns to Home', (await click('icon:close')) && await seen('Include loans'), await path());
+  check('close returns to Home', (await click('icon:close')) && await seen('SPENT'), await path());
 
   // the browser's own Back button, and Forward
   await go('Wallets', '/app/wallets', 'My wallets');
   await ev('history.back()');
-  check('browser Back returns to Home (address and screen)', await seen('Include loans') && (await path()) === '/app', await path());
+  check('browser Back returns to Home (address and screen)', await seen('SPENT') && (await path()) === '/app', await path());
   await ev('history.forward()');
   check('browser Forward returns to Wallets (address and screen)', await seen('My wallets') && (await path()) === '/app/wallets', await path());
 
@@ -102,8 +102,8 @@ try {
   const until = async expr => { for (let i = 0; i < 80; i++) { if (await ev(expr)) return true; await sleep(150); } return false; };
   const byId = id => ev(`(() => { const n = document.querySelector('[data-testid="${id}"]'); n && n.click(); return !!n; })()`);
   await send('Page.navigate', { url: `${origin}/app?mock=1` });
-  await seen('Include loans');
-  check('Home shows the budget inside the top card, and no "Set a monthly budget" row', await seen('Budget') && !(await text()).includes('Set a monthly budget'), await path());
+  await seen('SPENT');
+  check('Home shows the budget inside the top card, and no "Set a monthly budget" row', (await clickContaining('all time')) && (await clickContaining('this month')) && await seen('Budget') && !(await text()).includes('Set a monthly budget'), await path());
   check('Home lists what is coming with days left, and the Plan a schedule card', await seen('Schedules') && await seen('Plan a schedule') && (await text()).includes('days overdue'), await path());
   check('the period pill opens the picker', (await byId('period-pill')) && await seen('Show figures for') && await seen('Pick a month'), await path());
   check('All time changes the label and hides the budget', (await byId('period-all')) && await seen('ALL TIME: INCOME MINUS SPENT') && !(await text()).includes('Budget · '), await path());
@@ -164,6 +164,37 @@ try {
     return await seen('Last 30 days');
   })(), await path());
   await ev("localStorage.removeItem('app_preferences_v1')");
+  // ── Home: two periods side by side, shortcuts moved to Settings, Plan a schedule opens the sub-category sheet ──
+  check('Home opens on all time by default: one set of figures, no comparison', await (async () => {
+    await send('Page.navigate', { url: origin + '/app?mock=1' });
+    await seen('SPENT');
+    return !(await ev("!!document.querySelector('[data-testid=compare-tiles]')")) && await seen('All time');
+  })(), await path());
+  check('choosing this month shows last month on the left and this month on the right', (await clickContaining('all time')) && (await clickContaining('this month')) && (await until("!!document.querySelector('[data-testid=compare-prev]') && !!document.querySelector('[data-testid=compare-now]')"))
+    && (await ev("(() => { const a = document.querySelector('[data-testid=compare-prev]').getBoundingClientRect(), b = document.querySelector('[data-testid=compare-now]').getBoundingClientRect(); return a.left < b.left; })()")), await path());
+  check('Home no longer has the Exchange, Add and Reports buttons or the loans switch', !(await text()).includes('Include loans') && !(await text()).includes('Reports') && !(await ev("[...document.querySelectorAll('[role=button]')].some(n => n.innerText.trim() === 'Exchange')")), await path());
+  check('Settings has Shortcuts with Reports, Exchange and Add, and the loans switch starts off', await (async () => {
+    await send('Page.navigate', { url: origin + '/app/profile?mock=1' });
+    for (let n = 0; n < 4 && !(await seen('Shortcuts')); n++) { /* first visit loads the screen */ }
+    if (!(await clickContaining('shortcuts'))) return false;
+    if (!(await until("!!document.querySelector('[data-testid=shortcut-reports]') && !!document.querySelector('[data-testid=shortcut-exchange]') && !!document.querySelector('[data-testid=shortcut-add]')"))) return false;
+    return await seen('leaves loans and debts out');
+  })(), await path());
+  check('the Reports shortcut opens Reports', (await byId('shortcut-reports')) && (await until("location.pathname.endsWith('/reports')")), await path());
+  check('Plan a schedule: Rent opens the Add form with the category sheet on its sub-categories', await (async () => {
+    await send('Page.navigate', { url: origin + '/app?mock=1' });
+    for (let n = 0; n < 4 && !(await ev("!!document.querySelector('[data-testid=plan-rent]')")); n++) await sleep(1500);
+    if (!(await byId('plan-rent'))) return false;
+    if (!(await until("location.pathname.endsWith('/add')"))) return false;
+    return (await seen('Airtime')) && (await seen('Rent'));
+  })(), await path());
+  check('the confirm sheet for a scheduled date has the day paid, pay from and a receipt', await (async () => {
+    await send('Page.navigate', { url: origin + '/app/scheduled?mock=1' });
+    for (let n = 0; n < 4 && !(await seen('Mark received')); n++) { /* first visit loads the screen */ }
+    if (!(await clickContaining('mark received'))) return false;
+    return (await until("!!document.querySelector('[data-testid=pay-date]')")) && (await seen('Paid on')) && (await seen('Into wallet')) && (await seen('Receipt'));
+  })(), await path());
+  check('the receipt can be added from the sheet (camera, file)', (await byId('receipt-field')) && (await seen('Take photo')) && (await seen('Choose file')), await path());
   // ── Editing a transaction from its detail page ──
   check('the detail page has an Edit button once the transaction has loaded', await (async () => {
     await send('Page.navigate', { url: `${origin}/app/transaction-detail?mock=1&id=t2&type=EXPENSE&category=transport&title=Moto+to+town&amount=-2500&date=2026-10-30T06%3A15%3A00.000Z&walletId=w2` });
@@ -420,7 +451,7 @@ try {
     return until("!!document.querySelector('[data-testid=xfer-none]')");
   })(), await path());
   await send('Page.navigate', { url: `${origin}/app?mock=1&role=OWNER` });
-  check('Home in Personal shows the scope pill and the loan switch', await seen('Include loans') && await seen('Personal'), await path());
+  check('Home in Personal shows the scope pill and the figures', await seen('SPENT') && await seen('Personal'), await path());
   check('the pill opens the "Where are you?" sheet', (await clickContaining('where are you')) && await seen('Mwiza Family'), await path());
   check('choosing the family rebuilds Home as the family (balance card, no loan switch)', (await clickContaining('mwiza family')) && await seen('FAMILY BALANCE') && !(await text()).includes('Include loans'), await path());
   check('the family has its own bar: Home, Wallets, Add, Loans and Settings (no big button)', await ev(`(() => {
@@ -454,10 +485,10 @@ try {
   check('Loans and debts open inside the family instead of asking to switch to Personal', (await ev("(() => { history.pushState({}, '', '/app/debts?mock=1&role=OWNER'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()")) && (await until("document.body.innerText.includes('Loans & debts') && !document.querySelector('[data-testid=personal-only]')")), await path());
   await ev("(() => { history.pushState({}, '', '/app/family'); window.dispatchEvent(new PopStateEvent('popstate')); return true; })()"); await seen('MEMBERS');
   check('the hub has a way to the app settings', (await clickContaining('app settings')) && (await path()) === '/app/profile', await path());
-  const s1 = await clickTab('Home'), s2 = await seen('FAMILY BALANCE'), s3 = await clickContaining('where are you'), s4 = await seen('Only you'), s5 = await clickContaining('personal'), s6 = await seen('Include loans');
+  const s1 = await clickTab('Home'), s2 = await seen('FAMILY BALANCE'), s3 = await clickContaining('where are you'), s4 = await seen('Only you'), s5 = await clickContaining('personal'), s6 = await seen('SPENT');
   const s7 = await ev(`!![...document.querySelectorAll('[role=tab]')].find(n => n.getAttribute('aria-label') === 'Loans')`);
   check('the pill brings Personal back with its own bar (Loans is there again)', s1 && s2 && s3 && s4 && s5 && s6 && s7, `${await path()} steps ${[s1, s2, s3, s4, s5, s6, s7].map(Number).join('')}`);
-  await go('Home', '/app', 'Include loans');
+  await go('Home', '/app', 'SPENT');
   check('Settings has a Family row that opens the hub', (await go('Settings', '/app/profile', 'Profile'), await clickContaining('family')) && await seen('MEMBERS') && (await path()) === '/app/family', await path());
   check('the hub lists the members and the invite button (Owner)', await seen('Grace Uwase') && await seen('Invite someone'), await path());
   check('Invite someone opens the invite sheet', (await click('Invite someone')) && await seen('Choose what they can do'), await path());
@@ -511,7 +542,7 @@ try {
   })(), await path());
   await send('Emulation.setUserAgentOverride', { userAgent: '' });
   await send('Page.navigate', { url: `${origin}/app?mock=1` });
-  await seen('Include loans');
+  await seen('SPENT');
 
   // someone with no family: the create and join screens, and an invite code
   await send('Page.navigate', { url: `${origin}/app/family-create?mock=1&nofamily=1` });

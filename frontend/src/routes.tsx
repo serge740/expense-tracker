@@ -43,6 +43,7 @@ const Appearance = lazyScreen(() => import('@/screens/settings/appearance'));
 const Currency = lazyScreen(() => import('@/screens/settings/currency'));
 const DateTime = lazyScreen(() => import('@/screens/settings/date-time'));
 const HomeSettings = lazyScreen(() => import('@/screens/settings/home-settings'));
+const Shortcuts = lazyScreen(() => import('@/screens/settings/shortcuts'));
 const Devices = lazyScreen(() => import('@/screens/settings/devices'));
 const EditProfile = lazyScreen(() => import('@/screens/settings/edit-profile'));
 const Help = lazyScreen(() => import('@/screens/settings/help'));
@@ -99,6 +100,7 @@ const dashboardScreens: RouteObject[] = [
   { path: 'currency', element: <Currency /> },
   { path: 'date-time', element: <DateTime /> },
   { path: 'home-settings', element: <HomeSettings /> },
+  { path: 'shortcuts', element: <Shortcuts /> },
   { path: 'devices', element: <Devices /> },
   { path: 'edit-profile', element: <EditProfile /> },
   { path: 'help', element: <Help /> },

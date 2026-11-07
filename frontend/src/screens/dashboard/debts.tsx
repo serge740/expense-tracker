@@ -721,7 +721,7 @@ const s = StyleSheet.create({
   progressText: { fontSize: 10, marginTop: 4 },
 
   backdrop:   { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
-  sheet:      { borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 8, paddingBottom: 26, maxHeight: '88%' },
+  sheet:      { borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 26, maxHeight: '88%' },
   grabber:    { alignSelf: 'center', width: 38, height: 4, borderRadius: 2, marginBottom: 10 },
   sheetHead:  { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   sheetKind:  { fontSize: 11, fontWeight: '700' },
@@ -731,7 +731,7 @@ const s = StyleSheet.create({
 
   amountCard:  { borderRadius: 18, borderWidth: 1, padding: 14 },
   amountLabel: { fontSize: 11, fontWeight: '600' },
-  amountBig:   { fontSize: 26, fontWeight: '800', marginTop: 2 },
+  amountBig:   { fontSize: 21, fontWeight: '800', marginTop: 2 },
   metaRow:     { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 6, marginTop: 8 },
   metaItem:    { fontSize: 11 },
   note:        { fontSize: 12, fontStyle: 'italic', marginTop: 8 },

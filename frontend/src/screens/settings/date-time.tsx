@@ -54,6 +54,6 @@ export default function DateTimeScreen() {
 
 const s = StyleSheet.create({
   preview:     { borderRadius: 20, paddingVertical: 20, alignItems: 'center', marginBottom: 18 },
-  previewTime: { color: '#FFFFFF', fontSize: 30, fontWeight: '700' },
+  previewTime: { color: '#FFFFFF', fontSize: 26, fontWeight: '700' },
   previewDate: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 2 },
 });

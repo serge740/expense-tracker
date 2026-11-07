@@ -138,7 +138,7 @@ export const updateDebt = (id: string, data: {
 }): Promise<Debt> =>
   api.patch(`/debts/${id}`, data).then(r => r.data);
 
-export const addDebtPayment = (id: string, data: { amount: number; walletId?: string; date?: string; note?: string; receiptUrl?: string; receiptReportUrl?: string }): Promise<Debt> =>
+export const addDebtPayment = (id: string, data: { amount: number; walletId?: string; date?: string; note?: string; receiptUrl?: string; receiptReportUrl?: string; fundedByDebtId?: string }): Promise<Debt> =>
   api.post(`/debts/${id}/payments`, data).then(r => r.data);
 
 export const removeDebtPayment = (id: string, paymentId: string): Promise<Debt> =>

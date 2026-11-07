@@ -154,7 +154,7 @@ const s = StyleSheet.create({
   safe: { flex: 1 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 8 },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: '700' },
+  title: { fontSize: 18, fontWeight: '700' },
   tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   tab: { paddingHorizontal: 14, minHeight: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingHorizontal: 16, paddingBottom: 40 },

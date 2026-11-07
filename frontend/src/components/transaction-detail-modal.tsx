@@ -203,7 +203,7 @@ const s = StyleSheet.create({
   iconCircle:{ width: 74, height: 74, borderRadius: 37, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
 
   categoryLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 },
-  amount:        { fontSize: 32, fontWeight: '800', marginBottom: 6 },
+  amount:        { fontSize: 26, fontWeight: '800', marginBottom: 6 },
   title:         { fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
 
   divider: { width: '100%', height: 1, marginBottom: 14 },

@@ -555,7 +555,7 @@ const s = StyleSheet.create({
 
   headerRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 22, paddingTop: 16, paddingBottom: 16 },
   headerSub:    { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.55)', letterSpacing: 1.2, marginBottom: 2 },
-  headerTitle:  { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
+  headerTitle:  { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
   editBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8 },
   editBtnText:  { fontSize: 13, fontWeight: '600', color: '#fff' },
 
@@ -563,7 +563,7 @@ const s = StyleSheet.create({
   navBtn:     { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
   monthLabel: { fontSize: 15, fontWeight: '700', color: '#fff', minWidth: 160, textAlign: 'center' },
 
-  card: { marginHorizontal: 20, borderRadius: 20, padding: 18, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
+  card: { marginHorizontal: 16, borderRadius: 20, padding: 18, marginTop: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   cardRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardTitle: { fontSize: 16, fontWeight: '700' },
 
@@ -571,7 +571,7 @@ const s = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: '700' },
 
   statLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5, marginBottom: 4 },
-  statVal:   { fontSize: 20, fontWeight: '800' },
+  statVal:   { fontSize: 17, fontWeight: '800' },
 
   sep: { height: 1, marginVertical: 12 },
   footNote: { fontSize: 12 },

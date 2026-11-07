@@ -49,6 +49,8 @@ const monthlyOn = (day: number): RepeatRule => ({ ...blankRule('MONTH'), unit: '
 export function starterParams(s: Starter, now = new Date()): Record<string, string> {
   const base: Record<string, string> = { type: s.type ?? 'EXPENSE', category: s.category ?? 'other', description: s.title ?? '' };
   if (s.sub) base.subCategory = s.sub;
+  // The Add form opens the category sheet on this category's sub-categories, so the person says what it is right away.
+  base.pickSub = '1';
   switch (s.id) {
     case 'rent': return { ...base, date: nextDayOfMonth(1, now).toISOString(), repeat: JSON.stringify(monthlyOn(1)) };
     case 'salary': return { ...base, date: nextDayOfMonth(28, now).toISOString(), repeat: JSON.stringify(monthlyOn(28)) };

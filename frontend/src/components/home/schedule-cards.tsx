@@ -113,19 +113,19 @@ export function PlanCard() {
 }
 
 const s = StyleSheet.create({
-  card: { marginHorizontal: 18, borderRadius: 24, borderWidth: 1, paddingHorizontal: 14, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  icon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 14, fontWeight: '700' },
-  when: { fontSize: 12, marginTop: 1 },
-  amount: { fontSize: 13.5, fontWeight: '800', maxWidth: '38%' },
+  card: { marginHorizontal: 14, borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  icon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 13, fontWeight: '700' },
+  when: { fontSize: 11, marginTop: 1 },
+  amount: { fontSize: 12.5, fontWeight: '800', maxWidth: '38%' },
   more: { fontSize: 11.5, fontWeight: '600', textAlign: 'center', paddingBottom: 10 },
 
-  plan: { marginHorizontal: 18, marginTop: 4, marginBottom: 6, borderRadius: 24, borderWidth: 1.5, borderStyle: 'dashed', padding: 14 },
-  planHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  planIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  planTitle: { fontSize: 14.5, fontWeight: '700' },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 34, borderRadius: 99, borderWidth: 1 },
+  plan: { marginHorizontal: 14, marginTop: 2, marginBottom: 4, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', padding: 10 },
+  planHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  planIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  planTitle: { fontSize: 13.5, fontWeight: '700' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 32, borderRadius: 99, borderWidth: 1 },
   chipText: { fontSize: 12.5, fontWeight: '600' },
 });

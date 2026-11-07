@@ -21,6 +21,7 @@ import { RepeatSheet } from '@/components/repeat-sheet';
 import { ModeChoice, RepeatRow } from '@/components/schedule/schedule-fields';
 import { createScheduled, ScheduleMode } from '@/services/scheduled.service';
 import { RepeatRule, ruleProblem } from '@/utils/recurrence';
+import { dateFromParam } from '@/utils/date-param';
 import { deviceTimeZone } from '@/utils/reminders';
 import { isScheduledForm, scheduledPayload, scheduleSaveLabel, scheduleStartError } from '@/utils/schedule-form';
 import { PayFromField } from '@/components/add/pay-from';
@@ -44,26 +45,7 @@ function startRule(raw?: string): RepeatRule | null {
   try { const r = JSON.parse(raw); return ruleProblem(r) ? null : (r as RepeatRule); } catch { return null; }
 }
 
-/**
- * The date a link asks for. A plain day (a scanned receipt says 2026-10-28) is that day on the person's own calendar at the current
- * time of day; reading it as UTC midnight shows the day before in some time zones. A full moment (duplicate, repeat) is used as it is.
- */
-export function dateFromParam(raw?: string | null, now = new Date(), time?: string | null): Date {
-  if (!raw) return now;
-  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
-  if (day) {
-    // The time printed on the receipt (HH:MM) when there is one, otherwise the time of day it is now.
-    const t = time ? /^(\d{1,2}):(\d{2})$/.exec(time) : null;
-    const hh = t && +t[1] < 24 && +t[2] < 60 ? +t[1] : now.getHours();
-    const mm = t && +t[1] < 24 && +t[2] < 60 ? +t[2] : now.getMinutes();
-    const d = new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), hh, mm);
-    // A day that does not exist (2026-02-30) or lies ahead of today is not trusted.
-    if (d.getMonth() !== Number(day[2]) - 1) return now;
-    return d.getTime() > now.getTime() ? now : d;
-  }
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? now : d;
-}
+export { dateFromParam } from '@/utils/date-param';
 
 export default function AddTransactionScreen() {
   const theme = useAppTheme();
@@ -75,7 +57,7 @@ export default function AddTransactionScreen() {
     type?: string; walletId?: string; amount?: string; category?: string;
     description?: string; merchant?: string; date?: string; time?: string; currency?: string; receiptUrl?: string; receiptReportUrl?: string;
     // From the "Plan a schedule" starters on Home: a subcategory and a repeat rule (JSON) to start from.
-    subCategory?: string; repeat?: string;
+    subCategory?: string; repeat?: string; pickSub?: string;
   }>();
 
   const [kind, setKind]           = useState<Kind>('EXPENSE');
@@ -84,6 +66,7 @@ export default function AddTransactionScreen() {
   const [category, setCategory]   = useState<CategorySlug>('food');
   const [subCategory, setSubCategory] = useState<string | null>(null);
   const [catOpen, setCatOpen]     = useState(false);
+  const [openOnSub, setOpenOnSub]  = useState(false);
   const { mine, reload: reloadMine, forget } = useMySubCategories();
   const [description, setDescription] = useState('');
   const [wallets, setWallets]     = useState<Wallet[]>([]);
@@ -122,6 +105,8 @@ export default function AddTransactionScreen() {
       const presetCat = preset && categoryOf(preset.id).for.includes(k) && preset.id !== 'loan' ? preset : null;
       setCategory(presetCat ? presetCat.id : k === 'INCOME' ? 'salary' : 'food');
       setSubCategory(params.subCategory ? params.subCategory.slice(0, 40) : presetCat?.sub ?? null);
+      // Sent in from "Plan a schedule": open the category sheet on this category's sub-categories.
+      if (params.pickSub === '1' && presetCat) { setOpenOnSub(true); setCatOpen(true); } else setOpenOnSub(false);
       setRule(startRule(params.repeat));
       setDescription(params.description || params.merchant || '');
       setDate(dateFromParam(params.date, new Date(), params.time));
@@ -133,7 +118,7 @@ export default function AddTransactionScreen() {
       const pre = usable.find(w => w.id === params.walletId);
       setWalletId(pre?.id ?? null);
     }).catch(() => { setWalletsReady(true); });
-  }, [reloadMine, inFamily, params.time, params.currency, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl, params.subCategory, params.repeat]));
+  }, [reloadMine, inFamily, params.pickSub, params.time, params.currency, params.type, params.walletId, params.amount, params.category, params.description, params.merchant, params.date, params.receiptUrl, params.receiptReportUrl, params.subCategory, params.repeat]));
 
   const wallet = wallets.find(w => w.id === walletId) ?? null;
   const currency = wallet?.currency ?? mainCurrency.code;
@@ -310,7 +295,7 @@ export default function AddTransactionScreen() {
       />
 
       <CategorySheet
-        visible={catOpen} kind={kind} category={category} subCategory={subCategory} mine={mine} startOnSub={!!subCategory}
+        visible={catOpen} kind={kind} category={category} subCategory={subCategory} mine={mine} startOnSub={!!subCategory || openOnSub}
         onClose={() => setCatOpen(false)}
         onSelect={(c, sub) => { setCategory(c); setSubCategory(sub); setCatOpen(false); }}
         onForget={forget}
