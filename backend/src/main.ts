@@ -9,6 +9,9 @@ import { serveWebApp } from './common/web-app';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // The server sits behind a proxy (Render): without this every visitor looks like the proxy, and the rate limits are shared by everyone.
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+
   app.use(cookieParser());
 
   app.use(json({ limit: '10mb' }));

@@ -1,0 +1,1 @@
+import{X as e}from"./router-cz8dTZUb.js";async function t(t,n,r){let i=await(await fetch(t)).blob(),a=new FormData;return a.append(`file`,new File([i],n,{type:r||i.type})),(await e.post(`/receipts/process`,a,{headers:{"Content-Type":void 0}})).data}export{t};

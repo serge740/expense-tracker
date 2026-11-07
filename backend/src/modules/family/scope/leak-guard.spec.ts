@@ -17,6 +17,13 @@ const OPS = ['findMany', 'findFirst', 'findUnique', 'count', 'aggregate', 'group
 
 /** `file` is relative to src; `snippet` must appear inside the call; `why` is the review note. */
 const ALLOWED: Array<{ file: string; snippet: string; why: string }> = [
+  { file: 'modules/transaction/transaction.service.ts', snippet: 'select: { archived: true }', why: 'Reads only whether a wallet is archived, right after assertWalletInScope proved the wallet is in this scope' },
+  { file: 'modules/transaction/transaction.service.ts', snippet: 'balance: { increment: new Prisma.Decimal(delta) }', why: 'Moves the balance of the wallet this transaction was in (loaded through assertInScope) or the wallet it was just moved to (checked by assertWalletInScope)' },
+  { file: 'modules/data-export/data-export.service.ts', snippet: "{ orderBy: { createdAt: 'asc' } }", why: 'IT support export of the whole database: its own admin sign-in, not an ordinary request, so there is no scope' },
+  { file: 'modules/data-export/data-export.service.ts', snippet: 'where: dateWhere', why: 'IT support export of the whole database (admin only)' },
+  { file: 'modules/data-export/data-export.service.ts', snippet: 'include: { client: { select: { email: true } } }', why: 'IT support export of the whole database (admin only)' },
+  { file: 'modules/data-export/data-export.service.ts', snippet: '()', why: 'IT support count of all wallets (admin only)' },
+  { file: 'modules/data-export/data-import.service.ts', snippet: 'select: { id: true }', why: 'IT support restore: lists every id to know what already exists (admin only)' },
   { file: 'modules/debts/debts.service.ts', snippet: "{ where, orderBy: { date: 'desc' }, skip", why: 'The filter variable is built from clientId and debtId a few lines above (debt rows only)' },
   { file: 'modules/debts/debts.service.ts', snippet: '{ where }', why: 'Count over that same debt-only filter' },
   { file: 'modules/scheduled/scheduled.service.ts', snippet: 'select: { currency: true }', why: 'Reads the currency of the wallet the schedule already holds (checked as personal when the schedule was saved)' },

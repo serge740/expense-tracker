@@ -8,7 +8,7 @@ import { ScheduledService } from './scheduled.service';
 import { ConfirmOccurrenceDto, CreateScheduledDto, UpdateScheduledDto } from './dto/scheduled.dto';
 
 /** An error that already carries a family `code` (not a member, forbidden…) goes out untouched. */
-const fail = (e: any, msg: string) => (e?.response?.code ? e : new HttpException(e?.message || msg, e?.status || 400));
+const fail = (e: any, _fallback?: string) => e;
 
 @Controller('scheduled')
 @UseGuards(ClientJwtAuthGuard, ScopeGuard)

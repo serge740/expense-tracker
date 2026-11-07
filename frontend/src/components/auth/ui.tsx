@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { friendlyMessage } from '@/utils/friendly-error';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, StatusBar, KeyboardAvoidingView, ScrollView,
   ActivityIndicator, Modal, FlatList, SafeAreaView, MaterialIcons, Clipboard, type TextInputProps,
@@ -256,10 +257,8 @@ export function FooterLink({ prompt, link, onPress }: { prompt: string; link: st
 
 export const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'));
 
-export function errorMessage(e: unknown, fallback = 'Please try again.'): string {
-  const err = e as { response?: { data?: { message?: string | string[] } }; message?: string };
-  const msg = err?.response?.data?.message ?? err?.message;
-  return Array.isArray(msg) ? msg.join('\n') : msg || fallback;
+export function errorMessage(e: unknown, fallback?: string): string {
+  return friendlyMessage(e, fallback);
 }
 
 const s = StyleSheet.create({

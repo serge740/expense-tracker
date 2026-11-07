@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(dashboard)/(settings)/devices.tsx
 import React, { useEffect, useState, useCallback } from 'react';
+import { plain, friendlyMessage } from '@/utils/friendly-error';
 import { View, StyleSheet, StatusBar, ScrollView, ActivityIndicator, TouchableOpacity, Alert, RefreshControl } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { useSettingsBack } from '@/hooks/use-settings-back';
@@ -57,7 +58,7 @@ export default function DevicesScreen() {
               await removeDevice(device.id);
               setDevices(prev => prev.filter(d => d.id !== device.id));
             } catch (e: any) {
-              Alert.alert('Error', e?.response?.data?.message || 'Could not remove device.');
+              Alert.alert(plain('ux.somethingWrong'), friendlyMessage(e, plain('ux.removeDeviceFailed')));
             } finally {
               setRemoving(null);
             }

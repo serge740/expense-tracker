@@ -50,11 +50,15 @@ describe('personal wallets (nothing changes for people without a family)', () =>
     expect(row).toMatchObject({ name: 'Renamed', balance: 5, clientId: 'grace', familyId: null, id: mine.id });
   });
 
-  test('deleting a personal wallet that has transactions still works, as before', async () => {
+  test('a personal wallet with transactions is archived, not deleted; one without can be deleted', async () => {
     const { w, personal } = await setup();
     const mine = await w.wallets.create(await personal('grace'), body('Mine'));
     w.db.tables.transaction.push({ id: 't1', clientId: 'grace', familyId: null, walletId: mine.id, type: 'EXPENSE', amount: 5, date: new Date() });
-    expect(await w.wallets.remove(await personal('grace'), mine.id)).toEqual({ success: true });
+    expect(await codeOf(w.wallets.remove(await personal('grace'), mine.id))).toBe('WALLET_HAS_HISTORY');
+    await w.wallets.update(await personal('grace'), mine.id, { archived: true } as any);
+    expect(w.db.tables.wallet.find(x => x.id === mine.id)!.archived).toBe(true);
+    const empty = await w.wallets.create(await personal('grace'), body('Empty'));
+    expect(await w.wallets.remove(await personal('grace'), empty.id)).toEqual({ success: true });
   });
 });
 

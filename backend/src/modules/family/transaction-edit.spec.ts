@@ -144,3 +144,32 @@ describe('editing a transaction', () => {
     expect(Number(w.db.tables.debt[0].spent)).toBe(4000);
   });
 });
+
+describe('creating a transaction is checked as strictly as editing one', () => {
+  test('bad requests are refused in words and change nothing', async () => {
+    const { w, owner, home, bal } = await setup();
+    const base = { type: 'EXPENSE', category: 'food', title: 'Lunch', amount: 100, walletId: home.id } as any;
+    const refuse = async (over: Record<string, unknown>, words: RegExp) => { await expect(w.transactions.create(owner, { ...base, ...over } as any)).rejects.toThrow(words); };
+    await refuse({ amount: 0 }, /greater than zero/);
+    await refuse({ amount: 'abc' }, /greater than zero/);
+    await refuse({ amount: NaN }, /greater than zero/);
+    await refuse({ amount: 1e12 }, /too large/);
+    await refuse({ type: 'TRANSFER' }, /spent or money you received/);
+    await refuse({ category: 'nope' }, /category/);
+    await refuse({ date: 'not a date' }, /valid date/);
+    await refuse({ date: new Date(Date.now() + 86_400_000).toISOString() }, /not in the future/);
+    w.db.tables.wallet.find(x => x.id === home.id)!.archived = true;
+    await refuse({}, /archived/);
+    expect(bal(home.id)).toBe(100000);
+    expect(w.db.tables.transaction).toHaveLength(0);
+  });
+
+  test('an empty title becomes the category name, a long one is cut, and the amount is rounded', async () => {
+    const { w, owner, home } = await setup();
+    await w.transactions.create(owner, { type: 'EXPENSE', category: 'food', title: '   ', amount: 10.456, walletId: home.id } as any);
+    await w.transactions.create(owner, { type: 'EXPENSE', category: 'food', title: 'x'.repeat(500), description: 'y'.repeat(5000), amount: 1, walletId: home.id } as any);
+    const [a, b] = w.db.tables.transaction;
+    expect([a.title, Number(a.amount)]).toEqual(['Food', 10.46]);
+    expect([String(b.title).length, String(b.description).length]).toEqual([200, 2000]);
+  });
+});

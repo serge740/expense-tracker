@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(dashboard)/(settings)/notifications.tsx
 import React, { useEffect, useState, useCallback } from 'react';
+import { plain, friendlyMessage } from '@/utils/friendly-error';
 import { View, StyleSheet, StatusBar, ScrollView, ActivityIndicator, TouchableOpacity, Switch, RefreshControl, Alert } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { router } from '@/router/router';
@@ -106,7 +107,7 @@ export default function NotificationsScreen() {
       setItems(prev => prev.map(n => ({ ...n, read: true })));
       setUnread(0);
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Could not mark all as read.');
+      Alert.alert(plain('ux.somethingWrong'), friendlyMessage(e, plain('ux.markReadFailed')));
     }
   };
 
@@ -119,7 +120,7 @@ export default function NotificationsScreen() {
       await updateNotificationPreferences({ [key]: value });
     } catch {
       setPrefs(prefs);
-      Alert.alert('Error', 'Could not update preference.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.prefFailed'));
     } finally {
       setSavingPref(false);
     }
@@ -128,9 +129,9 @@ export default function NotificationsScreen() {
   const handleTestPush = async () => {
     try {
       await sendTestPush('Test Notification', 'This is a test push notification from AX.');
-      Alert.alert('Sent', 'A test push notification has been sent to your devices.');
+      Alert.alert(plain('ux.testSentTitle'), plain('ux.testSent'));
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Could not send test notification.');
+      Alert.alert(plain('ux.somethingWrong'), friendlyMessage(e, plain('ux.testFailed')));
     }
   };
 

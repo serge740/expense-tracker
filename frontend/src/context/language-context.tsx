@@ -18,7 +18,7 @@ type Ctx = {
 };
 
 /** The saved choice, else the first supported language from the browser, else English. */
-function initialLanguage(): Language {
+export function initialLanguage(): Language {
   const saved = storage.get(STORAGE_KEY);
   if (saved && saved in STRINGS) return saved as Language;
   try {

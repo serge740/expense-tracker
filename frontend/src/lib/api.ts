@@ -5,6 +5,7 @@
 import axios, { type AxiosRequestConfig } from 'axios';
 import ENV from './env';
 import { storage } from './storage';
+import { friendlyize } from '@/utils/friendly-error';
 import { FAMILY_HEADER, clearScopeOnSessionLoss, familyHeaderFor, handleScopeError } from '@/utils/family-scope-link';
 
 export const ACCESS_TOKEN_KEY = 'client_access_token';
@@ -66,7 +67,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = storage.get(REFRESH_TOKEN_KEY);
         // Nothing to refresh with: pass the server's own answer on instead of hiding it.
-        if (!refreshToken) { drainQueue(error, null); return Promise.reject(error); }
+        if (!refreshToken) { drainQueue(error, null); friendlyize(error); return Promise.reject(error); }
 
         const { data } = await api.post<{ accessToken: string; refreshToken: string }>('/client-auth/refresh', { refreshToken });
         storage.set(ACCESS_TOKEN_KEY, data.accessToken);
@@ -80,11 +81,13 @@ api.interceptors.response.use(
         storage.remove(REFRESH_TOKEN_KEY);
         clearScopeOnSessionLoss();      // a saved family scope belongs to a login that no longer exists
         onSessionLost?.();
+        friendlyize(refreshErr);
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;
       }
     }
+    friendlyize(error);
     return Promise.reject(error);
   },
 );

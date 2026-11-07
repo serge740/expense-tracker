@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { AllExceptionsFilter } from './common/all-exceptions.filter';
 import { ScheduleModule } from '@nestjs/schedule';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { ClientAuthModule } from './modules/client-auth/client-auth.module';
@@ -56,6 +57,6 @@ import { DataExportModule } from './modules/data-export/data-export.module';
     DataExportModule,
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }, { provide: APP_FILTER, useClass: AllExceptionsFilter }],
 })
 export class AppModule {}

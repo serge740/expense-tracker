@@ -1,5 +1,6 @@
 // Ported from expo_app/utils/family-errors.ts
 import type { StringKey } from '@/i18n/strings';
+import { friendlyMessage } from '@/utils/friendly-error';
 
 /**
  * Every error code the family routes can answer (see backend/src/modules/family/family-errors.ts; a test compares the
@@ -44,6 +45,5 @@ export const isProgrammingError = (e: unknown): boolean => {
  */
 export function errorMessage(e: unknown, fallback: string, t: (key: any) => string): string {
   if (familyErrorCode(e)) return t(familyErrorKey(e));
-  const message = (e as { response?: { data?: { message?: unknown } } })?.response?.data?.message;
-  return typeof message === 'string' && message ? message : fallback;
+  return friendlyMessage(e, fallback);
 }

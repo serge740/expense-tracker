@@ -1,6 +1,7 @@
 // Ported from expo_app/components/image-viewer-modal.tsx
 // Pinch and pan use pointer events (touch, mouse and pen); the mouse wheel zooms too.
 import { useRef, useState } from 'react';
+import { plain } from '@/utils/friendly-error';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Clipboard, MaterialIcons } from '@/rn';
 import { downloadFromUrl, extensionOf } from '@/lib/download';
 
@@ -71,7 +72,7 @@ export function ImageViewerModal({ visible, uri, onClose }: Props) {
     try {
       await downloadFromUrl(uri, `receipt_${Date.now()}.${extensionOf(uri)}`);
     } catch {
-      Alert.alert('Error', 'Could not save the image.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.imageSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -82,9 +83,9 @@ export function ImageViewerModal({ visible, uri, onClose }: Props) {
     setCopying(true);
     try {
       await Clipboard.setStringAsync(uri);
-      Alert.alert('Copied', 'Image URL copied to clipboard.');
+      Alert.alert(plain('ux.copiedTitle'), plain('ux.copied'));
     } catch {
-      Alert.alert('Error', 'Could not copy the image URL.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.copyFailed'));
     } finally {
       setCopying(false);
     }

@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(dashboard)/transaction-detail.tsx
 import { setPendingUndo } from '@/utils/pending-undo';
+import { plain } from '@/utils/friendly-error';
 import React, { useCallback, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet, StatusBar, ScrollView, Image, Alert, ActivityIndicator } from '@/rn';
 import { SafeAreaView } from '@/rn';
@@ -83,7 +84,7 @@ export default function TransactionDetailScreen() {
     try {
       await downloadFromUrl(receiptUrl, `receipt_${Date.now()}.${extensionOf(receiptUrl)}`);
     } catch {
-      Alert.alert('Error', 'Could not save the receipt image.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.saveReceiptFailed'));
     } finally {
       setDownloading(false);
     }
@@ -95,7 +96,7 @@ export default function TransactionDetailScreen() {
     try {
       await downloadFromUrl(receiptReportUrl, `receipt-report-${Date.now()}.pdf`);
     } catch {
-      Alert.alert('Error', 'Could not download the report.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.reportFailed'));
     } finally {
       setDownloadingReport(false);
     }
@@ -116,7 +117,7 @@ export default function TransactionDetailScreen() {
               if (r.trashId) setPendingUndo({ message: tr('select.deleted', { n: 1 }), trashIds: [r.trashId] });
               router.back();
             } catch (e: any) {
-              Alert.alert('Error', errorMessage(e, 'Could not delete transaction.', tr));
+              Alert.alert(plain('ux.somethingWrong'), errorMessage(e, plain('ux.deleteFailed'), tr));
               setDeleting(false);
             }
           },

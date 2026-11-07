@@ -32,7 +32,7 @@ function ScheduledScreen() {
   const manage = useScope().can('schedule.manage');
   const when = useWhen();
   const env: TextEnv = useMemo(() => ({ t, locale, language }), [t, locale, language]);
-  const { id: linkedId } = useLocalSearchParams<{ id?: string }>();
+  const { id: linkedId, status: linkedStatus } = useLocalSearchParams<{ id?: string; status?: string }>();
 
   const [list, setList] = useState<Scheduled[]>([]);
   const [ended, setEnded] = useState<Scheduled[]>([]);
@@ -43,7 +43,7 @@ function ScheduledScreen() {
   const [openId, setOpenId] = useState<string | null>(linkedId ?? null);
   const [confirming, setConfirming] = useState<ConfirmItem | null>(null);
   const [kind, setKind] = useState<KindFilter>('all');
-  const [status, setStatus] = useState<StatusFilter | null>(null);
+  const [status, setStatus] = useState<StatusFilter | null>(STATUS_ORDER.includes(linkedStatus as StatusFilter) ? (linkedStatus as StatusFilter) : null);
 
   const load = useCallback(async () => {
     try {

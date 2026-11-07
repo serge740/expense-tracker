@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(auth)/forgot-password.tsx
 import React, { useEffect, useRef, useState } from 'react';
+import { plain } from '@/utils/friendly-error';
 import { View, TextInput, TouchableOpacity, StyleSheet, Alert } from '@/rn';
 import { MaterialIcons } from '@/rn';
 import { router } from '@/router/router';
@@ -47,12 +48,12 @@ export default function ForgotPasswordScreen() {
 
   const run = async (fn: () => Promise<void>) => {
     setLoading(true);
-    try { await fn(); } catch (e) { Alert.alert('Something went wrong', errorMessage(e)); } finally { setLoading(false); }
+    try { await fn(); } catch (e) { Alert.alert(plain('ux.somethingWrong'), errorMessage(e)); } finally { setLoading(false); }
   };
 
   const sendCode = () => {
     if (!(mode === 'email' ? email.trim() : phone.trim())) {
-      Alert.alert('Required', `Please enter your ${mode === 'email' ? 'email' : 'phone number'}.`);
+      Alert.alert(plain('ux.required'), plain(mode === 'email' ? 'ux.enterEmail' : 'ux.enterPhone'));
       return;
     }
     return run(async () => {
@@ -66,7 +67,7 @@ export default function ForgotPasswordScreen() {
   };
 
   const confirmCode = () => {
-    if (otp.length !== OTP_LEN) return Alert.alert('Incomplete code', `Enter all ${OTP_LEN} digits.`);
+    if (otp.length !== OTP_LEN) return Alert.alert(plain('ux.incompleteCode'), plain('ux.enterDigits', { n: OTP_LEN }));
     return run(async () => {
       const { resetToken } = await verifyResetOtp(identifier(), otp);
       setToken(resetToken);
@@ -75,8 +76,8 @@ export default function ForgotPasswordScreen() {
   };
 
   const savePassword = () => {
-    if (password.length < 6) return Alert.alert('Weak password', 'Password must be at least 6 characters.');
-    if (password !== confirm) return Alert.alert('Passwords differ', 'Password and confirmation do not match.');
+    if (password.length < 6) return Alert.alert(plain('ux.weakPassword'), plain('ux.passwordShort'));
+    if (password !== confirm) return Alert.alert(plain('ux.passwordsDiffer'), plain('ux.passwordsMismatch'));
     return run(async () => {
       await resetPassword(resetToken, password);
       setStep('done');

@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(dashboard)/scan.tsx
 import React, { useState, useRef, useCallback } from 'react';
+import { plain, friendlyMessage } from '@/utils/friendly-error';
 import { View, TouchableOpacity, StyleSheet, StatusBar, Animated, Easing, Image, Alert, ScrollView, Dimensions } from '@/rn';
 import { Text } from '@/components/text';
 import { SafeAreaView } from '@/rn';
@@ -159,8 +160,7 @@ export default function ScanScreen() {
       .catch((e: any) => {
         clearStageTimers();
         stopScanLoop();
-        const msg = e?.response?.data?.message || e?.message || 'Could not analyze the receipt.';
-        Alert.alert('Analysis Failed', msg + '\n\nPlease retake the photo and try again.');
+        Alert.alert(plain('ux.analysisFailed'), friendlyMessage(e, plain('err.RECEIPT_FAILED')) + '\n\n' + plain('ux.retake'));
         resetToAligning();
       });
   };
@@ -182,7 +182,7 @@ export default function ScanScreen() {
       setCapturedUri(photo.uri);
       beginAnalysis(photo.uri);
     } catch {
-      Alert.alert('Error', 'Failed to capture. Please try again.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.captureFailed'));
       resetToAligning();
     }
   };
@@ -190,7 +190,7 @@ export default function ScanScreen() {
   const handleGallery = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Allow access to your photo library.');
+      Alert.alert(plain('ux.photoPermissionTitle'), plain('ux.photoPermission'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });

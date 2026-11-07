@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RemindersService } from '../reminders/reminders.service';
 import { isValidTimeZone } from '../reminders/reminder-policy';
 import { DebtPlanService, planInputOf } from './debt-plan.service';
+import { retryOnConflict } from '../transaction/transaction.service';
 import { normalizePlanRule, planChanges, planProblem } from './debt-plan';
 import {
   buildLedger, capitalNoun, CLOSED_STATUSES, DebtKindName, directionFor, nounOf, remainingOf, roleFor, rolesOf, round2, statusFor,
@@ -369,7 +370,10 @@ export class DebtsService {
     assertScopeCan(scope, 'debt.manage');
     const amount = Number(dto.amount);
     const kind = this.kindOf(dto.kind);
-    if (!dto.person?.trim()) throw new BadRequestException('Enter who the money is with');
+    if (!dto.person?.trim()) throw new BadRequestException('Enter who the money is with.');
+    if (dto.person.trim().length > 80) throw new BadRequestException('Keep the name to 80 characters or fewer.');
+    if (dto.note && String(dto.note).length > 1000) throw new BadRequestException('Keep the note to 1,000 characters or fewer.');
+    if (dto.currency && !/^[A-Za-z]{3}$/.test(String(dto.currency).trim())) throw new BadRequestException('Choose a valid currency.');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Enter an amount greater than zero');
 
     // A debt never uses one of my wallets (an old app may still send one: it is ignored).
@@ -387,7 +391,7 @@ export class DebtsService {
     const wantsPlan = kind === 'BORROWED' && (dto.planAmount != null || dto.planRepeat != null);
     const plan = wantsPlan ? await this.readPlan(scope, { amount: dto.planAmount, rule: dto.planRepeat, startAt: dto.dueDate, timezone: dto.planTimezone }, amount) : null;
 
-    const debt = await this.prisma.$transaction(async prx => {
+    const debt = await retryOnConflict(() => this.prisma.$transaction(async prx => {
       const d = await prx.debt.create({
         data: {
           ...scopeData(scope), kind, person, phone: dto.phone?.trim() || null, amount, currency, date,
@@ -410,7 +414,7 @@ export class DebtsService {
       });
       await prx.debt.update({ where: { id: d.id }, data: { principalTransactionId } });
       return d;
-    });
+    }));
     await this.log(scope, 'debt.created', debt, amount, [{ field: 'kind', from: null, to: kind }]);
     return this.finish(scope, debt.id);
   }
@@ -512,7 +516,7 @@ export class DebtsService {
     const receiptUrl = clean(dto.receiptUrl);
     const receiptReportUrl = receiptUrl ? clean(dto.receiptReportUrl) : null;
 
-    const result = await this.prisma.$transaction(async prx => {
+    const result = await retryOnConflict(() => this.prisma.$transaction(async prx => {
       // Always recorded: repaying what I borrowed is money out, being repaid is money in.
       const transactionId = await this.move(prx, scope, {
         debtId: d.id, walletId: walletId ?? null, amount, date, note: dto.note, receiptUrl, receiptReportUrl, fundedByDebtId: potId,
@@ -526,7 +530,7 @@ export class DebtsService {
       // Money taken from a loan's pot counts as spent from it.
       if (potId) await prx.debt.update({ where: { id: potId }, data: { spent: { increment: amount } } });
       return this.recompute(prx, d.id);
-    });
+    }));
 
     if (result.status === 'SETTLED' && result.previous === 'OPEN') {
       for (const to of await this.managersOf(scope, d.clientId)) {

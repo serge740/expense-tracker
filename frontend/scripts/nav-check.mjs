@@ -181,6 +181,20 @@ try {
     return await seen('leaves loans and debts out');
   })(), await path());
   check('the Reports shortcut opens Reports', (await byId('shortcut-reports')) && (await until("location.pathname.endsWith('/reports')")), await path());
+  check('Home shows a Missed reminders card with the count, and it opens the Scheduled page on Missed', await (async () => {
+    await send('Page.navigate', { url: origin + '/app?mock=1' });
+    for (let n = 0; n < 4 && !(await ev("!!document.querySelector('[data-testid=missed-card]')")); n++) await sleep(1500);
+    if (!(await ev("!!document.querySelector('[data-testid=missed-card]')"))) return false;
+    if (!(await byId('missed-card'))) return false;
+    return (await until("location.pathname.endsWith('/scheduled')")) && (await until("!!document.querySelector('[data-testid=status-overdue]')"))
+      && (await ev("document.querySelector('[data-testid=status-overdue]').textContent.includes('Missed')"));
+  })(), await path());
+  check('History has a Missed chip that lists the missed reminders', await (async () => {
+    await send('Page.navigate', { url: origin + '/app/history?mock=1' });
+    for (let n = 0; n < 4 && !(await ev("!!document.querySelector('[data-testid=chip-missed]')")); n++) await sleep(1500);
+    if (!(await byId('chip-missed'))) return false;
+    return await until("document.querySelectorAll('[data-testid=missed-row]').length >= 1");
+  })(), await path());
   check('Plan a schedule: Rent opens the Add form with the category sheet on its sub-categories', await (async () => {
     await send('Page.navigate', { url: origin + '/app?mock=1' });
     for (let n = 0; n < 4 && !(await ev("!!document.querySelector('[data-testid=plan-rent]')")); n++) await sleep(1500);

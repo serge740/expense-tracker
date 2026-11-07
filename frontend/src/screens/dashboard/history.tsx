@@ -21,6 +21,7 @@ import { HistoryRow, clock } from '@/components/history/history-row';
 import { PeekSheet, ResultSheet, SelectBar, Snackbar, SwipeRow, type PeekAction } from '@/components/history/history-select';
 import { takePendingUndo } from '@/utils/pending-undo';
 import { DayHeader, GroupHeader, StatementCard, KindChips, ListFooter, OfflineBanner, SkeletonRows, StateBlock, SummaryCard, WalletStrip, type SummaryTab } from '@/components/history/history-parts';
+import { MissedFilter, useMissed } from '@/components/missed/missed';
 import { ActiveBar, SearchPanel, SortSheet, UpcomingSection } from '@/components/history/history-extras';
 import { FilterSheet } from '@/components/history/filter-sheet';
 import { useFamilyNudge } from '@/utils/family-nudge';
@@ -61,6 +62,7 @@ export default function HistoryScreen() {
   const { t, locale } = useI18n();
   const scope = useScope();
   const isFamily = scope.isFamily;
+  const missed = useMissed(!scope.isFamily);
   const { currency } = useCurrency();
   const fallback = currency.code;
   const { prefs, setPref } = usePreferences();
@@ -513,6 +515,7 @@ export default function HistoryScreen() {
                              onTransfer={() => router.push({ pathname: '/(dashboard)/transfer', params: { mode: 'transfer', from: oneWallet } } as any)} />
             ) : null}
             <ViewSwitch value={viewMode} onChange={setViewMode} />
+            {isFamily ? null : <MissedFilter items={missed} hidden={hidden} />}
             <KindChips kinds={kinds} isOn={k => isKindOn(filter, k)} onChange={k => setCore(c => (isKindOn(c, k) && c.kinds.length === 1 ? setKind(c, 'all') : setKind(c, k)))} includeLoans={core.includeLoans} onToggleLoans={toggleLoans} showLoans={!isFamily} />
             <ActiveBar filter={filter} chips={chips} wallets={wallets} members={members} scheduleNames={scheduleNames} onRemove={c => setCore(f => removeChip(f, c))} onClear={() => { setCore(c => clearFilter(c)); setQuery(''); setSearch(''); }} onOpen={() => setSheet('filter')} />
             {isFamily ? <View style={{ paddingTop: 6 }}><MemberFilter members={members} value={core.memberId} onChange={id => patch({ memberId: id })} /></View> : null}

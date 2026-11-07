@@ -25,7 +25,8 @@ describe('PersonalOnlyGuard', () => {
 const MODULES = join(__dirname, '..', '..');
 const SCOPED = ['wallet', 'transaction', 'budget', 'reports', 'home', 'activity', 'scheduled', 'debts'];                   // use ScopeGuard
 const PERSONAL_ONLY = ['reminders'];                                // use PersonalOnlyGuard
-const PER_PERSON = ['notifications', 'devices', 'subcategories', 'receipts', 'client-auth', 'passkey', 'web-push', 'family', 'health', 'well-known'];
+// data-export and it-support-auth are the IT support admin tool: a separate sign-in, never a person's family request.
+const PER_PERSON = ['data-export', 'it-support-auth', 'notifications', 'devices', 'subcategories', 'receipts', 'client-auth', 'passkey', 'web-push', 'family', 'health', 'well-known'];
 
 function controllers(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {

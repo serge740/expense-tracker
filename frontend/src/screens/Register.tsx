@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { plain } from '@/utils/friendly-error';
 import { Alert } from '@/rn';
 import { router } from '@/router/router';
 import { registerClient } from '@/services/client-auth.service';
@@ -27,13 +28,13 @@ export default function Register() {
   const handleRegister = async () => {
     const name = fullName.trim().replace(/\s+/g, ' ');
     if (!name || !email.trim() || !phone.trim() || !password) {
-      Alert.alert('Missing details', 'Please fill in all fields.');
+      Alert.alert(plain('ux.missingDetails'), plain('ux.fillAll'));
       return;
     }
-    if (!EMAIL_RE.test(email.trim())) return Alert.alert('Invalid email', 'Please enter a valid email address.');
-    if (phone.replace(/\D/g, '').length < 6) return Alert.alert('Invalid phone', 'Please enter a valid phone number.');
-    if (password.length < 6) return Alert.alert('Weak password', 'Password must be at least 6 characters.');
-    if (password !== confirm) return Alert.alert('Passwords differ', 'Password and confirmation do not match.');
+    if (!EMAIL_RE.test(email.trim())) return Alert.alert(plain('ux.invalidEmail'), plain('ux.validEmail'));
+    if (phone.replace(/\D/g, '').length < 6) return Alert.alert(plain('ux.invalidPhone'), plain('ux.validPhone'));
+    if (password.length < 6) return Alert.alert(plain('ux.weakPassword'), plain('ux.passwordShort'));
+    if (password !== confirm) return Alert.alert(plain('ux.passwordsDiffer'), plain('ux.passwordsMismatch'));
 
     const [firstName, ...rest] = name.split(' ');
     setLoading('form');
@@ -41,7 +42,7 @@ export default function Register() {
       await registerClient({ firstName, lastName: rest.join(' ') || undefined, email: email.trim().toLowerCase(), phone: fullPhone(), password });
       router.replace('/(dashboard)');
     } catch (e) {
-      Alert.alert('Registration failed', errorMessage(e));
+      Alert.alert(plain('ux.registerFailed'), errorMessage(e));
     } finally {
       setLoading(null);
     }
@@ -52,7 +53,7 @@ export default function Register() {
     try {
       if (await signInWith(kind, phone.trim() ? fullPhone() : undefined)) router.replace('/(dashboard)');
     } catch (e) {
-      Alert.alert('Google sign-up failed', errorMessage(e));
+      Alert.alert(plain('ux.googleSignupFailed'), errorMessage(e));
     } finally {
       setLoading(null);
     }

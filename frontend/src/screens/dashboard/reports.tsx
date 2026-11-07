@@ -1,5 +1,6 @@
 // Ported from expo_app/app/(dashboard)/reports.tsx
 import React, { useCallback, useEffect, useState } from 'react';
+import { plain } from '@/utils/friendly-error';
 import { View, ScrollView, TouchableOpacity, StyleSheet, StatusBar, ActivityIndicator, RefreshControl, Modal, Alert } from '@/rn';
 import { SafeAreaView } from '@/rn';
 import { MaterialIcons } from '@/rn';
@@ -136,7 +137,7 @@ export default function ReportsScreen() {
       setAdvice(result);
     } catch {
       setShowAdvice(false);
-      Alert.alert('Error', 'Could not generate insights. Please try again.');
+      Alert.alert(plain('ux.somethingWrong'), plain('ux.insights'));
     } finally {
       setLoadingAdvice(false);
     }

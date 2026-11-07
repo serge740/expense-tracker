@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { plain } from '@/utils/friendly-error';
 import { Text, TouchableOpacity, StyleSheet, Alert, MaterialIcons } from '@/rn';
 import { router } from '@/router/router';
 import { loginClient } from '@/services/client-auth.service';
@@ -24,7 +25,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!(mode === 'email' ? email.trim() : phone.trim()) || !password) {
-      Alert.alert('Missing details', `Please enter your ${mode === 'email' ? 'email' : 'phone number'} and password.`);
+      Alert.alert(plain('ux.missingDetails'), plain(mode === 'email' ? 'ux.enterEmailPassword' : 'ux.enterPhonePassword'));
       return;
     }
     setLoading('form');
@@ -32,7 +33,7 @@ export default function Login() {
       await loginClient(identifier(), password);
       router.replace('/(dashboard)');
     } catch (e) {
-      Alert.alert('Login failed', errorMessage(e));
+      Alert.alert(plain('ux.loginFailed'), errorMessage(e));
     } finally {
       setLoading(null);
     }
@@ -44,7 +45,7 @@ export default function Login() {
       await loginWithPasskey();
       router.replace('/(dashboard)');
     } catch (e) {
-      Alert.alert('Passkey sign-in failed', errorMessage(e));
+      Alert.alert(plain('ux.passkeyFailed'), errorMessage(e));
     } finally {
       setLoading(null);
     }
@@ -55,7 +56,7 @@ export default function Login() {
     try {
       if (await signInWith(kind)) router.replace('/(dashboard)');
     } catch (e) {
-      Alert.alert('Google sign-in failed', errorMessage(e));
+      Alert.alert(plain('ux.googleFailed'), errorMessage(e));
     } finally {
       setLoading(null);
     }

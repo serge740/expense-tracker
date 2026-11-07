@@ -10,6 +10,7 @@ import { IosInstallGuideHost } from '@/components/pwa/ios-install-guide';
 import { CustomTabBar } from '@/components/custom-tab-bar';
 import { ScopeProvider } from '@/context/scope-context';
 import { ScopedOutlet } from '@/components/family/scoped-outlet';
+import { NetworkNotice } from '@/components/network-notice';
 import { UpdateBanner } from '@/components/update-banner';
 import { ReminderModalHost } from '@/components/reminders/reminder-host';
 import { useReminderPrefsSync } from '@/hooks/use-reminder-prefs-sync';
@@ -49,6 +50,7 @@ export default function DashboardLayout() {
           <InstallPrompt />
           <IosInstallGuideHost />
           <UpdateBanner />
+          <NetworkNotice />
         </SoundProvider>
       </NotificationProvider>
     </PushProvider>

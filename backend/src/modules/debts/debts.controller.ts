@@ -9,7 +9,7 @@ import { buildDebtStatementPdf } from './debt-statement-pdf';
 import { CreateDebtDto, DebtPaymentDto, InstallmentDto, UpdateDebtDto } from './dto/debt.dto';
 
 /** An error that already carries a family `code` (not a member, forbidden…) goes out untouched. */
-const fail = (e: any, msg: string) => (e?.response?.code ? e : new HttpException(e?.message || msg, e?.status || 400));
+const fail = (e: any, _fallback?: string) => e;
 
 @Controller('debts')
 @UseGuards(ClientJwtAuthGuard, ScopeGuard)

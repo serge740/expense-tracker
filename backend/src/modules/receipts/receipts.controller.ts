@@ -26,7 +26,7 @@ export class ReceiptsController {
       return await this.receiptsService.process(file.buffer, file.mimetype, file.originalname);
     } catch (e: any) {
       if (e instanceof HttpException) throw e;
-      throw new HttpException(e.message || 'Receipt processing failed', 500);
+      throw new HttpException({ statusCode: 502, message: 'That receipt was hard to read, and that is okay. Try a clearer photo, or just type the details yourself.', code: 'RECEIPT_FAILED' }, 502);
     }
   }
 }

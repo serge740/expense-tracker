@@ -1,5 +1,6 @@
 // Ported from expo_app/components/budget-modal.tsx
 import React, { useState } from 'react';
+import { plain, friendlyMessage } from '@/utils/friendly-error';
 import { Modal, View, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from '@/rn';
 import { Text } from '@/components/text';
 import { MaterialIcons } from '@/rn';
@@ -29,7 +30,7 @@ export function BudgetModal({ visible, currentLimit, onClose, onSaved }: Props) 
   const handleSave = async () => {
     const val = parseFloat(limit);
     if (!limit || isNaN(val) || val <= 0) {
-      Alert.alert('Invalid Amount', 'Please enter a budget limit greater than 0.');
+      Alert.alert(plain('ux.budgetAmountTitle'), plain('ux.budgetAmount'));
       return;
     }
     setSaving(true);
@@ -37,7 +38,7 @@ export function BudgetModal({ visible, currentLimit, onClose, onSaved }: Props) 
       await upsertBudget({ limit: val });
       onSaved();
     } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message || 'Could not save budget.');
+      Alert.alert(plain('ux.somethingWrong'), friendlyMessage(e, plain('ux.budgetFailed')));
     } finally {
       setSaving(false);
     }

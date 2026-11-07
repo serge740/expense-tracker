@@ -7,7 +7,7 @@ import { CategorySlug, Prisma, TransactionType } from '../../../generated/prisma
 import { NotificationsService } from '../notifications/notifications.service';
 import { NO_DEBT_FLOWS, parseIncludeLoans } from '../../common/utils/loan-filter';
 import { parseView, viewFilter } from '../../common/utils/feed-view';
-import { canonicalCategory, normalizeSubCategory } from '../../common/utils/categories';
+import { canonicalCategory, labelOf, normalizeSubCategory } from '../../common/utils/categories';
 import { rememberSubCategory } from '../../common/utils/subcategory';
 import { Scope, assertCanEditTransaction, assertScopeCan, isFamily, personalScope, scopeData, scopeKeyOf, scopeWhere } from '../family/scope/scope';
 import { displayName } from '../family/family.service';
@@ -166,11 +166,21 @@ export class TransactionService {
     const scope = typeof who === 'string' ? personalScope(who) : who;
     const clientId = scope.clientId;
     assertScopeCan(scope, 'tx.add');
-    const amount = Math.abs(dto.amount);
+    if (dto.type !== 'INCOME' && dto.type !== 'EXPENSE') throw new BadRequestException('Choose whether this is money you spent or money you received.');
+    const n = Math.abs(Number(dto.amount));
+    if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Enter an amount greater than zero.');
+    if (n > 9_999_999_999) throw new BadRequestException('That amount is too large.');
+    const amount = Math.round(n * 100) / 100;
     const date = dto.date ? new Date(dto.date) : new Date();
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Choose a valid date.');
+    // The balance moves now, so a day still to come belongs in a schedule (a scheduled post is never ahead of now).
+    if (!extra.scheduledOccurrenceId && date.getTime() > Date.now() + 5 * 60_000) throw new BadRequestException('Choose a date that is not in the future. Use a schedule for payments that are still to come.');
     // An older app may still send a retired category: it becomes the new one (groceries -> Food, "Groceries").
     const canon = canonicalCategory(dto.category);
+    if (!(Object.values(CategorySlug) as string[]).includes(canon.category)) throw new BadRequestException('Choose a category.');
     const category = canon.category as CategorySlug;
+    const title = (typeof dto.title === 'string' ? dto.title.trim() : '').slice(0, 200) || labelOf(category);
+    const description = typeof dto.description === 'string' ? dto.description.trim().slice(0, 2000) || undefined : undefined;
     const subCategory = normalizeSubCategory(dto.subCategory) ?? canon.subCategory ?? null;
     if (dto.fundedByDebtId) {
       if (isFamily(scope)) throw errors.personalOnly();            // loans stay personal
@@ -184,7 +194,11 @@ export class TransactionService {
       await prx.debt.update({ where: { id: debt.id }, data: { spent: { increment: amount } } });
     }
     // The wallet must be one of this scope's own: never trust an id from the request (it could be someone else's, or a family's).
-    if (dto.walletId) await this.assertWalletInScope(prx, scope, dto.walletId);
+    if (dto.walletId) {
+      await this.assertWalletInScope(prx, scope, dto.walletId);
+      const target = await prx.wallet.findUnique({ where: { id: dto.walletId }, select: { archived: true } });
+      if (target?.archived) throw new BadRequestException('That wallet is archived, so nothing new can be added to it. Choose another wallet.');
+    }
     // The wallet is changed BEFORE the row is inserted. Inserting first makes MySQL hold a shared lock on the wallet (the
     // foreign key) and then ask for an exclusive one, so two people adding at once deadlock. Taking the exclusive lock first
     // makes them simply queue.
@@ -200,9 +214,9 @@ export class TransactionService {
         ...scopeData(scope),
         type: dto.type,
         category,
-        title: dto.title,
+        title,
         subCategory,
-        description: dto.description,
+        description,
         amount,
         date,
         walletId: dto.walletId,

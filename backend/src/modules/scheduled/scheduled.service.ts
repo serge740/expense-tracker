@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CategorySlug, Prisma, ScheduledTransaction } from '../../../generated/prisma';
-import { TransactionService } from '../transaction/transaction.service';
+import { TransactionService, retryOnConflict } from '../transaction/transaction.service';
 import { CreateTransactionDto } from '../transaction/dto/create-transaction.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RemindersService } from '../reminders/reminders.service';
@@ -412,7 +412,7 @@ export class ScheduledService implements OnModuleInit {
 
     let tx;
     try {
-      tx = await this.prisma.$transaction(async prx => {
+      tx = await retryOnConflict(() => this.prisma.$transaction(async prx => {
         const claimed = await prx.scheduledOccurrence.updateMany({
           where: { id: occ.id, status: { in: ['PENDING', 'FAILED'] } },
           data: { status: 'POSTED', handledAt: now, failReason: null },
@@ -426,7 +426,7 @@ export class ScheduledService implements OnModuleInit {
         const created = await this.transactions.createInTx(prx, scope, dto, { scheduledOccurrenceId: occ.id });
         await prx.scheduledOccurrence.update({ where: { id: occ.id }, data: { transactionId: created.id } });
         return created;
-      });
+      }));
     } catch (e: any) {
       if (e?.code === 'P2002') throw new Failure(ALREADY);   // the unique index caught a second post
       throw e;

@@ -19,6 +19,7 @@ import { getCurrentBudget, BudgetStatus } from '@/services/budget.service';
 import { getHomeSummary, AttentionItem, HomeSummary } from '@/services/home.service';
 import { ToneChip } from '@/components/debt/tone-chip';
 import { PushBanner } from '@/components/push/prompts';
+import { MissedCard, useMissed } from '@/components/missed/missed';
 import { DebtCreditCards, FeedChips, NeedsAttention, NetWorthRows } from '@/components/home/home-sections';
 import { PeriodPill, PeriodSheet, usePeriodLabel } from '@/components/home/period-sheet';
 import { PlanCard, ScheduleCard } from '@/components/home/schedule-cards';
@@ -51,6 +52,7 @@ export default function HomeScreen() {
   const { prefs, setPref } = usePreferences();
   const scope = useScope();
   const isFamily = scope.isFamily;
+  const missed = useMissed(!isFamily);
   // Small phones (320-360 wide): the big numbers shrink to fit their box and the quick actions stack.
   const { width: screenW } = useWindowDimensions();
   const compact = screenW < 380;
@@ -303,6 +305,7 @@ export default function HomeScreen() {
         {/* ── Debts, credits, scheduled, what needs you, net worth ── */}
         {showDebtSection && summary && (
           <FadeInView delay={150} slideFrom="bottom" distance={16}>
+            {isFamily ? null : <MissedCard items={missed} />}
             <View style={s.sectionRow}>
               <Text style={[s.sectionTitle, { color: theme.text }]}>{tr('home.debtsCredits')}</Text>
               <TouchableOpacity onPress={() => router.push('/(dashboard)/debts' as any)} activeOpacity={0.7}>

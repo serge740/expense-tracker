@@ -11,9 +11,8 @@ import { ReqScope, ScopeGuard } from '../family/scope/scope.guard';
 import { Scope } from '../family/scope/scope';
 
 /** An error that already carries a family `code` (not a member, wrong scope, forbidden…) goes out untouched. */
-const coded = (e: any) => (e?.response?.code ? e : null);
-const fail = (e: any, msg: string) => coded(e) ?? new HttpException(e?.message || msg, e?.status || 400);
-const bad = (e: any, msg: string) => coded(e) ?? new HttpException(e?.message || msg, 400);
+const fail = (e: any, _fallback?: string) => e;
+const bad = (e: any, _fallback?: string) => e;
 
 @Controller('wallets')
 @UseGuards(ClientJwtAuthGuard, ScopeGuard)

@@ -5,6 +5,7 @@ import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
 import { TransferDto } from './dto/transfer.dto';
 import { ReconcileDto } from './dto/reconcile.dto';
+import { cleanWalletInput } from './wallet-input';
 import { ExchangeRateService } from './exchange-rate.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Scope, assertScopeCan, isFamily, scopeCan, scopeData, scopeWhere } from '../family/scope/scope';
@@ -234,7 +235,7 @@ export class WalletService {
     let rate = 1;
     if (from.currency !== to.currency) {
       const manual = dto.rate !== undefined ? Number(dto.rate) : undefined;
-      if (manual !== undefined && (!Number.isFinite(manual) || manual <= 0)) throw new BadRequestException('Invalid exchange rate');
+      if (manual !== undefined && (!Number.isFinite(manual) || manual <= 0)) throw new BadRequestException('Enter a valid exchange rate.');
       const live = manual ?? (await this.fx.rate(from.currency, to.currency));
       if (!live) throw new BadRequestException(`No exchange rate for ${from.currency} → ${to.currency}. Enter one manually.`);
       rate = live;
@@ -309,20 +310,20 @@ export class WalletService {
 
   async create(scope: Scope, dto: CreateWalletDto) {
     assertScopeCan(scope, 'wallet.manage');
+    const c = cleanWalletInput(dto, 'create');
     const count = await this.prisma.wallet.count({ where: scopeWhere(scope) });
     const wallet = await this.prisma.wallet.create({
       data: {
         ...scopeData(scope),
-        name: dto.name,
-        bank: dto.bank,
-        accountHolder: dto.accountHolder?.trim() || null,
-        accountNumber: dto.accountNumber?.replace(/\s+/g, '') || null,
-        // Last 4 digits shown on cards come from the account / phone number.
-        last4: dto.last4 ?? (dto.accountNumber ? dto.accountNumber.replace(/\D/g, '').slice(-4) || null : null),
-        color: dto.color ?? '#0F2F3A', // dark green card (app default theme)
-        walletType: dto.walletType ?? 'CHECKING',
-        balance: dto.balance ?? 0,
-        currency: (dto.currency ?? 'RWF').toUpperCase(),
+        name: c.name!,
+        bank: c.bank!,
+        accountHolder: c.accountHolder ?? null,
+        accountNumber: c.accountNumber ?? null,
+        last4: c.last4 ?? null,
+        color: c.color ?? '#0F2F3A', // dark green card (app default theme)
+        walletType: c.walletType ?? 'CHECKING',
+        balance: c.balance ?? 0,
+        currency: c.currency ?? 'RWF',
         isDefault: count === 0,      // the first wallet of this scope (personal, or this family) is its default
       },
     });
@@ -335,18 +336,7 @@ export class WalletService {
     const before = await this.assertInScope(scope, id);
     // Changing currency relabels the balance (no conversion) — used to correct
     // wallets created before currencies existed. The app warns before saving.
-    const body = (dto ?? {}) as Record<string, unknown>;
-    const picked: Record<string, unknown> = {};
-    for (const k of UPDATABLE) if (body[k] !== undefined) picked[k] = body[k];
-    const data = {
-      ...picked,
-      ...(dto.currency ? { currency: dto.currency.toUpperCase() } : {}),
-      ...(dto.accountNumber !== undefined ? {
-        accountNumber: dto.accountNumber.replace(/\s+/g, '') || null,
-        last4: dto.accountNumber.replace(/\D/g, '').slice(-4) || null,
-      } : {}),
-      ...(dto.accountHolder !== undefined ? { accountHolder: dto.accountHolder.trim() || null } : {}),
-    };
+    const data = cleanWalletInput(dto, 'update');
     const wallet = await this.prisma.wallet.update({ where: { id }, data });
     await recordActivity(this.prisma, scope, { kind: 'wallet.edited', entity: 'wallet', entityId: id, title: wallet.name, currency: wallet.currency, changes: diffFields(before, wallet, ['name', 'bank', 'currency', 'walletType', 'color', 'archived', 'isDefault']) });
     return this.serialize(wallet, scope);
@@ -354,12 +344,11 @@ export class WalletService {
 
   async remove(scope: Scope, id: string) {
     const gone = await this.assertInScope(scope, id);
-    if (isFamily(scope)) {
-      // A family's history must not change under everyone's feet: only the owner deletes, and only an unused wallet.
-      assertScopeCan(scope, 'wallet.delete');
-      const used = await this.prisma.transaction.count({ where: { familyId: scope.familyId, OR: [{ walletId: id }, { toWalletId: id }] } });
-      if (used > 0) throw errors.walletHasHistory();
-    }
+    // A family's history must not change under everyone's feet: only the owner deletes it.
+    if (isFamily(scope)) assertScopeCan(scope, 'wallet.delete');
+    // A wallet with transactions is archived, not deleted, so past totals and statements stay right.
+    const used = await this.prisma.transaction.count({ where: { ...scopeWhere(scope), OR: [{ walletId: id }, { toWalletId: id }] } });
+    if (used > 0) throw errors.walletHasHistory();
     await this.prisma.wallet.delete({ where: { id } });
     await recordActivity(this.prisma, scope, { kind: 'wallet.deleted', entity: 'wallet', entityId: id, title: gone.name, currency: gone.currency });
     return { success: true };
